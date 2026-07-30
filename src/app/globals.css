@@ -1,0 +1,174 @@
+@import "tailwindcss";
+
+/* ===== 先马 AI 设计平台 · 设计令牌（UI 规范 V1.1）===== */
+
+:root {
+  /* Primitive tokens: raw palette values only. */
+  --blue-600: #2563EB;
+  --blue-700: #1D4ED8;
+  --blue-800: #1E40AF;
+  --blue-900: #0F2F6F;
+  --white: #FFFFFF;
+  --black-alpha-30: rgba(0, 0, 0, 0.30);
+  --blue-alpha-08: rgba(37, 99, 235, 0.08);
+  --blue-alpha-14: rgba(37, 99, 235, 0.14);
+  --blue-alpha-04: rgba(37, 99, 235, 0.04);
+  --blue-alpha-06: rgba(37, 99, 235, 0.06);
+  --slate-alpha-08: rgba(15, 23, 42, 0.08);
+  --slate-alpha-06: rgba(15, 23, 42, 0.06);
+  --slate-alpha-10: rgba(15, 23, 42, 0.10);
+  --workbench-shadow-rgb: 72, 102, 137;
+  --brand-primary:        var(--blue-600);
+  --brand-primary-hover:  var(--blue-700);
+  --brand-primary-active: var(--blue-800);
+  --brand-primary-deep:   var(--blue-900);
+  --brand-primary-soft:   var(--blue-alpha-08);
+  --brand-on-primary:     var(--white);
+
+  --gray-25:  #FCFCFD;
+  --gray-50:  #F7F8FA;
+  --gray-100: #F2F4F7;
+  --gray-200: #E4E7EC;
+  --gray-300: #D0D5DD;
+  --gray-400: #98A2B3;
+  --gray-500: #667085;
+  --gray-600: #475467;
+  --gray-700: #344054;
+  --gray-800: #1D2939;
+  --gray-900: #101828;
+
+  /* Semantic tokens: meaning and usage, not raw values. */
+  --text-title:     var(--gray-900);
+  --text-body:      var(--gray-700);
+  --text-secondary: var(--gray-500);
+  --text-disabled:  var(--gray-400);
+
+  --bg-body:      #F5F7FA;
+  --bg-workbench: linear-gradient(180deg, #f8fbff 0%, #eef4fb 52%, #f5f8fc 100%);
+  --bg-card:      #FFFFFF;
+  --bg-card-glass: rgba(255,255,255,.92);
+  --bg-sidebar:   #FFFFFF;
+  --bg-hover:     #F2F4F7;
+  --border-base:  #E4E7EC;
+  --border-light: #F2F4F7;
+
+  --success:    #16A34A;
+  --success-bg: #EAF8F1;
+  --warning:    #F59E0B;
+  --warning-bg: #FFF6E5;
+  --danger:     #DC2626;
+  --danger-bg:  #FEF3F2;
+  --info:       #0EA5E9;
+  --info-bg:    #EFF6FF;
+
+  --radius:  0.5rem;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-xl: 18px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --shadow-card:       0 16px 44px rgba(var(--workbench-shadow-rgb), 0.13);
+  --shadow-card-soft:  0 10px 24px rgba(37, 99, 235, 0.08);
+  --shadow-card-hover: 0 8px 24px var(--slate-alpha-10);
+  --shadow-control:    0 8px 18px var(--slate-alpha-06);
+
+  /* Component tokens: stable contracts for shared UI. */
+  --button-height-sm: 32px;
+  --button-height-md: 36px;
+  --button-height-lg: 40px;
+  --button-radius: 999px;
+  --input-height: 40px;
+  --focus-ring: 0 0 0 3px var(--blue-alpha-14);
+  --overlay-scrim: var(--black-alpha-30);
+  --page-max-width: none;
+  --z-sidebar: 40;
+  --z-topbar: 50;
+}
+
+@theme inline {
+  --color-primary:       var(--brand-primary);
+  --color-primary-hover: var(--brand-primary-hover);
+  --color-primary-soft:  var(--brand-primary-soft);
+  --color-primary-deep:  var(--brand-primary-deep);
+  --color-success:       var(--success);
+  --color-warning:       var(--warning);
+  --color-danger:        var(--danger);
+  --color-info:          var(--info);
+  --color-bg-body:       var(--bg-body);
+  --color-bg-card:       var(--bg-card);
+  --color-border:        var(--border-base);
+
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-xl: 18px;
+  --radius-pill: 999px;
+}
+
+body {
+  background: var(--bg-body);
+  color: var(--text-body);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.xm-workbench {
+  background:
+    radial-gradient(circle at 82% 4%, rgba(196, 247, 246, .55) 0, rgba(196, 247, 246, 0) 330px),
+    radial-gradient(circle at 26% 13%, rgba(217, 231, 255, .75) 0, rgba(217, 231, 255, 0) 390px),
+    var(--bg-workbench);
+}
+
+.xm-topline-card,
+.xm-panel {
+  border: 1px solid var(--border-base);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card-glass);
+  box-shadow: var(--shadow-card);
+}
+
+.xm-topline-card {
+  min-height: 58px;
+  padding: 10px 16px;
+}
+
+.xm-module {
+  border: 1px solid #e5edf6;
+  border-radius: 14px;
+  background: var(--white);
+  padding: 12px;
+}
+
+.xm-panel ::-webkit-scrollbar,
+.xm-workbench ::-webkit-scrollbar { width: 4px; height: 4px; }
+
+.xm-panel ::-webkit-scrollbar-thumb,
+.xm-workbench ::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 2px; }
+
+button, a, input, textarea, select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:where(button, a, input, textarea, select):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+:where(button, a)[aria-disabled="true"],
+:where(button, input, textarea, select):disabled {
+  cursor: not-allowed;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
