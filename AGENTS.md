@@ -46,6 +46,8 @@ Future code changes, bug fixes, and refactors should follow these rules unless a
 ## 5. GitHub / PR workflow
 
 - One PR should solve one coherent problem.
+- Each Git commit should include a concise summary of the actual update content.
+- When reporting a commit or GitHub push, briefly list the corresponding requirement points so the change purpose is easy to trace.
 - Review the final diff before merging.
 - Address review comments with code or evidence, not assumptions.
 - If a change is partial, document what remains.
