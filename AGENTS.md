@@ -7,6 +7,7 @@ Future code changes, bug fixes, and refactors should follow these rules unless a
 
 - Architecture and extension boundaries: `ARCHITECTURE.md`
 - UI tokens, component states, layout, and page status: `UI_SPEC.md`
+- Feature history, requirement decisions, and long-term project memory: `PROJECT_MEMORY.md`
 - Runtime token definitions: `src/app/globals.css`
 - Navigation and route metadata: `src/config/navigation.js`
 
@@ -113,3 +114,9 @@ This confirmation gate does not apply to clearly scoped bug fixes, read-only inv
 6. Do not create a new shared component or a new page framework until the user explicitly confirms it.
 7. Small page-local presentation structures that have no meaningful reuse value may remain local, but must still follow the existing UI specification.
 8. After implementation, verify UI consistency, responsive behavior, interaction states, and the checks required by this project.
+
+## 11. Project memory maintenance
+
+1. After completing a feature, requirement adjustment, shared-component change, or important fix, update `PROJECT_MEMORY.md`.
+2. Record the date, status, confirmed scope, key rules, and related files. Preserve previous decisions and append later changes instead of erasing history.
+3. Before GitHub synchronization, verify that the current work is represented in `PROJECT_MEMORY.md` and that related product or UI documents are updated when applicable.
