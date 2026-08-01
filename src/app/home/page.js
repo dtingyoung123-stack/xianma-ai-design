@@ -123,22 +123,22 @@ function QuickGrid() {
           全部工具 <ArrowRight size={14} />
         </Link>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 196px), 1fr))" }}>
         {quickCards.map((card) => (
           <Link key={card.key} href={card.href}
             className="bg-white rounded-xl border overflow-hidden flex flex-col transition-all duration-200 hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5 group"
             style={{ borderColor: "var(--border-base)" }}>
-            <div className="relative w-full aspect-[16/10]" style={{ background: "var(--gray-100)" }}>
+            <div className="relative w-full aspect-video" style={{ background: "var(--gray-100)" }}>
               <SafeImage src={card.img} alt={card.title} className="w-full h-full object-cover" />
               {card.badge && (
-                <span className="absolute right-3 bottom-3 h-6 px-2.5 rounded-full flex items-center text-[11px] font-semibold text-white backdrop-blur"
+                <span className="absolute right-2.5 bottom-2.5 h-5 px-2 rounded-full flex items-center text-[10px] font-semibold text-white backdrop-blur"
                   style={{ background: "var(--gray-900)" }}>
                   {card.badge}
                 </span>
               )}
             </div>
-            <div className="p-4 flex flex-col gap-1">
-              <div className="text-base font-semibold leading-6 group-hover:text-[var(--brand-primary)] transition-colors"
+            <div className="p-3 flex flex-col gap-0.5">
+              <div className="text-sm font-semibold leading-5 group-hover:text-[var(--brand-primary)] transition-colors"
                 style={{ color: "var(--text-title)" }}>{card.title}</div>
               <div className="text-xs leading-[18px]" style={{ color: "var(--text-secondary)" }}>{card.desc}</div>
             </div>

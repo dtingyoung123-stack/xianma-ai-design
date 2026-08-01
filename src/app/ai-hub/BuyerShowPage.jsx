@@ -6,10 +6,17 @@ import { X, Settings, Sparkles, Search, ChevronDown, RefreshCw, Download, Thumbs
 import SafeImage from "@/components/SafeImage"
 import ImageQueueModule from "@/components/workbench/ImageQueueModule"
 import AssetPickerModal from "@/components/workbench/AssetPickerModal"
+import { ColorConstraintChips } from "@/components/workbench/ColorConstraintPicker"
+import {
+  WorkbenchModelSelect,
+  WorkbenchParameterSelect,
+  WorkbenchToast,
+} from "@/components/workbench/WorkbenchControls"
 import {
   WorkbenchButton,
   WorkbenchEmpty,
   WorkbenchFooter,
+  WorkbenchHistoryAction,
   WorkbenchModule,
   WorkbenchPanel,
   WorkbenchPanelHead,
@@ -40,7 +47,6 @@ const statusStyles = {
 const clone = (x) => JSON.parse(JSON.stringify(x))
 let idCounter = 0
 const newId = (prefix) => `${prefix}-${Date.now()}-${idCounter++}`
-
 function downloadTextFile(content, filename, type = "text/plain;charset=utf-8") {
   const blob = new Blob([content], { type })
   const url = URL.createObjectURL(blob)
@@ -179,6 +185,7 @@ export default function BuyerShowPage() {
   const [categoryName, setCategoryName] = useState(null)
   const [sceneId, setSceneId] = useState(null)
   const [prompt, setPrompt] = useState("画面像手机随手拍，人物穿深色开衫，整体干净可信。")
+  const [colorConstraints, setColorConstraints] = useState([])
   const [model, setModel] = useState("Nano Banana 2")
   const [resolution, setResolution] = useState("2K")
   const [ratio, setRatio] = useState("4:3")
@@ -230,6 +237,24 @@ export default function BuyerShowPage() {
     setSceneId(cat?.scenes.length ? cat.scenes[0].id : null)
   }
   function pickScene(id) { setSceneId(id); showToast(`已带出「${category.scenes.find((s) => s.id === id)?.name}」的场景规则`) }
+
+  function addColorConstraint(hex, meta = {}) {
+    const copySuffix = meta.copied ? "，色值已复制" : ""
+    if (colorConstraints.some((item) => item.hex === hex)) {
+      showToast(`颜色 ${hex} 已添加${copySuffix}`)
+      return
+    }
+    if (colorConstraints.length >= 4) {
+      showToast(`最多添加 4 个颜色约束${copySuffix}`)
+      return
+    }
+    setColorConstraints((items) => [...items, { hex }])
+    showToast(`已吸取 ${hex}${copySuffix}`)
+  }
+
+  function removeColorConstraint(hex) {
+    setColorConstraints((items) => items.filter((item) => item.hex !== hex))
+  }
 
   function handleSubmit() {
     if (!productImages.length) { showToast("请先添加商品图片"); return }
@@ -360,7 +385,7 @@ export default function BuyerShowPage() {
       onOk: () => {
         clearInterval(timerRef.current)
         setGenerating(false); setGenLabel("")
-        setProductImages([]); setCategoryName(null); setSceneId(null); setPrompt("")
+        setProductImages([]); setCategoryName(null); setSceneId(null); setPrompt(""); setColorConstraints([])
         setModel("Nano Banana 2"); setResolution("2K"); setRatio("4:3"); setQuality("高画质"); setCount("4")
         setConfirm(null)
         showToast("已清空当前配置和选择")
@@ -386,7 +411,12 @@ export default function BuyerShowPage() {
       allCatNames={allCatNames} cats={cats} category={category} categoryName={categoryName} pickCategory={pickCategory}
       scene={scene} sceneId={sceneId} pickScene={pickScene} ruleSummary={ruleSummary}
       prompt={prompt} setPrompt={setPrompt} onPolish={() => setPolishOpen(true)}
+      colorConstraints={colorConstraints} onPickColor={addColorConstraint} onRemoveColor={removeColorConstraint}
       productImages={productImages} setProductImages={setProductImages} onLocalImages={addLocalImages}
+      onEditRegion={(index, regionEdit) => {
+        setProductImages((prev) => prev.map((image, imageIndex) => imageIndex === index ? { ...image, regionEdit } : image))
+        showToast("区域和文本标注已保存")
+      }}
       model={model} setModel={setModel} resolution={resolution} setResolution={setResolution}
       ratio={ratio} setRatio={setRatio} quality={quality} setQuality={setQuality} count={count} setCount={setCount}
       onSubmit={handleSubmit} onClear={handleClear} onCancelGeneration={cancelGeneration} onManage={() => setManageOpen(true)}
@@ -417,6 +447,7 @@ function BuyerShowView(p) {
       status="原型验证中"
       title="AI 买家秀"
       description="选商品、选场景，自动带出规则后直接生成一组买家秀图。"
+      actions={<WorkbenchHistoryAction source="buyer-show" sourceLabel="AI 买家秀" params={{ model: p.model, resolution: p.resolution, ratio: p.ratio, quality: p.quality, count: p.count, category: p.categoryName || "", scene: p.scene?.name || "" }} />}
       columns="minmax(360px, 3fr) minmax(0, 7fr)"
     >
         <ConfigPanel {...p} />
@@ -441,7 +472,7 @@ function BuyerShowView(p) {
       {p.polishOpen && <PolishModal prompt={p.prompt} onApply={(v) => { p.setPrompt(v); p.closePolish(); p.showToast("已应用润色结果") }} onClose={p.closePolish} />}
       {p.editContext && p.editResult && <ImageEditModal task={p.editContext} result={p.editResult} updateTask={p.updateTask} showToast={p.showToast} onClose={p.closeEdit} />}
       {p.confirm && <ConfirmModal text={p.confirm.text} onOk={p.confirm.onOk} onClose={() => p.setConfirm(null)} />}
-      {p.toast && <Toast msg={p.toast} />}
+      <WorkbenchToast message={p.toast} />
     </WorkbenchShell>
   )
 }
@@ -451,8 +482,6 @@ function ConfigPanel(p) {
   const [catOpen, setCatOpen] = useState(false)
   const [catSearch, setCatSearch] = useState("")
   const [showRule, setShowRule] = useState(false)
-  const [modelOpen, setModelOpen] = useState(false)
-  const [paramOpen, setParamOpen] = useState(false)
 
   const listCats = p.cats(p.activeLib).filter((c) => c.name.includes(catSearch))
   const paramSummary = `${p.resolution} · ${p.ratio} · ${p.quality} · ${p.count} 张`
@@ -468,6 +497,10 @@ function ConfigPanel(p) {
           onRemove={(index) => p.setProductImages((prev) => prev.filter((_, i) => i !== index))}
           onRefresh={p.replaceAsset}
           onReorder={p.setProductImages}
+          onEditRegion={p.onEditRegion}
+          onUnavailable={p.showToast}
+          onPreviewColorPick={p.onPickColor}
+          onPreviewNotify={p.showToast}
         />
 
         <Module title="场景" action={<button onClick={p.onManage} className="inline-flex items-center gap-1 text-xs px-2.5 h-7 rounded-md border transition-colors hover:border-[var(--brand-primary)]" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }}><Settings size={13} /> 管理</button>}>
@@ -533,13 +566,21 @@ function ConfigPanel(p) {
         <Module title="综合提示词" action={<button onClick={p.onPolish} className="inline-flex items-center gap-1 text-xs px-2.5 h-7 rounded-md transition-opacity hover:opacity-85" style={{ background: "var(--brand-primary-soft)", color: "var(--brand-primary)" }}><Sparkles size={13} /> AI 润色</button>}>
           <textarea value={p.prompt} onChange={(e) => p.setPrompt(e.target.value)} rows={3} placeholder="例如：画面像手机随手拍，人物穿深色开衫，整体干净可信。"
             className="w-full rounded-lg border p-3 text-sm outline-none resize-y" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }} />
+          <ColorConstraintChips colors={p.colorConstraints} onRemove={p.onRemoveColor} onNotify={p.showToast} />
         </Module>
 
         <Module title="生成参数">
           <div className="grid grid-cols-2 gap-3">
-            <ModelSelect open={modelOpen} setOpen={(v) => { setModelOpen(v); if (v) setParamOpen(false) }} model={p.model} setModel={p.setModel} />
-            <ParamSelect open={paramOpen} setOpen={(v) => { setParamOpen(v); if (v) setModelOpen(false) }} summary={paramSummary}
-              resolution={p.resolution} setResolution={p.setResolution} ratio={p.ratio} setRatio={p.setRatio} count={p.count} setCount={p.setCount} />
+            <WorkbenchModelSelect value={p.model} onChange={p.setModel} options={modelOptions} />
+            <WorkbenchParameterSelect
+              summary={paramSummary}
+              sections={[
+                { key: "resolution", label: "清晰度", value: p.resolution, options: resolutionOptions, onChange: p.setResolution },
+                { key: "quality", label: "画质", value: p.quality, options: ["标准画质", "高画质"], onChange: p.setQuality },
+                { key: "ratio", label: "图片尺寸", value: p.ratio, options: ratioOptions, onChange: p.setRatio, visual: "ratio" },
+                { key: "count", label: "图片张数", value: p.count, options: countOptions, onChange: p.setCount },
+              ]}
+            />
           </div>
         </Module>
       </WorkbenchScroll>
@@ -617,166 +658,6 @@ function SubLabel({ text, hint, className = "" }) {
   )
 }
 
-const ratioShapes = {
-  "智能比例": { w: 24, h: 32 }, "1:1": { w: 28, h: 28 }, "3:2": { w: 34, h: 24 }, "2:3": { w: 24, h: 34 },
-  "16:9": { w: 38, h: 24 }, "4:3": { w: 34, h: 28 }, "3:4": { w: 28, h: 34 }, "9:16": { w: 24, h: 38 },
-}
-
-function SelectTrigger({ open, onClick, label, value, triggerRef }) {
-  return (
-    <button ref={triggerRef} onClick={onClick} className="w-full h-[58px] px-3 border rounded-xl flex flex-col justify-center gap-0.5 text-left transition-colors bg-white hover:border-[var(--brand-primary)]" style={{ borderColor: open ? "var(--brand-primary)" : "var(--border-base)" }}>
-      <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{label}</span>
-      <strong className="text-[13px] truncate" style={{ color: "var(--text-title)" }}>{value}</strong>
-    </button>
-  )
-}
-
-function getPopoverPosition(triggerRef, preferredHeight) {
-  const rect = triggerRef.current?.getBoundingClientRect()
-  if (!rect) return null
-  const gutter = 16
-  const width = Math.min(520, Math.max(0, window.innerWidth - gutter * 2))
-  const maxHeight = Math.min(preferredHeight, Math.max(0, window.innerHeight - gutter * 2))
-  const left = Math.min(Math.max(gutter, rect.right - width), Math.max(gutter, window.innerWidth - width - gutter))
-  const belowTop = rect.bottom + 8
-  const aboveTop = rect.top - maxHeight - 8
-  const top = belowTop + maxHeight <= window.innerHeight - gutter
-    ? belowTop
-    : Math.max(gutter, aboveTop)
-  return { top, left, width, maxHeight }
-}
-
-function ModelSelect({ open, setOpen, model, setModel }) {
-  const triggerRef = useRef(null)
-  const [position, setPosition] = useState(null)
-
-  function toggleOpen() {
-    if (!open) {
-      setPosition(getPopoverPosition(triggerRef, 520))
-    }
-    setOpen(!open)
-  }
-
-  useEffect(() => {
-    if (!open) return undefined
-    const updatePosition = () => {
-      setPosition(getPopoverPosition(triggerRef, 520))
-    }
-    window.addEventListener("resize", updatePosition)
-    window.addEventListener("scroll", updatePosition, true)
-    return () => { window.removeEventListener("resize", updatePosition); window.removeEventListener("scroll", updatePosition, true) }
-  }, [open])
-
-  return (
-    <div className="relative">
-      <SelectTrigger triggerRef={triggerRef} open={open} onClick={toggleOpen} label="模型" value={model} />
-      {open && position && typeof document !== "undefined" && createPortal(
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="fixed z-50 overflow-y-auto bg-white border rounded-2xl shadow-lg p-3 space-y-2" style={{ ...position, borderColor: "var(--border-base)", boxShadow: "var(--shadow-card-hover)" }}>
-            <div className="flex justify-between text-xs px-1 mb-1" style={{ color: "var(--text-secondary)" }}>
-              <strong style={{ color: "var(--text-title)" }}>选择模型</strong><span>{modelOptions.length} 个选项</span>
-            </div>
-            <div className="max-h-[320px] overflow-y-auto space-y-2">
-              {modelOptions.map((m) => (
-                <button key={m.name} onClick={() => { setModel(m.name); setOpen(false) }}
-                  className="w-full flex items-center gap-3 p-3 border-2 rounded-xl text-left transition-colors"
-                  style={m.name === model ? { borderColor: "var(--brand-primary)", background: "var(--brand-primary-soft)" } : { borderColor: "var(--border-base)", background: "var(--white)" }}>
-                  <SafeImage src={m.icon} alt="" className="w-8 h-8 rounded-lg object-contain shrink-0 border p-0.5 bg-white" style={{ borderColor: "var(--border-light)" }} />
-                  <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                    <div className="flex items-center justify-between">
-                      <strong className="text-sm whitespace-nowrap" style={{ color: "var(--text-title)" }}>{m.name}</strong>
-                      <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded shrink-0 ml-2" style={{ background: "var(--warning-bg)", color: "var(--warning)" }}>{m.eta}</span>
-                    </div>
-                    <p className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>{m.desc}</p>
-                  </div>
-                  {m.name === model && <span className="text-xs font-semibold shrink-0" style={{ color: "var(--brand-primary)" }}>✓ 已选</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-        </>,
-        document.body,
-      )}
-    </div>
-  )
-}
-
-function SegRow({ title, children }) {
-  return (
-    <div>
-      <h4 className="text-sm font-semibold mb-2" style={{ color: "var(--text-title)" }}>{title}</h4>
-      {children}
-    </div>
-  )
-}
-
-function ParamSelect({ open, setOpen, summary, resolution, setResolution, ratio, setRatio, count, setCount }) {
-  const triggerRef = useRef(null)
-  const [position, setPosition] = useState(null)
-
-  function toggleOpen() {
-    if (!open) {
-      setPosition(getPopoverPosition(triggerRef, 620))
-    }
-    setOpen(!open)
-  }
-
-  useEffect(() => {
-    if (!open) return undefined
-    const updatePosition = () => {
-      setPosition(getPopoverPosition(triggerRef, 620))
-    }
-    window.addEventListener("resize", updatePosition)
-    window.addEventListener("scroll", updatePosition, true)
-    return () => { window.removeEventListener("resize", updatePosition); window.removeEventListener("scroll", updatePosition, true) }
-  }, [open])
-
-  return (
-    <div className="relative">
-      <SelectTrigger triggerRef={triggerRef} open={open} onClick={toggleOpen} label="参数" value={summary} />
-      {open && position && typeof document !== "undefined" && createPortal(
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="fixed z-50 p-3 border rounded-[18px] space-y-4 shadow-lg overflow-y-auto" style={{ ...position, background: "var(--white)", borderColor: "var(--border-base)", boxShadow: "var(--shadow-card-hover)" }}>
-            <SegRow title="清晰度">
-              <div className="grid grid-cols-3 gap-1.5 p-1.5 rounded-[14px]" style={{ background: "var(--gray-100)" }}>
-                {resolutionOptions.map((r) => (
-                  <button key={r} onClick={() => setResolution(r)} className="h-11 rounded-xl text-sm font-bold transition-all"
-                    style={resolution === r ? { background: "var(--white)", color: "var(--text-title)", boxShadow: "var(--shadow-card)" } : { color: "var(--text-secondary)" }}>{r}</button>
-                ))}
-              </div>
-            </SegRow>
-            <SegRow title="图片尺寸">
-              <div className="grid gap-2 p-1.5 rounded-[14px]" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(88px, 1fr))", background: "var(--gray-100)" }}>
-                {ratioOptions.map((r) => {
-                  const sp = ratioShapes[r] || { w: 28, h: 28 }
-                  return (
-                    <button key={r} onClick={() => setRatio(r)} className="min-h-[80px] flex flex-col items-center justify-center gap-2 rounded-xl transition-all"
-                      style={ratio === r ? { background: "var(--white)", boxShadow: "var(--shadow-card)", color: "var(--brand-primary)" } : { color: "var(--text-secondary)" }}>
-                      <span className="block border-2 rounded" style={{ width: sp.w, height: sp.h, borderColor: ratio === r ? "var(--brand-primary)" : "var(--gray-300)" }} />
-                      <span className="text-[13px] font-bold">{r}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </SegRow>
-            <SegRow title="图片张数">
-              <div className="grid grid-cols-3 sm:grid-cols-9 gap-1.5 p-1.5 rounded-[14px]" style={{ background: "var(--gray-100)" }}>
-                {countOptions.map((n) => (
-                  <button key={n} onClick={() => setCount(n)} className="h-[46px] grid place-items-center text-sm font-bold rounded-xl transition-all"
-                    style={count === n ? { background: "var(--white)", color: "var(--text-title)", boxShadow: "var(--shadow-card)" } : { color: "var(--text-secondary)" }}>{n}</button>
-                ))}
-              </div>
-            </SegRow>
-          </div>
-        </>,
-        document.body,
-      )}
-    </div>
-  )
-}
-
 function TaskCard({ task, onOpen, onRetry }) {
   const s = statusStyles[task.status] || statusStyles["已完成"]
   return (
@@ -801,10 +682,6 @@ function TaskCard({ task, onOpen, onRetry }) {
       {(task.status === "失败" || task.status === "已终止") && <button onClick={(e) => { e.stopPropagation(); onRetry() }} className="mt-3 h-8 px-3 rounded-md border text-xs font-medium" style={{ borderColor: "var(--brand-primary)", color: "var(--brand-primary)" }}>重新生成</button>}
     </div>
   )
-}
-
-function Toast({ msg }) {
-  return <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-xl shadow-lg text-sm font-bold" style={{ background: "var(--bg-card)", border: "1px solid var(--border-base)", color: "var(--text-title)" }}>{msg}</div>
 }
 
 function Scrim({ children, onClose }) {

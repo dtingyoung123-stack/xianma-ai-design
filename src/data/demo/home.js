@@ -1,9 +1,9 @@
 // Temporary presentation data. Replace this module with API-backed data when the platform backend is ready.
 export const quickCards = [
-  { key: "prompt", title: "AI 提示词", desc: "从一句需求开始打磨可执行提示词", badge: "Prompt", href: "/ai-hub/prompt", img: "/assets/提示词.png" },
-  { key: "buyer", title: "AI 买家秀", desc: "围绕商品生成更自然的买家秀内容", badge: "Buyer", href: "/ai-hub/buyer-show", img: "/assets/AI买家秀.png" },
-  { key: "expert", title: "专家模式", desc: "直接进入组合编辑和参考位工作流", badge: "Expert", href: "/image-tools/expert", img: "/assets/专家模式.png" },
-  { key: "repaint", title: "AI 局部重绘", desc: "局部重绘、换色与画面修复", badge: "Edit", href: "/ai-hub/region-repaint", img: "/assets/AI局部重绘.png" },
+  { key: "prompt", title: "AI 提示词", desc: "从一句需求开始打磨可执行提示词", badge: "Prompt", href: "/ai-hub/prompt", img: "/assets/prompt.webp" },
+  { key: "buyer", title: "AI 买家秀", desc: "围绕商品生成更自然的买家秀内容", badge: "Buyer", href: "/ai-hub/buyer-show", img: "/assets/buyer.webp" },
+  { key: "expert", title: "专家模式", desc: "直接进入组合编辑和参考位工作流", badge: "Expert", href: "/image-tools/expert", img: "/assets/expert.webp" },
+  { key: "repaint", title: "AI 局部重绘", desc: "局部重绘、换色与画面修复", badge: "Edit", href: "/ai-hub/region-repaint", img: "/assets/repaint.webp" },
 ]
 
 export const models = [

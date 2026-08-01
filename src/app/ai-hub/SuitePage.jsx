@@ -1,15 +1,20 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { useRouter } from "next/navigation"
 import SafeImage from "@/components/SafeImage"
 import ImageQueueModule from "@/components/workbench/ImageQueueModule"
 import AssetPickerModal from "@/components/workbench/AssetPickerModal"
+import {
+  WorkbenchModelSelect,
+  WorkbenchParameterSelect,
+  WorkbenchToast,
+} from "@/components/workbench/WorkbenchControls"
 import {
   WorkbenchButton,
   WorkbenchEmpty,
   WorkbenchFooter,
   WorkbenchModule,
+  WorkbenchHistoryAction,
   WorkbenchPanel,
   WorkbenchPanelHead,
   WorkbenchScroll,
@@ -70,7 +75,6 @@ const ratioOptions = [
    Main Page Component
    ================================================================ */
 export default function SuitePage() {
-  const router = useRouter()
   const crumbs = getBreadcrumbs(["AI 能力中心", "AI 商品套图"])
 
   // State
@@ -176,11 +180,7 @@ export default function SuitePage() {
       status="原型验证中"
       title="AI 商品套图"
       description="多张商品图 + 卖点，一键产出亚马逊主副图矩阵与 A+ 套图。"
-      actions={(
-        <WorkbenchButton variant="ghost" onClick={() => router.push("/history")} className="h-10">
-          <span className="text-base">◷</span> 历史记录
-        </WorkbenchButton>
-      )}
+      actions={<WorkbenchHistoryAction source="product-suite" sourceLabel="AI 商品套图" params={{ model, resolution, ratio, language }} />}
       columns="minmax(360px, 3fr) minmax(0, 7fr)"
     >
         {/* Left Config */}
@@ -202,6 +202,7 @@ export default function SuitePage() {
           onOpenAssetPicker={() => { setAssetReplaceIndex(null); setAssetPickerOpen(true) }}
           onReplaceAsset={(index) => { setAssetReplaceIndex(index); setAssetPickerOpen(true) }}
           onPolish={() => setPolishOpen(true)}
+          onNotify={toast}
           onGenerate={handleGenerate}
           onClear={() => setClearOpen(true)}
           generating={generating} genDone={genDone} genTotal={genTotal}
@@ -265,7 +266,7 @@ export default function SuitePage() {
           }}
         />
       )}
-      {toastMsg && <Toast msg={toastMsg} />}
+      <WorkbenchToast message={toastMsg} />
     </WorkbenchShell>
   )
 }
@@ -273,13 +274,6 @@ export default function SuitePage() {
 /* ================================================================
    Shared Helpers
    ================================================================ */
-function Toast({ msg }) {
-  return (
-    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-xl shadow-lg text-sm font-bold animate-in"
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border-base)", color: "var(--text-title)" }}>{msg}</div>
-  )
-}
-
 function Module({ title, sub, action, children }) {
   return <WorkbenchModule title={title} hint={sub} action={action}>{children}</WorkbenchModule>
 }
@@ -322,7 +316,7 @@ function ConfigPanel(props) {
   const { products, setProducts, sellPoints, setSellPoints, language, setLanguage,
     mainOn, setMainOn, aplusOn, setAplusOn, mainCounts, setMainCounts, aplusCounts, setAplusCounts,
     mainNotext, setMainNotext, model, setModel, resolution, setResolution, ratio, setRatio,
-    layoutMain, layoutAplus, onOpenLayout, onOpenAssetPicker, onReplaceAsset, onPolish, onGenerate, onClear, generating, genDone, genTotal,
+    layoutMain, layoutAplus, onOpenLayout, onOpenAssetPicker, onReplaceAsset, onPolish, onNotify, onGenerate, onClear, generating, genDone, genTotal,
     mainTypes, aplusTypes } = props
 
   function addProducts(nextProducts) {
@@ -368,6 +362,7 @@ function ConfigPanel(props) {
           onRemove={removeProduct}
           onRefresh={onReplaceAsset}
           onReorder={setProducts}
+          onPreviewNotify={onNotify}
         />
 
         {/* ② 卖点文案 */}
@@ -478,8 +473,12 @@ function ConfigPanel(props) {
         {/* 生成参数 */}
         <Module title="生成参数">
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-            <ModelDropdown model={model} setModel={setModel} />
-            <ResDropdown resolution={resolution} setResolution={setResolution} />
+            <WorkbenchModelSelect value={model} onChange={setModel} options={modelOptions} />
+            <WorkbenchParameterSelect
+              summary={`${resolution} · 高画质`}
+              sections={[{ key: "resolution", label: "清晰度", value: resolution, options: ["1K", "2K", "4K"], onChange: setResolution }]}
+              note="图片尺寸在主副图设置里选择；张数按每类图各自数量生成。"
+            />
           </div>
         </Module>
       </WorkbenchScroll>
@@ -492,85 +491,6 @@ function ConfigPanel(props) {
         <WorkbenchButton variant="ghost" onClick={onClear} disabled={generating} className="h-[46px] w-[92px] rounded-xl">清空</WorkbenchButton>
       </WorkbenchFooter>
     </WorkbenchPanel>
-  )
-}
-
-/* ================================================================
-   Dropdowns
-   ================================================================ */
-function ModelDropdown({ model, setModel }) {
-  const [open, setOpen] = useState(false)
-  const current = modelOptions.find(m => m.name === model) || modelOptions[0]
-  return (
-    <div className="relative">
-      <button onClick={() => setOpen(!open)}
-        className="w-full min-h-[58px] px-3 py-2 border rounded-xl flex items-center gap-2 text-left bg-white transition-colors"
-        style={{ borderColor: open ? "var(--brand-primary)" : "var(--border-base)" }}>
-        <img src={current.icon} alt="" className="w-[22px] h-[22px] object-contain shrink-0" />
-        <div className="flex flex-col min-w-0"><span className="text-xs" style={{ color: "var(--text-secondary)" }}>模型</span>
-          <strong className="text-[13px] truncate" style={{ color: "var(--text-title)" }}>{current.name}</strong></div>
-        <span className="ml-auto text-sm" style={{ color: "var(--text-disabled)" }}>⌄</span>
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute top-full right-0 mt-1 z-50 bg-white border rounded-2xl shadow-lg p-3" style={{ width: "440px", borderColor: "var(--border-base)" }}>
-            <div className="flex justify-between text-xs px-1 mb-2" style={{ color: "var(--text-secondary)" }}>
-              <strong style={{ color: "var(--text-title)" }}>选择模型</strong><span>{modelOptions.length} 个选项</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {modelOptions.map(m => (
-                <button key={m.name} onClick={() => { setModel(m.name); setOpen(false) }}
-                  className="relative flex flex-col gap-1 p-3.5 border-2 rounded-[14px] text-left transition-colors"
-                  style={model === m.name ? { borderColor: "var(--brand-primary)", background: "var(--brand-primary-soft)" } : { borderColor: "var(--border-base)", background: "var(--white)" }}>
-                  <div className="flex items-center gap-2">
-                    <img src={m.icon} alt="" className="w-[26px] h-[26px] rounded-md object-contain shrink-0" />
-                    <strong className="text-sm" style={{ color: "var(--text-title)" }}>{m.name}</strong>
-                    <span className="absolute top-3.5 right-3.5 text-[11px] font-semibold px-1.5 py-0.5 rounded"
-                      style={{ background: "var(--warning-bg)", color: "var(--warning)" }}>{m.eta}</span>
-                  </div>
-                  <p className="text-xs leading-relaxed pr-11" style={{ color: "var(--text-secondary)" }}>{m.desc}</p>
-                  {model === m.name && <span className="text-xs font-semibold" style={{ color: "var(--brand-primary)" }}>已选</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-function ResDropdown({ resolution, setResolution }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="relative">
-      <button onClick={() => setOpen(!open)}
-        className="w-full min-h-[58px] px-3 py-2 border rounded-xl flex flex-col gap-0.5 text-left bg-white transition-colors"
-        style={{ borderColor: open ? "var(--brand-primary)" : "var(--border-base)" }}>
-        <span className="text-xs" style={{ color: "var(--text-secondary)" }}>参数</span>
-        <strong className="text-[13px] truncate" style={{ color: "var(--text-title)" }}>{resolution} · 高画质</strong>
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: "var(--text-disabled)" }}>⌄</span>
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute top-full right-0 mt-1 z-50 bg-white border rounded-2xl shadow-lg p-4 space-y-3" style={{ width: "320px", borderColor: "var(--border-base)" }}>
-            <div>
-              <h4 className="text-sm font-semibold mb-2" style={{ color: "var(--text-title)" }}>清晰度</h4>
-              <div className="grid grid-cols-3 gap-1.5 p-1.5 rounded-[14px]" style={{ background: "var(--gray-100)" }}>
-                {["1K", "2K", "4K"].map(r => (
-                  <button key={r} onClick={() => { setResolution(r); setOpen(false) }}
-                    className="min-h-[44px] rounded-xl text-sm font-bold transition-all"
-                    style={resolution === r ? { background: "var(--white)", color: "var(--text-title)", boxShadow: "var(--shadow-card)" } : { color: "var(--text-secondary)" }}>{r}</button>
-                ))}
-              </div>
-            </div>
-            <p className="text-xs m-0" style={{ color: "var(--text-secondary)" }}>图片尺寸在主副图设置里选；张数按每类图各自数量生成。</p>
-          </div>
-        </>
-      )}
-    </div>
   )
 }
 

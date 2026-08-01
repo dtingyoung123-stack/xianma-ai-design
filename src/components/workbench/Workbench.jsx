@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, History } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function WorkbenchShell({
@@ -132,9 +132,8 @@ export function WorkbenchButton({ children, variant = "primary", className = "",
   const styles = {
     primary: {
       color: "var(--brand-on-primary)",
-      borderColor: "#14327d",
-      background: "linear-gradient(180deg, var(--brand-primary-hover), var(--brand-primary-deep))",
-      boxShadow: "0 10px 22px rgba(29,78,216,.26)",
+      borderColor: "var(--brand-primary)",
+      boxShadow: "none",
     },
     ghost: {
       color: "var(--text-body)",
@@ -152,12 +151,31 @@ export function WorkbenchButton({ children, variant = "primary", className = "",
 
   return (
     <button
-      className={cn("inline-flex min-h-9 items-center justify-center gap-2 rounded-full border px-4 text-sm font-extrabold transition-opacity hover:opacity-90 disabled:opacity-60", className)}
+      className={cn(
+        "inline-flex min-h-9 items-center justify-center gap-2 rounded-full border px-4 text-sm font-extrabold disabled:opacity-60",
+        variant === "primary"
+          ? "bg-[var(--brand-primary)] transition-colors hover:bg-[var(--brand-primary-hover)] active:bg-[var(--brand-primary-active)]"
+          : "transition-opacity hover:opacity-90",
+        className,
+      )}
       style={{ ...styles[variant], ...style }}
       {...props}
     >
       {children}
     </button>
+  )
+}
+
+export function WorkbenchHistoryAction({ source, sourceLabel, params = {} }) {
+  const search = new URLSearchParams({ source, sourceLabel })
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") search.set(key, String(value))
+  })
+
+  return (
+    <a href={`/history?${search.toString()}`} target="_blank" rel="noopener noreferrer" className="inline-flex h-10 min-h-9 items-center justify-center gap-2 rounded-full border px-4 text-sm font-extrabold transition-opacity hover:opacity-90" style={{ color: "var(--text-body)", borderColor: "var(--border-base)", background: "var(--white)", boxShadow: "var(--shadow-control)" }}>
+      <History size={16} />历史记录
+    </a>
   )
 }
 

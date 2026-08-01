@@ -211,9 +211,17 @@ Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
 - **解除容器限制**：会从页面、侧栏、配置栏或滚动内容中“浮出”的弹窗，必须通过 Portal 挂载到 `document.body`，或使用不受业务容器 `overflow`、`transform` 和 stacking context 影响的顶层浮层层；不得把弹窗嵌在可能裁切它的业务容器内。
 - **层级优先**：弹窗可以覆盖左右栏和主内容，使用统一的顶层 z-index；不能为了避免遮挡而把弹窗限制在触发区域或栏位边界内。
 - **定位策略**：优先贴近触发控件展示；根据上下左右剩余空间自动选择展开方向，并将最终位置限制在视口安全边距内。
+- **锚点一致**：同组选择弹层应与各自触发控件的左边缘对齐，向上或向下展开时与触发控件保持 `8px` 间距；不得因内容实际高度小于最大高度而产生位置漂移。
+- **单层交互**：同一组选择控件同时只允许存在一个可见弹层；关闭后必须从交互层移除，不得残留透明遮罩或不可见内容拦截页面点击。
 - **视口兜底**：当弹窗本身超过视口可用空间时，只缩小到 `视口尺寸 - 安全边距`，不得被浏览器边缘裁掉；桌面端和窄屏均需避免横向溢出。
 - **滚动边界**：标题栏和操作栏保持可见，长内容只在弹窗内容区滚动；不要让页面滚动与弹窗内容滚动互相抢占。
-- **验证要求**：至少验证桌面宽屏、`1280px`、`1024px` 和窄屏视口，并检查弹窗覆盖侧栏、边缘定位、内容滚动、关闭和键盘操作。
+- **验证要求**：至少验证桌面宽屏、`1280px`、`1024px` 和窄屏视口，并检查弹窗覆盖侧栏、边缘定位、内容滚动、同组弹层切换、外部点击关闭、键盘关闭和页面点击不被拦截。
+
+### 工作流历史入口
+
+- 已实现的工作流子页面统一在页面标题区右上角提供“历史记录”入口，不在配置滚动区重复展示历史列表。
+- 历史入口使用公共组件和 `History` 图标，在新标签页打开统一历史页面，并携带来源页面、模型、清晰度、比例、画质、张数等可筛选参数。
+- URL 不携带上传图片、提示词正文或其他大体积、敏感业务内容；历史页面应根据来源参数自动选中对应工具筛选。
 
 ### 顶部栏（Topbar）
 
@@ -327,7 +335,7 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 | `WorkbenchScroll` | 面板内部滚动容器 | 配置项较多或结果列表较长时 |
 | `WorkbenchFooter` | 左侧配置栏底部固定操作区 | 提交、生成、清空、终止 |
 | `WorkbenchModule` | 参数模块卡片 | 商品原图、场景、提示词、生成参数、套图类型 |
-| `WorkbenchButton` | 胶囊/渐变主按钮、轻按钮 | 生成、历史记录、清空、辅助操作 |
+| `WorkbenchButton` | 胶囊纯色主按钮、轻按钮 | 生成、历史记录、清空、辅助操作 |
 | `WorkbenchEmpty` | 右侧空状态 | 未生成结果、无匹配任务、无数据 |
 
 后续新增子页面默认写法：
@@ -367,7 +375,7 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 
 | 类型 | 样式 | Tailwind |
 |------|------|----------|
-| Primary | 深蓝渐变、白字、胶囊/12px 圆角、h46 主操作 | 使用 `WorkbenchButton variant="primary"` |
+| Primary | `--brand-primary` 纯蓝底、白字、胶囊/12px 圆角、h46 主操作 | 使用 `WorkbenchButton variant="primary"` |
 | Default | 白底灰边、柔和阴影、胶囊按钮 | 使用 `WorkbenchButton variant="ghost"` |
 | Soft | 浅蓝底、蓝字、无阴影 | 使用 `WorkbenchButton variant="soft"` |
 | Text | 蓝字无底无边 | `text-[var(--brand-primary)]` |
@@ -452,6 +460,8 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 | UI 规范页 | `src/app/ui-guide/page.js` | 客户端 | 设计系统与组件规范演示页 |
 | Sidebar | `src/components/Sidebar.jsx` | 客户端 | 全局侧栏，移动端抽屉 |
 | WorkbenchShell 等 | `src/components/workbench/Workbench.jsx` | 客户端 | AI 能力工作流页面母版、顶部信息条、左右面板、模块、按钮、空状态 |
+| ColorSamplerButton / ColorConstraintChips | `src/components/workbench/ColorConstraintPicker.jsx` | 客户端 | 工作台公共吸色入口与颜色记录，包含色块、HEX、复制和删除；按页面需求接入 |
+| ImagePreviewModal | `src/components/workbench/ImagePreviewModal.jsx` | 客户端 | 工作台公共图片预览弹窗，统一缩放、拖动、翻转、下载、吸色及色值复制交互 |
 | PageHeader | `src/components/PageHeader.jsx` | 客户端 | 旧版/非工作流子页面面包屑+返回；AI 能力工作流页优先使用 WorkbenchTopline |
 | SafeImage | `src/components/SafeImage.jsx` | 客户端 | 图片组件，加载失败自动隐藏 |
 | PageShell | `src/components/PageShell.jsx` | 服务端 | 页面标题、面包屑、状态和内容外壳 |
@@ -507,3 +517,12 @@ src/
 - 设计令牌通过 CSS 变量引用（`var(--xxx)`），不要硬编码色值
 - 演示数据只能放在 `src/data/demo/`，真实 API 不直接写进页面组件
 - 提交前运行 `npm run lint` 和 `npm run build`
+
+### 吸色与颜色约束
+
+- 图片吸色使用 `ColorSamplerButton`，统一放在 `ImagePreviewModal` 工具栏，保证启动系统取色器时预览大图仍在当前可视区域；图片缩略图和图片队列标题不重复展示。
+- 吸色成功后，预览工具栏显示色块与 HEX，自动复制到剪贴板并提供再次复制操作；无提示词的页面也必须支持独立吸色和复制。
+- 点击吸管后，用户可在屏幕任意位置取色；不支持系统取色器时使用原生颜色选择控件回退。
+- 已选颜色使用 `ColorConstraintChips` 展示，只包含可辨识色块、HEX 色值、复制和删除操作，不显示产品主体、参考色等页面相关标签。
+- 吸色只记录并复制色值，不自动写入提示词或其他输入框；页面需要使用色值时由用户直接粘贴。
+- 吸管和删除按钮必须提供 `aria-label`；颜色标签使用现有边框、文字和交互 token，不新增局部 raw 色值。

@@ -1,6 +1,5 @@
-import PageShell from "@/components/PageShell"
-import PlaceholderState from "@/components/PlaceholderState"
+import TextEditWorkbench from "./TextEditWorkbench"
 
 export default function TextEditPage() {
-  return <PageShell pathname="/image-tools/text-edit"><PlaceholderState description="图片文字识别、编辑和重新渲染将在这里完成" /></PageShell>
+  return <TextEditWorkbench />
 }

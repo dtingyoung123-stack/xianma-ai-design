@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { createPortal } from "react-dom"
-import { ChevronLeft, ChevronRight, Download, Eye, FlipHorizontal, FlipVertical, FolderOpen, RefreshCw, Trash2, Upload, X, ZoomIn, ZoomOut } from "lucide-react"
+import { Eye, FolderOpen, PenLine, RefreshCw, Trash2, Upload } from "lucide-react"
 import SafeImage from "@/components/SafeImage"
 import { WorkbenchModule } from "@/components/workbench/Workbench"
+import RegionMaskEditor from "@/components/workbench/RegionMaskEditor"
+import ImagePreviewModal from "@/components/workbench/ImagePreviewModal"
 
 export default function ImageQueueModule({
   title = "图片队列",
@@ -27,11 +28,16 @@ export default function ImageQueueModule({
   onRemove,
   onRefresh,
   onReorder,
+  onEditRegion,
+  onUnavailable,
+  onPreviewColorPick,
+  onPreviewNotify,
 }) {
   const count = images.length
   const full = count >= max
   const [previewIndex, setPreviewIndex] = useState(null)
   const [dragIndex, setDragIndex] = useState(null)
+  const [editorIndex, setEditorIndex] = useState(null)
 
   function moveImage(fromIndex, toIndex) {
     if (fromIndex === null || fromIndex === toIndex || !onReorder) return
@@ -89,6 +95,11 @@ export default function ImageQueueModule({
                 <div className="truncate text-xs" style={{ color: "var(--text-secondary)" }}>
                   {getName(image)}{getSize(image) ? ` · ${getSize(image)}` : ""}
                 </div>
+                {image.regionEdit && (
+                  <div className="mt-1 text-[10px] font-semibold" style={{ color: "var(--success)" }}>
+                    已设置区域 · mask {image.regionEdit.coverage || 0}% · {image.regionEdit.annotations?.length || 0} 条标注
+                  </div>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 <IconButton title="查看大图" onClick={() => setPreviewIndex(index)}>
@@ -97,6 +108,11 @@ export default function ImageQueueModule({
                 <IconButton title="替换图片" onClick={() => onRefresh ? onRefresh(index) : onOpenAssetPicker?.()}>
                   <RefreshCw size={14} />
                 </IconButton>
+                {onEditRegion && (
+                  <IconButton title="区域编辑" active={Boolean(image.regionEdit)} onClick={() => setEditorIndex(index)}>
+                    <PenLine size={14} />
+                  </IconButton>
+                )}
                 <IconButton title="删除" danger onClick={() => onRemove?.(index)}>
                   <Trash2 size={14} />
                 </IconButton>
@@ -119,14 +135,28 @@ export default function ImageQueueModule({
           setIndex={setPreviewIndex}
           getSrc={getSrc}
           getName={getName}
+          onColorPick={onPreviewColorPick}
+          onNotify={onPreviewNotify}
           onClose={() => setPreviewIndex(null)}
+        />
+      )}
+      {editorIndex !== null && images[editorIndex] && (
+        <RegionMaskEditor
+          image={images[editorIndex]}
+          value={images[editorIndex].regionEdit}
+          onUnavailable={onUnavailable}
+          onClose={() => setEditorIndex(null)}
+          onApply={(regionEdit) => {
+            onEditRegion(editorIndex, regionEdit)
+            setEditorIndex(null)
+          }}
         />
       )}
     </WorkbenchModule>
   )
 }
 
-function IconButton({ title, danger = false, onClick, children }) {
+function IconButton({ title, danger = false, active = false, onClick, children }) {
   return (
     <button
       type="button"
@@ -136,7 +166,7 @@ function IconButton({ title, danger = false, onClick, children }) {
         onClick?.()
       }}
       className="grid h-8 w-8 place-items-center rounded-md border bg-white transition-colors hover:bg-[var(--bg-hover)]"
-      style={{ borderColor: "var(--border-base)", color: danger ? "var(--danger)" : "var(--text-secondary)" }}
+      style={active ? { borderColor: "var(--brand-primary)", color: "var(--brand-primary)", background: "var(--brand-primary-soft)" } : { borderColor: "var(--border-base)", color: danger ? "var(--danger)" : "var(--text-secondary)" }}
     >
       {children}
     </button>
@@ -155,168 +185,6 @@ function UploadAction({ icon, title, sub, disabled, onClick }) {
       <span style={{ color: "var(--brand-primary)" }}>{icon}</span>
       <strong className="text-xs" style={{ color: "var(--text-title)" }}>{title}</strong>
       <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>{sub}</span>
-    </button>
-  )
-}
-
-function ImagePreviewModal({ images, index, setIndex, getSrc, getName, onClose }) {
-  const [scale, setScale] = useState(1)
-  const [pan, setPan] = useState({ x: 0, y: 0 })
-  const [dragState, setDragState] = useState(null)
-  const [flipX, setFlipX] = useState(false)
-  const [flipY, setFlipY] = useState(false)
-  const image = images[index]
-  const total = images.length
-
-  function go(nextIndex) {
-    setScale(1)
-    setPan({ x: 0, y: 0 })
-    setDragState(null)
-    setFlipX(false)
-    setFlipY(false)
-    setIndex((nextIndex + total) % total)
-  }
-
-  function updateScale(updater) {
-    setScale((value) => {
-      const next = Math.max(0.5, Math.min(4, Number(updater(value).toFixed(2))))
-      if (next <= 1) setPan({ x: 0, y: 0 })
-      return next
-    })
-  }
-
-  function handleWheel(event) {
-    event.preventDefault()
-    const delta = event.deltaY > 0 ? -0.12 : 0.12
-    updateScale((value) => value + delta)
-  }
-
-  function handlePointerDown(event) {
-    if (event.target instanceof Element && event.target.closest("button")) return
-    event.preventDefault()
-    event.currentTarget.setPointerCapture?.(event.pointerId)
-    setDragState({
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      originX: pan.x,
-      originY: pan.y,
-    })
-  }
-
-  function handlePointerMove(event) {
-    if (!dragState || dragState.pointerId !== event.pointerId) return
-    setPan({
-      x: dragState.originX + event.clientX - dragState.startX,
-      y: dragState.originY + event.clientY - dragState.startY,
-    })
-  }
-
-  function handlePointerUp(event) {
-    event.currentTarget.releasePointerCapture?.(event.pointerId)
-    setDragState(null)
-  }
-
-  function downloadCurrentImage() {
-    const src = getSrc(image)
-    const filename = buildDownloadFilename(getName(image), src, index)
-    const link = document.createElement("a")
-    link.href = src
-    link.download = filename
-    link.target = "_blank"
-    link.click()
-  }
-
-  const content = (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" style={{ background: "var(--overlay-scrim)" }} onClick={onClose}>
-      <div className="flex h-[min(86vh,760px)] w-[min(1040px,calc(100vw-40px))] flex-col overflow-hidden rounded-lg bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
-        <div className="flex shrink-0 items-center justify-between border-b px-4 py-3" style={{ borderColor: "var(--border-light)" }}>
-          <div className="min-w-0">
-            <strong className="block truncate text-sm" style={{ color: "var(--text-title)" }}>{getName(image)}</strong>
-            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{index + 1} / {total} · 滚轮缩放</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <PreviewButton title="缩小" onClick={() => updateScale((value) => value - 0.2)}><ZoomOut size={15} /></PreviewButton>
-            <span className="w-12 text-center text-xs" style={{ color: "var(--text-secondary)" }}>{Math.round(scale * 100)}%</span>
-            <PreviewButton title="放大" onClick={() => updateScale((value) => value + 0.2)}><ZoomIn size={15} /></PreviewButton>
-            <PreviewButton title="左右翻转" onClick={() => setFlipX((value) => !value)}><FlipHorizontal size={15} /></PreviewButton>
-            <PreviewButton title="上下翻转" onClick={() => setFlipY((value) => !value)}><FlipVertical size={15} /></PreviewButton>
-            <PreviewButton title="下载当前图片" onClick={downloadCurrentImage}><Download size={15} /></PreviewButton>
-            <PreviewButton title="关闭" onClick={onClose}><X size={16} /></PreviewButton>
-          </div>
-        </div>
-
-        <div className="relative min-h-0 flex-1 overflow-hidden" style={{ background: "var(--gray-900)" }} onWheel={handleWheel}>
-          {total > 1 && (
-            <>
-              <button type="button" onClick={() => go(index - 1)} className="absolute left-4 top-1/2 z-10 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/90 shadow">
-                <ChevronLeft size={20} />
-              </button>
-              <button type="button" onClick={() => go(index + 1)} className="absolute right-4 top-1/2 z-10 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/90 shadow">
-                <ChevronRight size={20} />
-              </button>
-            </>
-          )}
-          <div
-            className="flex h-full w-full touch-none select-none items-center justify-center overflow-hidden p-8"
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerUp}
-            style={{ cursor: dragState ? "grabbing" : "grab" }}
-          >
-            <div
-              className="grid h-full w-full place-items-center"
-              style={{
-                transform: `translate(${pan.x}px, ${pan.y}px)`,
-                transformOrigin: "center",
-              }}
-            >
-              <SafeImage
-                src={getSrc(image)}
-                alt={getName(image)}
-                className="max-h-full max-w-full object-contain transition-transform"
-                style={{
-                  transform: `scaleX(${flipX ? -1 : 1}) scaleY(${flipY ? -1 : 1}) scale(${scale})`,
-                  transformOrigin: "center",
-                }}
-                draggable={false}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-
-  return typeof document !== "undefined" ? createPortal(content, document.body) : null
-}
-
-function buildDownloadFilename(name, src, index) {
-  const cleanName = String(name || "")
-    .replace(/\.[a-zA-Z0-9]+$/, "")
-    .replace(/[\\/:*?"<>|]/g, "-")
-    .trim()
-  const extension = getImageExtension(src)
-  return `${cleanName || `image-${index + 1}`}.${extension}`
-}
-
-function getImageExtension(src) {
-  const match = String(src || "").split("?")[0].match(/\.([a-zA-Z0-9]+)$/)
-  const ext = match?.[1]?.toLowerCase()
-  return ["jpg", "jpeg", "png", "webp", "gif"].includes(ext) ? ext : "png"
-}
-
-function PreviewButton({ title, onClick, children }) {
-  return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      className="grid h-8 w-8 place-items-center rounded-md border bg-white transition-colors hover:bg-[var(--bg-hover)]"
-      style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }}
-    >
-      {children}
     </button>
   )
 }
