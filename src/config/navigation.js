@@ -1,5 +1,6 @@
 import {
   ChartNoAxesCombined,
+  ClipboardCheck,
   Image,
   Settings,
   ShieldCheck,
@@ -48,6 +49,7 @@ export const navGroups = [
 
 export const adminItems = [
   { key: "admin-data", label: "数据智能", icon: ChartNoAxesCombined, href: "/admin/data" },
+  { key: "admin-points-requests", label: "积分审批", icon: ClipboardCheck, href: "/admin/points-requests" },
   { key: "admin-permission", label: "权限管理", icon: ShieldCheck, href: "/admin/permission" },
   { key: "admin-settings", label: "系统设置", icon: Settings, href: "/admin/settings" },
 ]
@@ -72,7 +74,9 @@ export const routeMeta = {
   "/history": { label: "历史记录", section: "历史记录", status: "prototype" },
   "/help-docs": { label: "帮助文档", section: "帮助文档", status: "prototype" },
   "/admin/data": { label: "数据智能", section: "管理", status: "prototype" },
+  "/admin/points-requests": { label: "积分审批", section: "管理", status: "prototype" },
   "/admin/permission": { label: "权限管理", section: "管理", status: "prototype" },
+  "/points": { label: "积分中心", section: "个人中心", status: "prototype" },
   "/admin/settings": { label: "系统设置", section: "管理", status: "prototype" },
 }
 

@@ -446,8 +446,10 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 | `/history` | 历史记录 | `src/app/history/page.js` | 原型中 |
 | `/help-docs` | 帮助文档 | `src/app/help-docs/page.js` | 原型中 |
 | `/admin/data` | 数据智能 | `src/app/admin/data/page.js` | 原型中 |
+| `/admin/points-requests` | 积分审批 | `src/app/admin/points-requests/page.js` | 前端交互原型 |
 | `/admin/permission` | 权限管理 | `src/app/admin/permission/page.js` | 原型中 |
 | `/admin/settings` | 系统设置 | `src/app/admin/settings/page.js` | 原型中 |
+| `/points` | 积分中心 | `src/app/points/page.js` | 前端交互原型 |
 
 页面状态来源：`src/config/navigation.js` 的 `routeMeta`。页面显示“可用”只代表该路由已接入，不代表后端能力已生产上线。
 

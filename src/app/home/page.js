@@ -108,6 +108,14 @@ function StatBox({ value, label, primary }) {
         fontVariantNumeric: "tabular-nums",
       }}>{value}</div>
       <div className="text-xs" style={{ color: "var(--text-secondary)" }}>{label}</div>
+      {primary && (
+        <Link
+          href="/points"
+          className="mt-1 inline-flex w-fit items-center gap-1 text-xs font-medium text-[var(--brand-primary)] hover:underline"
+        >
+          申请积分 <ArrowRight size={12} />
+        </Link>
+      )}
     </div>
   )
 }

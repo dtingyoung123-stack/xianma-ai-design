@@ -2,15 +2,24 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Menu, X } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Coins, Menu, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useSidebar } from "./LayoutClient"
 import { topNavItems } from "@/config/navigation"
 import SafeImage from "./SafeImage"
+import { POINTS_CHANGE_EVENT, readPointsState } from "@/lib/points-store"
 
 export default function Topbar() {
   const { open, setOpen } = useSidebar()
   const pathname = usePathname()
+  const [points, setPoints] = useState(() => readPointsState().balance)
+
+  useEffect(() => {
+    const sync = (event) => setPoints((event.detail || readPointsState()).balance)
+    window.addEventListener(POINTS_CHANGE_EVENT, sync)
+    return () => window.removeEventListener(POINTS_CHANGE_EVENT, sync)
+  }, [])
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-14 bg-white border-b flex items-center justify-between px-3 md:px-4 lg:px-5"
@@ -72,15 +81,16 @@ export default function Topbar() {
           style={{ color: "var(--text-secondary)", borderColor: "var(--border-base)" }}>
           UI 样式
         </Link>
-        <div className="hidden xs:inline-flex items-center gap-1.5 h-7 md:h-8 px-2 md:px-3 rounded-full text-[11px] md:text-[13px] font-medium"
+        <Link href="/points" aria-label={`积分中心，当前 ${points} 积分`} className="inline-flex items-center gap-1.5 h-7 md:h-8 px-2 md:px-3 rounded-full text-[11px] md:text-[13px] font-medium transition-colors hover:ring-2 hover:ring-[var(--brand-primary-soft)]"
           style={{
             backgroundColor: "var(--brand-primary-soft)",
             color: "var(--brand-primary)",
             fontVariantNumeric: "tabular-nums",
           }}>
-          <span className="hidden sm:inline">917 积分</span>
-          <span className="sm:hidden font-semibold">917</span>
-        </div>
+          <Coins size={14} />
+          <span className="hidden sm:inline">{points.toLocaleString()} 积分</span>
+          <span className="sm:hidden font-semibold">{points.toLocaleString()}</span>
+        </Link>
         <div className="w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center text-white text-[11px] md:text-[13px] font-medium shrink-0"
           style={{ background: "var(--brand-primary)" }}>
           肖
