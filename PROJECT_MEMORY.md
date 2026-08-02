@@ -22,6 +22,22 @@
 8. 用户要求同步 GitHub 时，先检查提交范围、敏感文件、未跟踪文件和远程分支，再提交推送。
 9. 每次需求完成后同步更新 `PROJECT_MEMORY.md`；涉及产品定义时更新 `PRODUCT_REQUIREMENTS.md`，涉及 UI 或公共组件时更新 `UI_SPEC.md`。
 
+## 当前技术栈
+
+- 应用框架：Next.js 16，使用 App Router，页面和接口位于 `src/app/`。
+- UI 运行时：React 19、React DOM 19。
+- 开发语言：JavaScript 与 JSX；当前未启用 TypeScript。
+- 样式方案：Tailwind CSS 4、PostCSS、CSS Variables；运行时设计 Token 统一维护在 `src/app/globals.css`。
+- 组件体系：shadcn 4（`base-nova` 风格）与 Base UI React；基础组件位于 `src/components/ui/`。
+- 公共业务组件：工作台通用能力位于 `src/components/workbench/`，业务页面优先复用现有组件。
+- 图标体系：Lucide React。
+- 样式工具：`clsx`、`tailwind-merge`、`class-variance-authority`、`tw-animate-css`。
+- 代码检查：ESLint 9 与 Next.js Core Web Vitals 规则。
+- 构建方式：Next.js 默认构建流程与 Turbopack。
+- 版本管理与部署：GitHub `main` 分支连接 Vercel 自动部署，正式域名为 `https://ai.iiting.fun`。
+- 当前产品形态：以前端交互原型和工作台为主，尚未接入独立后端框架、正式数据库及完整业务 API。
+- 版本依据：依赖及准确版本以 `package.json` 和锁文件为准；架构边界以 `ARCHITECTURE.md` 为准。
+
 ## 功能时间线
 
 ### 2026-07-30：项目基础版本
