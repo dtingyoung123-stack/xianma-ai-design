@@ -2,12 +2,42 @@ export const demoCurrentUser = {
   id: "user-001",
   name: "肖雨",
   department: "电商设计部",
+  role: "视觉设计师",
   account: "xiaoyu@xianma.com",
+  pendingSyncEvents: 9,
 }
 
 export const demoPointsState = {
   balance: 917,
   requests: [
+    {
+      id: "PA-20260803-002",
+      applicantId: "demo-user-002",
+      applicantName: "设计示例用户",
+      department: "视觉设计部",
+      account: "demo-design@xianma.test",
+      reason: "用于秋季新品详情页主图与场景图的批量生成和效果测试",
+      amount: 3000,
+      status: "pending",
+      createdAt: "2026-08-03T10:20:00+08:00",
+      reviewedAt: null,
+      reviewer: null,
+      reviewComment: "",
+    },
+    {
+      id: "PA-20260803-001",
+      applicantId: "demo-user-001",
+      applicantName: "运营示例用户",
+      department: "电商运营部",
+      account: "demo-ops@xianma.test",
+      reason: "用于本周店铺活动素材生成与商品图优化",
+      amount: 1000,
+      status: "pending",
+      createdAt: "2026-08-03T09:45:00+08:00",
+      reviewedAt: null,
+      reviewer: null,
+      reviewComment: "",
+    },
     {
       id: "PA-20260718-001",
       applicantId: "user-001",

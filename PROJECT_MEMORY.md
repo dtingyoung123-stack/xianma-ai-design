@@ -110,3 +110,25 @@
 - 原型数据边界：演示数据位于 `src/data/demo/points.js`，页面通过 `src/lib/points-store.js` 读写浏览器本地状态，后续由真实 API 适配层替换。
 - 入口规则：顶栏积分胶囊进入积分中心；首页个人信息卡在“可用积分”统计项下提供“申请积分”文字入口，同样跳转积分中心，不额外增加首页弹窗或状态逻辑。
 - 关联文件：`src/app/points/page.js`、`src/app/admin/points-requests/page.js`、`src/app/home/page.js`、`src/components/Topbar.jsx`、`src/config/navigation.js`、`PRODUCT_REQUIREMENTS.md`。
+
+### 2026-08-03：积分审批待审批演示数据
+
+- 状态：前端演示数据已补充。
+- 调整内容：新增两条不同申请人、部门和申请金额的待审批数据，用于验证审批列表、详情、通过和驳回交互。
+- 数据边界：申请人和账号均为虚构测试信息；原型本地存储版本升级为 `v3`，首次读取时恢复新版演示数据。
+- 关联文件：`src/data/demo/points.js`、`src/lib/points-store.js`。
+
+### 2026-08-03：积分申请审批 PRD 导出
+
+- 状态：前端导出入口与 Markdown 下载接口已实现。
+- 功能：积分中心标题区右上角提供“导出 PRD”，点击后直接下载 `积分申请与审批模块PRD.md`。
+- 统一规则：后续 PRD 导出复用 `PageShell` 的 `actions` 操作位和 UI 规范页的下载按钮样式；源文件统一放在 `docs/` 并纳入 Git。
+- 异常边界：源文件读取失败时返回明确错误状态，不生成空文件。
+- 关联文件：`src/app/points/page.js`、`src/components/PageShell.jsx`、`src/app/api/points-prd/route.js`、`docs/积分申请与审批模块PRD.md`、`UI_SPEC.md`。
+
+### 2026-08-03：顶栏个人信息面板
+
+- 状态：前端交互原型已实现。
+- 功能：点击右上角头像展示用户身份、可用积分、今日使用、本年使用和待同步事件，并提供积分中心、修改密码、刷新账号信息和退出登录入口。
+- 数据边界：身份与待同步事件使用演示用户数据；积分及使用量从浏览器本地积分状态计算；账号类入口仅保留前端产品形态，不代表真实账号接口已接入。
+- 关联文件：`src/components/Topbar.jsx`、`src/data/demo/points.js`、`UI_SPEC.md`。

@@ -229,6 +229,8 @@ Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
 - 中间：一级菜单胶囊导航，文案为 `工作台 / 工具中心 / 能力中心 / 无限画布 / 素材库 / 历史记录 / 帮助文档`。
 - 一级菜单样式：外层 `--gray-100` 浅灰胶囊，高 38px；菜单项高 34px、左右 16px、14px/600；选中态为 `--brand-primary` 蓝字 + 底部 2px 蓝线。
 - 右侧：积分胶囊 32px 高 + 头像 32px + 用户名/角色。
+- 点击头像展开个人信息面板：顶部展示演示用户身份，四格展示可用积分、今日使用、本年使用和待同步事件；操作区保留积分中心、修改密码、刷新账号信息和退出登录入口。
+- 个人信息面板使用顶层 DropdownMenu Portal，右对齐头像且不得被顶栏、侧栏或主内容裁切；积分统计随本地演示状态更新。
 - 背景白色，底部 1px `--border-base`，高度固定 56px。
 - 侧边栏继续承载具体功能分组和二级入口；顶部一级菜单负责全局模块跳转。
 
@@ -471,6 +473,14 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 | Button | `src/components/ui/button.jsx` | shadcn | 按钮 |
 | DropdownMenu | `src/components/ui/dropdown-menu.jsx` | shadcn | 下拉菜单 |
 | Avatar | `src/components/ui/avatar.jsx` | shadcn | 头像 |
+
+### 文档导出入口
+
+- PRD、UI 规范等页面级 Markdown 文档统一在页面标题区右上角提供导出入口，不在业务卡片或列表中重复放置。
+- 使用下载图标加“导出 PRD”或“导出 UI 规范说明”文案；主按钮高度 40px、8px 圆角，颜色使用现有品牌按钮 Token。
+- 子页面通过 `PageShell` 的 `actions` 操作位接入；窄屏时操作区在标题下方换行，不得挤压标题或产生横向溢出。
+- 点击后直接下载 UTF-8 编码的 `.md` 文件，不增加预览页或确认弹窗；下载源文件必须位于 `docs/` 并纳入 Git。
+- 下载接口必须返回 `text/markdown; charset=utf-8` 和 UTF-8 文件名；源文件缺失时返回明确错误状态，不得下载空文件。
 
 ## 10. 运行 & 开发
 

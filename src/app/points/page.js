@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CheckCircle2, CircleDollarSign, Clock3, FileText, Plus, X, XCircle } from "lucide-react"
+import { CheckCircle2, CircleDollarSign, Clock3, Download, FileText, Plus, X, XCircle } from "lucide-react"
 import PageShell from "@/components/PageShell"
 import { Button } from "@/components/ui/button"
 import {
@@ -66,7 +66,20 @@ export default function PointsPage() {
   }
 
   return (
-    <PageShell pathname="/points" description="查看积分余额、申请进度和收支记录">
+    <PageShell
+      pathname="/points"
+      description="查看积分余额、申请进度和收支记录"
+      actions={(
+        <a
+          href="/api/points-prd"
+          download
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[var(--brand-primary)] px-4 text-sm font-medium text-[var(--brand-on-primary)] transition-colors hover:bg-[var(--brand-primary-hover)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--brand-primary-soft)] sm:w-auto"
+        >
+          <Download size={16} />
+          导出 PRD
+        </a>
+      )}
+    >
       <section className="mb-6 flex flex-col gap-4 rounded-lg border bg-[var(--bg-card)] p-5 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: "var(--border-base)" }}>
         <div className="flex items-center gap-4">
           <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]">

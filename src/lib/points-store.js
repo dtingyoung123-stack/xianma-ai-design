@@ -1,6 +1,6 @@
 import { demoCurrentUser, demoPointsState } from "@/data/demo/points"
 
-const STORAGE_KEY = "xianma-points-prototype-v1"
+const STORAGE_KEY = "xianma-points-prototype-v3"
 export const POINTS_CHANGE_EVENT = "xianma-points-change"
 export const DEFAULT_REQUEST_AMOUNT = 1000
 export const MAX_REQUEST_AMOUNT = 5000
