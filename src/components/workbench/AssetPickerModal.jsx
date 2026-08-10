@@ -7,7 +7,8 @@ import SafeImage from "@/components/SafeImage"
 
 const sources = [
   { key: "mine", title: "个人素材库", desc: "只看你自己的素材" },
-  { key: "public", title: "公共素材库", desc: "查看所有人共享素材" },
+  { key: "team", title: "团体素材库", desc: "查看对你所在组织开放的素材" },
+  { key: "public", title: "公共素材库", desc: "查看全公司共享素材" },
   { key: "local", title: "本地上传", desc: "从电脑选择文件" },
 ]
 
@@ -17,6 +18,7 @@ export default function AssetPickerModal({
   max = 16,
   defaultSource = "mine",
   personalAssets = [],
+  teamAssets = [],
   publicAssets = [],
   categories = ["全部类目"],
   tags = ["全部标签"],
@@ -30,7 +32,7 @@ export default function AssetPickerModal({
   const [localAssets, setLocalAssets] = useState([])
   const [saveToMine, setSaveToMine] = useState(false)
 
-  const activePool = source === "public" ? publicAssets : personalAssets
+  const activePool = getSourcePool(source, personalAssets, teamAssets, publicAssets)
 
   const categoryOptions = useMemo(() => {
     if (categories.length > 1) return categories
@@ -78,7 +80,7 @@ export default function AssetPickerModal({
   }
 
   function handleSourceChange(nextSource) {
-    const nextPool = nextSource === "public" ? publicAssets : personalAssets
+    const nextPool = getSourcePool(nextSource, personalAssets, teamAssets, publicAssets)
     const nextCategoryOptions = categories.length > 1
       ? categories
       : deriveCategoryOptions(nextPool)
@@ -137,7 +139,7 @@ export default function AssetPickerModal({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-5">
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {sources.map((item) => (
               <button
                 key={item.key}
@@ -183,7 +185,7 @@ export default function AssetPickerModal({
               <span className="text-xs" style={{ color: "var(--text-secondary)" }}>请选择图片后再继续</span>
             </div>
             <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-              {source === "local" ? "确认后返回本地文件" : `当前来自${source === "public" ? "公共素材库" : "个人素材库"}`}
+              {source === "local" ? "确认后返回本地文件" : `当前来自${source === "public" ? "公共素材库" : source === "team" ? "团体素材库" : "个人素材库"}`}
             </span>
           </div>
         </div>
@@ -279,9 +281,15 @@ function normalizeAsset(asset, fallbackKey, sourceType) {
     name: asset.name || filename,
     filename,
     size: asset.size || "演示素材",
-    source: asset.source || (sourceType === "public" ? "公共素材库" : "个人素材库"),
+    source: asset.source || (sourceType === "public" ? "公共素材库" : sourceType === "team" ? "团体素材库" : "个人素材库"),
     sourceType,
     category: asset.category || "全部类目",
     tags: asset.tags || [],
   }
+}
+
+function getSourcePool(source, personalAssets, teamAssets, publicAssets) {
+  if (source === "team") return teamAssets
+  if (source === "public") return publicAssets
+  return personalAssets
 }

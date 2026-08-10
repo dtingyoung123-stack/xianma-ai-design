@@ -1,6 +1,10 @@
 import PageShell from "@/components/PageShell"
-import PlaceholderState from "@/components/PlaceholderState"
+import MaterialsClient from "@/app/materials/MaterialsClient"
 
 export default function MaterialsPage() {
-  return <PageShell pathname="/materials"><PlaceholderState description="图片素材、提示词模板、个人库和公共库将在这里管理" /></PageShell>
+  return (
+    <PageShell pathname="/materials" description="集中管理个人、团体和全公司共享的内容素材">
+      <MaterialsClient />
+    </PageShell>
+  )
 }

@@ -10,6 +10,11 @@ export const buyerShowPublicAssets = [
   { id: "buyer-public-2", title: "专家模式封面", filename: "专家模式.png", src: "/assets/专家模式.png", size: "155KB", source: "公共素材库", category: "专家模式", tags: ["封面", "示例"] },
 ]
 
+export const buyerShowTeamAssets = [
+  { id: "buyer-team-1", title: "团队护具场景参考", filename: "mat-3.png", src: "/assets/mat-3.png", size: "107KB", source: "团体素材库", category: "护腰带", tags: ["场景", "团队精选"] },
+  { id: "buyer-team-2", title: "团队商品角度参考", filename: "mat-4.png", src: "/assets/mat-4.png", size: "94KB", source: "团体素材库", category: "护腰带", tags: ["角度", "团队精选"] },
+]
+
 export const suitePersonalAssets = [
   { id: "suite-local-1", title: "厨房收纳主图", filename: "mat-1.png", src: "/assets/mat-1.png", size: "110KB", source: "个人素材库", category: "家居收纳", tags: ["主图", "参考"] },
   { id: "suite-local-2", title: "家居场景参考", filename: "mat-2.png", src: "/assets/mat-2.png", size: "114KB", source: "个人素材库", category: "家居收纳", tags: ["场景", "参考"] },
@@ -22,4 +27,9 @@ export const suitePublicAssets = [
   { id: "suite-public-2", title: "材质展示参考", filename: "mat-6.png", src: "/assets/mat-6.png", size: "92KB", source: "公共素材库", category: "家居收纳", tags: ["材质", "展示"] },
   { id: "suite-public-3", title: "补充参考 7", filename: "mat-7.png", src: "/assets/mat-7.png", size: "39KB", source: "公共素材库", category: "家居收纳", tags: ["补充", "参考"] },
   { id: "suite-public-4", title: "补充参考 8", filename: "mat-8.png", src: "/assets/mat-8.png", size: "84KB", source: "公共素材库", category: "家居收纳", tags: ["补充", "参考"] },
+]
+
+export const suiteTeamAssets = [
+  { id: "suite-team-1", title: "团队厨房收纳场景", filename: "mat-2.png", src: "/assets/mat-2.png", size: "114KB", source: "团体素材库", category: "家居收纳", tags: ["场景", "团队精选"] },
+  { id: "suite-team-2", title: "团队材质细节", filename: "mat-3.png", src: "/assets/mat-3.png", size: "107KB", source: "团体素材库", category: "家居收纳", tags: ["材质", "团队精选"] },
 ]

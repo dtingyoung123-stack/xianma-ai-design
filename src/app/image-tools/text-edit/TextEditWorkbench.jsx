@@ -21,7 +21,7 @@ import {
 } from "@/components/workbench/Workbench"
 import {
   textEditModels,
-  textEditPersonalAssets, textEditPublicAssets,
+  textEditPersonalAssets, textEditPublicAssets, textEditTeamAssets,
 } from "@/data/demo/text-edit"
 
 const DEFAULT_PROMPT = "只修改已选择文字区域中的内容，保持商品、背景、版式、Logo、装饰、光影和其他未选区域不变。新文字贴合原字体、字号、颜色、透视与阴影，不增加无关文字或水印。"
@@ -153,7 +153,7 @@ export default function TextEditWorkbench() {
               max={1}
               limitText="单张 20MB 内"
               assetTitle="素材库选择"
-              assetSub="个人/公共素材库"
+              assetSub="个人/团体/公共素材库"
               uploadTitle="本地上传"
               uploadSub="电脑单图上传"
               emptyText="尚未添加待改字图片，请先从素材库选择或本地上传。"
@@ -232,7 +232,7 @@ export default function TextEditWorkbench() {
         </WorkbenchPanel>
       </WorkbenchShell>
 
-      {assetPickerOpen && <AssetPickerModal title="选择待改字图片" description="当前一次处理一张图片。" max={1} personalAssets={textEditPersonalAssets} publicAssets={textEditPublicAssets} onClose={() => setAssetPickerOpen(false)} onConfirm={(assets) => { if (assets[0]) loadImage(assets[0]); setAssetPickerOpen(false) }} />}
+      {assetPickerOpen && <AssetPickerModal title="选择待改字图片" description="当前一次处理一张图片。" max={1} personalAssets={textEditPersonalAssets} teamAssets={textEditTeamAssets} publicAssets={textEditPublicAssets} onClose={() => setAssetPickerOpen(false)} onConfirm={(assets) => { if (assets[0]) loadImage(assets[0]); setAssetPickerOpen(false) }} />}
       <WorkbenchToast message={toast} />
     </>
   )

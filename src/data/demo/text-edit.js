@@ -37,6 +37,21 @@ export const textEditPublicAssets = [
   },
 ]
 
+export const textEditTeamAssets = [
+  {
+    id: "text-edit-team-poster",
+    title: "团队商品卖点排版",
+    name: "团队商品卖点排版.png",
+    filename: "团队商品卖点排版.png",
+    src: "/assets/layout-square-3.jpg",
+    img: "/assets/layout-square-3.jpg",
+    size: "演示素材",
+    source: "团体素材库",
+    category: "商品海报",
+    tags: ["卖点", "团队精选"],
+  },
+]
+
 export const textEditModels = [
   { name: "GPT Image 2", icon: "/assets/gpt.svg", desc: "细节还原强，适合文字与局部修改" },
   { name: "Wan 2.7 Image Pro", icon: "/assets/wan.png", desc: "中文指令稳定，适合商品图编辑" },

@@ -13,7 +13,7 @@ export default function ImageQueueModule({
   max = 16,
   limitText = "单张 20MB 内",
   assetTitle = "素材库选择",
-  assetSub = "个人/公共素材库",
+  assetSub = "个人/团体/公共素材库",
   uploadTitle = "本地上传",
   uploadSub = "电脑多图上传",
   emptyText = "尚未添加商品图片，请先从素材库选择或本地上传。",
