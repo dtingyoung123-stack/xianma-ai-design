@@ -3,6 +3,8 @@ import { getRouteBreadcrumbs, routeMeta } from "@/config/navigation"
 
 const statusLabels = {
   ready: "可用",
+  live: "已上线",
+  development: "开发中",
   prototype: "原型中",
   planned: "规划中",
 }

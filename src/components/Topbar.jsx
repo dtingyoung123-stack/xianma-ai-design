@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import { Coins, KeyRound, LogOut, Menu, RefreshCw, X } from "lucide-react"
+import { Coins, KeyRound, LogOut, Menu, Palette, RefreshCw, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useSidebar } from "./LayoutClient"
 import { topNavItems } from "@/config/navigation"
@@ -62,8 +62,8 @@ export default function Topbar() {
         <Link href="/home" className="flex items-center gap-2 md:gap-2.5">
           <SafeImage src="/logo.png" alt="先马" className="w-7 h-7 md:w-8 md:h-8 rounded-full" />
           <div className="hidden sm:block leading-tight">
-            <div className="text-[13px] md:text-[15px] font-semibold" style={{ color: "var(--text-title)" }}>先马 AI 设计平台</div>
-            <div className="text-[10px] md:text-[11px] hidden md:block" style={{ color: "var(--text-secondary)" }}>企业智能设计工作台</div>
+            <div className="whitespace-nowrap text-[13px] font-semibold md:text-[15px]" style={{ color: "var(--text-title)" }}>先马AI内容与视觉平台</div>
+            <div className="hidden text-[10px] text-[var(--text-secondary)] xl:block xl:text-[11px]">企业智能设计工作台</div>
           </div>
         </Link>
       </div>
@@ -81,7 +81,7 @@ export default function Topbar() {
               key={item.key}
               href={item.href}
               className={cn(
-                "relative flex h-[34px] items-center whitespace-nowrap rounded-full px-4 text-sm font-semibold transition-colors",
+                "relative flex h-[34px] items-center whitespace-nowrap rounded-full px-3 text-sm font-semibold transition-colors xl:px-4",
                 active
                   ? "text-[var(--brand-primary)]"
                   : "text-[var(--text-secondary)] hover:text-[var(--text-title)]"
@@ -100,11 +100,14 @@ export default function Topbar() {
       </nav>
 
       {/* Right: UI 样式 + Credits + User */}
-      <div className="flex items-center gap-2 md:gap-3 shrink-0 ml-2">
+      <div className="ml-2 flex shrink-0 items-center gap-2 xl:gap-3">
         <Link href="/ui-guide"
-          className="text-xs font-medium px-2.5 py-1 rounded-full border transition-colors hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)]"
+          title="UI 样式"
+          aria-label="UI 样式"
+          className="inline-flex size-8 items-center justify-center gap-1.5 rounded-full border text-xs font-medium transition-colors hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] xl:w-auto xl:px-2.5"
           style={{ color: "var(--text-secondary)", borderColor: "var(--border-base)" }}>
-          UI 样式
+          <Palette size={14} />
+          <span className="hidden xl:inline">UI 样式</span>
         </Link>
         <Link href="/points" aria-label={`积分中心，当前 ${pointsState.balance} 积分`} className="inline-flex items-center gap-1.5 h-7 md:h-8 px-2 md:px-3 rounded-full text-[11px] md:text-[13px] font-medium transition-colors hover:ring-2 hover:ring-[var(--brand-primary-soft)]"
           style={{

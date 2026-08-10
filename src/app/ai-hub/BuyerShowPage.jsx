@@ -28,7 +28,7 @@ import {
   RULE_DIMENSIONS, modelOptions, resolutionOptions, ratioOptions, countOptions,
   quickEditTemplates, assetPool, defaultLibrary, seedTasks, buildReviewText, buildQuickInstruction,
 } from "@/data/demo/buyer-show"
-import { buyerShowPersonalAssets, buyerShowPublicAssets } from "@/data/demo/asset-picker"
+import { buyerShowPersonalAssets, buyerShowPublicAssets, buyerShowTeamAssets } from "@/data/demo/asset-picker"
 
 const labelStyles = {
   认可: { bg: "var(--success-bg)", color: "var(--success)" },
@@ -444,7 +444,7 @@ function BuyerShowView(p) {
   return (
     <WorkbenchShell
       crumbs={p.crumbs}
-      status="原型验证中"
+      status="已上线"
       title="AI 买家秀"
       description="选商品、选场景，自动带出规则后直接生成一组买家秀图。"
       actions={<WorkbenchHistoryAction source="buyer-show" sourceLabel="AI 买家秀" params={{ model: p.model, resolution: p.resolution, ratio: p.ratio, quality: p.quality, count: p.count, category: p.categoryName || "", scene: p.scene?.name || "" }} />}
@@ -464,6 +464,7 @@ function BuyerShowView(p) {
           max={p.assetReplaceIndex !== null ? 1 : Math.max(1, 16 - p.productImages.length)}
           defaultSource="mine"
           personalAssets={buyerShowPersonalAssets}
+          teamAssets={buyerShowTeamAssets}
           publicAssets={buyerShowPublicAssets}
           onClose={p.closeAssetPicker}
           onConfirm={p.onChooseAsset}

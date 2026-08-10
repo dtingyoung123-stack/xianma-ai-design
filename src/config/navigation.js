@@ -1,6 +1,7 @@
 import {
   ChartNoAxesCombined,
   ClipboardCheck,
+  Cpu,
   Image,
   Settings,
   ShieldCheck,
@@ -14,6 +15,7 @@ export const topNavItems = [
   { key: "capability", label: "能力中心", href: "/ai-hub", match: (pathname) => pathname.startsWith("/ai-hub") },
   { key: "canvas", label: "无限画布", href: "/ai-canvas", match: (pathname) => pathname.startsWith("/ai-canvas") },
   { key: "materials", label: "素材库", href: "/materials", match: (pathname) => pathname.startsWith("/materials") },
+  { key: "prompts", label: "提示词库", href: "/prompts", match: (pathname) => pathname.startsWith("/prompts") },
   { key: "history", label: "历史记录", href: "/history", match: (pathname) => pathname.startsWith("/history") },
   { key: "help", label: "帮助文档", href: "/help-docs", match: (pathname) => pathname.startsWith("/help-docs") },
 ]
@@ -51,6 +53,7 @@ export const adminItems = [
   { key: "admin-data", label: "数据智能", icon: ChartNoAxesCombined, href: "/admin/data" },
   { key: "admin-points-requests", label: "积分审批", icon: ClipboardCheck, href: "/admin/points-requests" },
   { key: "admin-permission", label: "权限管理", icon: ShieldCheck, href: "/admin/permission" },
+  { key: "admin-models", label: "模型管理", icon: Cpu, href: "/admin/models" },
   { key: "admin-settings", label: "系统设置", icon: Settings, href: "/admin/settings" },
 ]
 
@@ -66,16 +69,18 @@ export const routeMeta = {
   "/ai-hub/multi-angle": { label: "AI 多角度", section: "AI 能力中心", status: "prototype" },
   "/ai-hub/region-repaint": { label: "AI 区域重绘", section: "AI 能力中心", status: "prototype" },
   "/ai-hub/prompt": { label: "AI 提示词", section: "AI 能力中心", status: "prototype" },
-  "/ai-hub/buyer-show": { label: "AI 买家秀", section: "AI 能力中心", status: "prototype" },
+  "/ai-hub/buyer-show": { label: "AI 买家秀", section: "AI 能力中心", status: "live" },
   "/ai-hub/video-stream": { label: "AI 视频流", section: "AI 能力中心", status: "prototype" },
-  "/ai-hub/product-suite": { label: "AI 商品套图", section: "AI 能力中心", status: "prototype" },
+  "/ai-hub/product-suite": { label: "AI 商品套图", section: "AI 能力中心", status: "live" },
   "/ai-canvas": { label: "无限画布", section: "自研工具", status: "prototype" },
-  "/materials": { label: "素材管理", section: "素材库", status: "prototype" },
+  "/materials": { label: "素材库", section: "素材库", status: "development" },
+  "/prompts": { label: "提示词库", section: "提示词库", status: "development" },
   "/history": { label: "历史记录", section: "历史记录", status: "prototype" },
   "/help-docs": { label: "帮助文档", section: "帮助文档", status: "prototype" },
   "/admin/data": { label: "数据智能", section: "管理", status: "prototype" },
   "/admin/points-requests": { label: "积分审批", section: "管理", status: "prototype" },
-  "/admin/permission": { label: "权限管理", section: "管理", status: "prototype" },
+  "/admin/permission": { label: "权限管理", section: "管理", status: "development" },
+  "/admin/models": { label: "模型管理", section: "管理", status: "prototype" },
   "/points": { label: "积分中心", section: "个人中心", status: "prototype" },
   "/admin/settings": { label: "系统设置", section: "管理", status: "prototype" },
 }

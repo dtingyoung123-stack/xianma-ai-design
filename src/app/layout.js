@@ -2,7 +2,7 @@ import "./globals.css"
 import LayoutClient from "@/components/LayoutClient"
 
 export const metadata = {
-  title: "先马 AI 设计平台",
+  title: "先马AI内容与视觉平台",
   description: "企业智能设计工作台",
 }
 

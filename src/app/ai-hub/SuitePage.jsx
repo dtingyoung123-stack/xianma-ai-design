@@ -21,7 +21,7 @@ import {
   WorkbenchShell,
 } from "@/components/workbench/Workbench"
 import { getBreadcrumbs } from "@/config/navigation"
-import { suitePersonalAssets, suitePublicAssets } from "@/data/demo/asset-picker"
+import { suitePersonalAssets, suitePublicAssets, suiteTeamAssets } from "@/data/demo/asset-picker"
 
 /* ================================================================
    AI 商品套图 — Layout data (matching prototype)
@@ -177,7 +177,7 @@ export default function SuitePage() {
   return (
     <WorkbenchShell
       crumbs={crumbs}
-      status="原型验证中"
+      status="已上线"
       title="AI 商品套图"
       description="多张商品图 + 卖点，一键产出亚马逊主副图矩阵与 A+ 套图。"
       actions={<WorkbenchHistoryAction source="product-suite" sourceLabel="AI 商品套图" params={{ model, resolution, ratio, language }} />}
@@ -239,6 +239,7 @@ export default function SuitePage() {
           max={assetReplaceIndex !== null ? 1 : Math.max(1, 16 - products.length)}
           defaultSource="mine"
           personalAssets={suitePersonalAssets}
+          teamAssets={suiteTeamAssets}
           publicAssets={suitePublicAssets}
           onClose={() => { setAssetPickerOpen(false); setAssetReplaceIndex(null) }}
           onConfirm={(selectedAssets) => {
@@ -350,7 +351,7 @@ function ConfigPanel(props) {
         <ImageQueueModule
           title="① 商品原图"
           images={products}
-          assetSub="从个人或公共素材库选择"
+          assetSub="从个人、团体或公共素材库选择"
           uploadSub="支持 JPG/JPEG/PNG，可多选"
           emptyText="尚未添加商品图片，数组第 1 张将作为主图。"
           getSrc={(product) => product?.img}

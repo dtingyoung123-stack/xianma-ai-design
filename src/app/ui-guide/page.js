@@ -107,7 +107,7 @@ function PageTitle() {
     <div className="mb-8 pb-6 border-b flex items-start justify-between gap-4" style={{ borderColor: "var(--border-base)" }}>
       <div>
         <h1 className="text-[28px] font-bold mb-2" style={{ color: "var(--text-title)" }}>设计系统 · UI 规范</h1>
-        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>先马 AI 设计平台 · 品牌色 #2563EB · React + shadcn/ui + Tailwind CSS</p>
+        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>先马AI内容与视觉平台 · 品牌色 #2563EB · React + shadcn/ui + Tailwind CSS</p>
       </div>
       <a href="/api/ui-spec" download
         className="shrink-0 inline-flex items-center gap-2 h-10 px-4 rounded-lg text-sm font-medium text-white transition-colors"
@@ -212,7 +212,7 @@ function Typography() {
         </div>
         <div className="border-b pb-4" style={{ borderColor: "var(--border-light)" }}>
           <div className="text-xs font-semibold mb-2" style={{ color: "var(--text-disabled)" }}>H1 · 22px/600 · 页面标题</div>
-          <div className="text-[22px] font-semibold" style={{ color: "var(--text-title)" }}>先马 AI 设计平台</div>
+          <div className="text-[22px] font-semibold" style={{ color: "var(--text-title)" }}>先马AI内容与视觉平台</div>
         </div>
         <div className="border-b pb-4" style={{ borderColor: "var(--border-light)" }}>
           <div className="text-xs font-semibold mb-2" style={{ color: "var(--text-disabled)" }}>H2 · 20px/600 · 页面主要分区标题</div>
