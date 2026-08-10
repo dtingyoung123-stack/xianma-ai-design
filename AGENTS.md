@@ -122,3 +122,10 @@ This confirmation gate does not apply to clearly scoped bug fixes, read-only inv
 1. After completing a feature, requirement adjustment, shared-component change, or important fix, update `PROJECT_MEMORY.md`.
 2. Record the date, status, confirmed scope, key rules, and related files. Preserve previous decisions and append later changes instead of erasing history.
 3. Before GitHub synchronization, verify that the current work is represented in `PROJECT_MEMORY.md` and that related product or UI documents are updated when applicable.
+
+## 12. PRD file convention
+
+1. Markdown is the canonical source for project PRDs.
+2. New PRDs must be stored in the project `docs/` directory unless the user explicitly specifies another location.
+3. Use the filename format `功能名称PRD_YYMMDD.md`, where the date is the actual document creation date. Example: `素材库提示词库权限管理PRD_260810.md`.
+4. When a PRD is revised on a later date, update the document version and change history inside the canonical file; do not create duplicate dated files unless the user explicitly requests a snapshot.
