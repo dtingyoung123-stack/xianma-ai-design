@@ -8,6 +8,8 @@ import ImageQueueModule from "@/components/workbench/ImageQueueModule"
 import AssetPickerModal from "@/components/workbench/AssetPickerModal"
 import { ColorConstraintChips } from "@/components/workbench/ColorConstraintPicker"
 import {
+  formatImageSize,
+  hasValidImageSize,
   WorkbenchModelSelect,
   WorkbenchParameterSelect,
   WorkbenchToast,
@@ -189,6 +191,7 @@ export default function BuyerShowPage() {
   const [model, setModel] = useState("Nano Banana 2")
   const [resolution, setResolution] = useState("2K")
   const [ratio, setRatio] = useState("4:3")
+  const [customSize, setCustomSize] = useState({ width: "800", height: "800" })
   const [quality, setQuality] = useState("高画质")
   const [count, setCount] = useState("4")
   const [productImages, setProductImages] = useState([])
@@ -225,6 +228,7 @@ export default function BuyerShowPage() {
   const category = useMemo(() => (library[activeLib] || []).find((c) => c.name === categoryName) || null, [library, activeLib, categoryName])
   const scene = useMemo(() => category?.scenes.find((s) => s.id === sceneId) || null, [category, sceneId])
   const ruleSummary = useMemo(() => buildRuleSummary(category, scene), [category, scene])
+  const imageSize = formatImageSize(ratio, customSize)
 
   function pickCategory(name) {
     setCategoryName(name)
@@ -257,6 +261,7 @@ export default function BuyerShowPage() {
   }
 
   function handleSubmit() {
+    if (!hasValidImageSize(ratio, customSize)) { showToast("请填写完整的自定义宽高"); return }
     if (!productImages.length) { showToast("请先添加商品图片"); return }
     if (!category || !scene) { showToast("请先选择产品品类和场景"); return }
     if (generating) { showToast("正在生成中，请等待完成"); return }
@@ -280,7 +285,7 @@ export default function BuyerShowPage() {
     })
     const task = {
       id: newId("demo"), title: `${n} 张买家秀 · ${hh}:${mm}`, time: "刚刚", status: "生成中", progress: 0, doneText: `0/${n}`,
-      scene: scene.name, productType: category.name, model, resolution, ratio, quality, count: `${n} 张`,
+      scene: scene.name, productType: category.name, model, resolution, ratio: imageSize, quality, count: `${n} 张`,
       prompt: prompt || "未填写补充提示词", sellingPoints: category.sellingPoints || "", rules: buildRuleSummary(category, scene),
       storyboard: storyboard.slice(0, n), results, reviews: [],
     }
@@ -386,7 +391,7 @@ export default function BuyerShowPage() {
         clearInterval(timerRef.current)
         setGenerating(false); setGenLabel("")
         setProductImages([]); setCategoryName(null); setSceneId(null); setPrompt(""); setColorConstraints([])
-        setModel("Nano Banana 2"); setResolution("2K"); setRatio("4:3"); setQuality("高画质"); setCount("4")
+        setModel("Nano Banana 2"); setResolution("2K"); setRatio("4:3"); setCustomSize({ width: "800", height: "800" }); setQuality("高画质"); setCount("4")
         setConfirm(null)
         showToast("已清空当前配置和选择")
       },
@@ -418,7 +423,7 @@ export default function BuyerShowPage() {
         showToast("区域和文本标注已保存")
       }}
       model={model} setModel={setModel} resolution={resolution} setResolution={setResolution}
-      ratio={ratio} setRatio={setRatio} quality={quality} setQuality={setQuality} count={count} setCount={setCount}
+      ratio={ratio} setRatio={setRatio} customSize={customSize} setCustomSize={setCustomSize} imageSize={imageSize} quality={quality} setQuality={setQuality} count={count} setCount={setCount}
       onSubmit={handleSubmit} onClear={handleClear} onCancelGeneration={cancelGeneration} onManage={() => setManageOpen(true)}
       generating={generating} genLabel={genLabel}
       filteredTasks={filteredTasks} taskSearch={taskSearch} setTaskSearch={setTaskSearch} onOpenTask={setDetailId}
@@ -447,7 +452,7 @@ function BuyerShowView(p) {
       status="已上线"
       title="AI 买家秀"
       description="选商品、选场景，自动带出规则后直接生成一组买家秀图。"
-      actions={<WorkbenchHistoryAction source="buyer-show" sourceLabel="AI 买家秀" params={{ model: p.model, resolution: p.resolution, ratio: p.ratio, quality: p.quality, count: p.count, category: p.categoryName || "", scene: p.scene?.name || "" }} />}
+      actions={<WorkbenchHistoryAction source="buyer-show" sourceLabel="AI 买家秀" params={{ model: p.model, resolution: p.resolution, ratio: p.imageSize, quality: p.quality, count: p.count, category: p.categoryName || "", scene: p.scene?.name || "" }} />}
       columns="minmax(360px, 3fr) minmax(0, 7fr)"
     >
         <ConfigPanel {...p} />
@@ -485,7 +490,7 @@ function ConfigPanel(p) {
   const [showRule, setShowRule] = useState(false)
 
   const listCats = p.cats(p.activeLib).filter((c) => c.name.includes(catSearch))
-  const paramSummary = `${p.resolution} · ${p.ratio} · ${p.quality} · ${p.count} 张`
+  const paramSummary = `${p.resolution} · ${p.imageSize} · ${p.quality} · ${p.count} 张`
 
   return (
     <WorkbenchPanel>
@@ -578,7 +583,7 @@ function ConfigPanel(p) {
               sections={[
                 { key: "resolution", label: "清晰度", value: p.resolution, options: resolutionOptions, onChange: p.setResolution },
                 { key: "quality", label: "画质", value: p.quality, options: ["标准画质", "高画质"], onChange: p.setQuality },
-                { key: "ratio", label: "图片尺寸", value: p.ratio, options: ratioOptions, onChange: p.setRatio, visual: "ratio" },
+                { key: "ratio", label: "图片尺寸", value: p.ratio, options: [...ratioOptions, { value: "custom", label: "自定义" }], onChange: p.setRatio, visual: "ratio", custom: { value: "custom", size: p.customSize, onChange: p.setCustomSize } },
                 { key: "count", label: "图片张数", value: p.count, options: countOptions, onChange: p.setCount },
               ]}
             />

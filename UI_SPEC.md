@@ -337,6 +337,7 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 | `WorkbenchScroll` | 面板内部滚动容器 | 配置项较多或结果列表较长时 |
 | `WorkbenchFooter` | 左侧配置栏底部固定操作区 | 提交、生成、清空、终止 |
 | `WorkbenchModule` | 参数模块卡片 | 商品原图、场景、提示词、生成参数、套图类型 |
+| `WorkbenchParameterSelect` | 生成参数选择弹层 | 复用模型以外的清晰度、画质、尺寸、张数等参数；图片尺寸支持预设比例与自定义宽高像素输入，选择后任务摘要和历史记录展示实际尺寸 |
 | `WorkbenchButton` | 胶囊纯色主按钮、轻按钮 | 生成、历史记录、清空、辅助操作 |
 | `WorkbenchEmpty` | 右侧空状态 | 未生成结果、无匹配任务、无数据 |
 

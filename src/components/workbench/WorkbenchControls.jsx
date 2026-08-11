@@ -15,6 +15,23 @@ const ratioShapes = {
   "4:3": { width: 27, height: 22 },
   "3:4": { width: 22, height: 27 },
   "9:16": { width: 19, height: 30 },
+  "自定义": { width: 24, height: 24 },
+}
+
+export function formatImageSize(value, customSize) {
+  if (value !== "custom") return value
+  const width = Number(customSize?.width)
+  const height = Number(customSize?.height)
+  return Number.isInteger(width) && width > 0 && Number.isInteger(height) && height > 0
+    ? `${width}×${height}px`
+    : "自定义尺寸"
+}
+
+export function hasValidImageSize(value, customSize) {
+  if (value !== "custom") return true
+  const width = Number(customSize?.width)
+  const height = Number(customSize?.height)
+  return Number.isInteger(width) && width > 0 && Number.isInteger(height) && height > 0
 }
 
 function getPopoverPosition(trigger, preferredWidth, preferredHeight) {
@@ -159,38 +176,62 @@ export function WorkbenchModelSelect({ value, onChange, options, label = "模型
 export function WorkbenchParameterSelect({ summary, sections, label = "参数", note }) {
   const [open, setOpen] = useState(false)
   const close = () => setOpen(false)
-  const { triggerRef, panelRef, position } = useWorkbenchPopover(open, 416, 496, close)
+  const { triggerRef, panelRef, position } = useWorkbenchPopover(open, 416, 576, close)
 
   return (
     <div className="relative min-w-0">
       <ControlTrigger triggerRef={triggerRef} open={open} onClick={() => setOpen((currentOpen) => !currentOpen)} label={label} value={summary} />
       <Popover position={position} panelRef={panelRef}>
         <div className="space-y-3">
-          {sections.map((section) => (
-            <section key={section.key}>
-              <h4 className="mb-1.5 text-[13px] font-semibold" style={{ color: "var(--text-title)" }}>{section.label}</h4>
-              <div className="grid gap-1 rounded-xl p-1" style={{ gridTemplateColumns: `repeat(${Math.min(section.options.length, section.visual === "ratio" ? 4 : 9)}, minmax(0, 1fr))`, background: "var(--gray-100)" }}>
-                {section.options.map((option) => {
-                  const optionValue = typeof option === "object" ? option.value ?? option.label : option
-                  const optionLabel = typeof option === "object" ? option.label : option
-                  const selected = section.value === optionValue
-                  const shape = ratioShapes[optionLabel]
-                  return (
-                    <button
-                      key={optionValue}
-                      type="button"
-                      onClick={() => section.onChange(optionValue)}
-                      className={cn("flex min-h-9 items-center justify-center rounded-lg px-1 text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]", section.visual === "ratio" && "min-h-16 flex-col gap-1.5")}
-                      style={selected ? { background: "var(--white)", color: "var(--brand-primary)", boxShadow: "var(--shadow-control)" } : { color: "var(--text-secondary)" }}
-                    >
-                      {section.visual === "ratio" && <span className="block rounded border-2" style={{ width: shape?.width || 28, height: shape?.height || 28, borderColor: selected ? "var(--brand-primary)" : "var(--gray-300)" }} />}
-                      <span>{optionLabel}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </section>
-          ))}
+          {sections.map((section) => {
+            const customActive = section.custom && section.value === section.custom.value
+            const updateCustomDimension = (field, value) => section.custom?.onChange({
+              ...section.custom.size,
+              [field]: value.replace(/\D/g, ""),
+            })
+
+            return (
+              <section key={section.key}>
+                <h4 className="mb-1.5 text-[13px] font-semibold" style={{ color: "var(--text-title)" }}>{section.label}</h4>
+                <div className="grid gap-1 rounded-xl p-1" style={{ gridTemplateColumns: `repeat(${Math.min(section.options.length, section.visual === "ratio" ? 4 : 9)}, minmax(0, 1fr))`, background: "var(--gray-100)" }}>
+                  {section.options.map((option) => {
+                    const optionValue = typeof option === "object" ? option.value ?? option.label : option
+                    const optionLabel = typeof option === "object" ? option.label : option
+                    const selected = section.value === optionValue
+                    const shape = ratioShapes[optionLabel]
+                    return (
+                      <button
+                        key={optionValue}
+                        type="button"
+                        onClick={() => section.onChange(optionValue)}
+                        className={cn("flex min-h-9 items-center justify-center rounded-lg px-1 text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]", section.visual === "ratio" && "min-h-16 flex-col gap-1.5")}
+                        style={selected ? { background: "var(--white)", color: "var(--brand-primary)", boxShadow: "var(--shadow-control)" } : { color: "var(--text-secondary)" }}
+                      >
+                        {section.visual === "ratio" && <span className="block rounded border-2" style={{ width: shape?.width || 28, height: shape?.height || 28, borderColor: selected ? "var(--brand-primary)" : "var(--gray-300)" }} />}
+                        <span>{optionLabel}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+                {customActive && (
+                  <div className="mt-2 rounded-xl border p-2.5" style={{ borderColor: "var(--border-base)", background: "var(--gray-50)" }}>
+                    <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+                      <label className="block">
+                        <span className="mb-1 block text-xs" style={{ color: "var(--text-secondary)" }}>宽度</span>
+                        <input aria-label="自定义宽度" inputMode="numeric" value={section.custom.size.width} onChange={(event) => updateCustomDimension("width", event.target.value)} placeholder="宽" className="h-9 w-full rounded-lg border bg-white px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" style={{ borderColor: "var(--border-base)", color: "var(--text-title)" }} />
+                      </label>
+                      <span className="mb-2 text-sm font-semibold" style={{ color: "var(--text-disabled)" }}>×</span>
+                      <label className="block">
+                        <span className="mb-1 block text-xs" style={{ color: "var(--text-secondary)" }}>高度</span>
+                        <input aria-label="自定义高度" inputMode="numeric" value={section.custom.size.height} onChange={(event) => updateCustomDimension("height", event.target.value)} placeholder="高" className="h-9 w-full rounded-lg border bg-white px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" style={{ borderColor: "var(--border-base)", color: "var(--text-title)" }} />
+                      </label>
+                    </div>
+                    <p className="mb-0 mt-2 text-xs" style={{ color: "var(--text-secondary)" }}>按平台要求输入像素尺寸</p>
+                  </div>
+                )}
+              </section>
+            )
+          })}
           {note && <p className="m-0 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>{note}</p>}
         </div>
       </Popover>

@@ -339,3 +339,25 @@
 - 页面规则：权限管理页右上角单独展示“导出 PRD”，位于“同步钉钉”上方，不与业务功能按钮并排组合。
 - 下载规则：点击后直接下载 `docs/素材库提示词库权限管理PRD_260810.md`；源文件缺失时返回明确错误，不生成空文件。
 - 关联文件：`src/app/admin/permission/page.js`、`src/app/api/permission-prd/route.js`、`docs/素材库提示词库权限管理PRD_260810.md`、`PROJECT_MEMORY.md`。
+
+### 2026-08-11：权限管理人员列表 PRD 字段契约补全
+
+- 状态：PRD 已更新至 V1.2；未改动前端原型或服务端实现。
+- 文档规则：将“钉钉身份”和“账号状态”明确为独立字段；列出人员、角色、组织数据范围、审批权限、筛选、分页、统计和配置弹窗的字段、来源、状态枚举、空值、可编辑边界与按钮结果。
+- 账号状态：正式接口枚举统一为 `ACTIVE`、`DISABLED`，当前原型 `active`、`disabled` 仅为映射；停用账号保留在列表、不计入三个统计、不可配置且立即失去访问能力。
+- 待确认：停用账号的既有平台授权是否保留、恢复账号后是否自动恢复，尚未形成业务与技术确认，不写入正式执行规则。
+- 关联文件：`docs/素材库提示词库权限管理PRD_260810.md`、`PROJECT_MEMORY.md`、`C:\Users\Administrator\.codex\skills\xianma-ai-design-platform-prd\SKILL.md`、`C:\Users\Administrator\.codex\skills\xianma-ai-design-platform-prd\references\review-checklist.md`。
+
+### 2026-08-11：生成参数支持自定义图片尺寸
+
+- 状态：已确认并更新前端交互原型；当前仅为前端演示状态，实际生成服务的尺寸能力和模型限制待服务端对接时校验。
+- 交互规则：AI 买家秀和一键改字复用 `WorkbenchParameterSelect` 的“图片尺寸”配置；除预设比例外新增“自定义”，选择后在同一弹层输入宽度和高度（像素）。默认值为 `800×800`，适配淘工厂主图等固定像素场景。
+- 数据规则：自定义宽高必须均为正整数；未填写完整时不可提交生成。任务摘要和历史记录展示实际像素尺寸，例如 `800×800px`，而非“自定义”。
+- 边界：AI 商品套图的主副图比例和 A+ 固定尺寸继续由其自身的平台规则控制，不接入本次公共尺寸输入。
+- 关联文件：`src/components/workbench/WorkbenchControls.jsx`、`src/app/ai-hub/BuyerShowPage.jsx`、`src/app/image-tools/text-edit/TextEditWorkbench.jsx`、`UI_SPEC.md`、`PROJECT_MEMORY.md`。
+
+### 2026-08-11：本地原型 127.0.0.1 交互恢复
+
+- 状态：已修复本地开发环境中页面能渲染但按钮无法交互的问题。
+- 原因与规则：Next.js 开发服务默认拦截来自 `127.0.0.1` 的开发资源请求，导致客户端交互未挂载；开发配置显式允许 `127.0.0.1`，本地原型统一可通过 `http://127.0.0.1:3000` 访问。
+- 关联文件：`next.config.mjs`、`PROJECT_MEMORY.md`。

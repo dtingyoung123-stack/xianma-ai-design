@@ -10,6 +10,8 @@ import AssetPickerModal from "@/components/workbench/AssetPickerModal"
 import ImageQueueModule from "@/components/workbench/ImageQueueModule"
 import SafeImage from "@/components/SafeImage"
 import {
+  formatImageSize,
+  hasValidImageSize,
   WorkbenchIconButton,
   WorkbenchModelSelect,
   WorkbenchParameterSelect,
@@ -41,6 +43,7 @@ export default function TextEditWorkbench() {
   const [resolution, setResolution] = useState("2K")
   const [quality, setQuality] = useState("标准画质")
   const [ratio, setRatio] = useState("智能比例")
+  const [customSize, setCustomSize] = useState({ width: "800", height: "800" })
   const [count, setCount] = useState("1")
   const [toast, setToast] = useState("")
   const [showBoxes, setShowBoxes] = useState(true)
@@ -48,6 +51,7 @@ export default function TextEditWorkbench() {
 
   const selectedLayer = layers.find((item) => item.id === selectedId) || null
   const changedLayers = layers.filter((item) => item.replacement.trim() && item.replacement.trim() !== item.sourceText.trim())
+  const imageSize = formatImageSize(ratio, customSize)
   const generatedPrompt = useMemo(() => {
     const changes = changedLayers.map((item, index) => `${index + 1}. 将“${item.sourceText || "所选区域文字"}”替换为“${item.replacement}”。`)
     return changes.length ? `${DEFAULT_PROMPT}\n\n具体修改：\n${changes.join("\n")}` : DEFAULT_PROMPT
@@ -127,6 +131,7 @@ export default function TextEditWorkbench() {
 
   function submitTask() {
     if (!image || !changedLayers.length || generationStatus === "processing") return
+    if (!hasValidImageSize(ratio, customSize)) { notify("请填写完整的自定义宽高"); return }
     setGenerationStatus("processing")
     notify("改字任务已提交")
     window.setTimeout(() => {
@@ -143,7 +148,7 @@ export default function TextEditWorkbench() {
         title="一键改字"
         description="选择图片中的文字逐项替换，未选区域保持不变。"
         columns="minmax(360px, 3fr) minmax(0, 7fr)"
-        actions={<><TopActions history={history} future={future} onUndo={undo} onRedo={redo} /><WorkbenchHistoryAction source="text-edit" sourceLabel="一键改字" params={{ model, resolution, quality, ratio, count }} /></>}
+        actions={<><TopActions history={history} future={future} onUndo={undo} onRedo={redo} /><WorkbenchHistoryAction source="text-edit" sourceLabel="一键改字" params={{ model, resolution, quality, ratio: imageSize, count }} /></>}
       >
         <WorkbenchPanel>
           <WorkbenchScroll gap={12}>
@@ -204,7 +209,7 @@ export default function TextEditWorkbench() {
               ) : <div className="rounded-md border border-dashed px-3 py-5 text-center text-xs" style={{ borderColor: "var(--border-base)", color: "var(--text-disabled)" }}>{image ? "识别或手动框选后，文字会显示在这里" : "请先添加一张图片"}</div>}
             </WorkbenchModule>
 
-            <GenerationSettings model={model} setModel={setModel} resolution={resolution} setResolution={setResolution} quality={quality} setQuality={setQuality} ratio={ratio} setRatio={setRatio} count={count} setCount={setCount} advancedOpen={advancedOpen} setAdvancedOpen={setAdvancedOpen} prompt={generatedPrompt} />
+            <GenerationSettings model={model} setModel={setModel} resolution={resolution} setResolution={setResolution} quality={quality} setQuality={setQuality} ratio={ratio} setRatio={setRatio} customSize={customSize} setCustomSize={setCustomSize} imageSize={imageSize} count={count} setCount={setCount} advancedOpen={advancedOpen} setAdvancedOpen={setAdvancedOpen} prompt={generatedPrompt} />
           </WorkbenchScroll>
           <WorkbenchFooter>
             <WorkbenchButton disabled={!image || !changedLayers.length || generationStatus === "processing"} onClick={submitTask} className="h-[46px] flex-1 rounded-xl">{generationStatus === "processing" ? <LoaderCircle className="animate-spin" size={16} /> : <Sparkles size={16} />}{generationStatus === "processing" ? "改字处理中" : "开始改字"}</WorkbenchButton>
@@ -321,18 +326,18 @@ function Inspector({ layer, onChange, onDelete }) {
   </aside>
 }
 
-function GenerationSettings({ model, setModel, resolution, setResolution, quality, setQuality, ratio, setRatio, count, setCount, advancedOpen, setAdvancedOpen, prompt }) {
+function GenerationSettings({ model, setModel, resolution, setResolution, quality, setQuality, ratio, setRatio, customSize, setCustomSize, imageSize, count, setCount, advancedOpen, setAdvancedOpen, prompt }) {
   return <WorkbenchModule title="生成设置">
     <button type="button" onClick={() => setAdvancedOpen((value) => !value)} className="flex h-9 w-full items-center justify-between rounded-md px-2 text-xs font-bold" style={{ background: "var(--gray-50)", color: "var(--text-body)" }}><span className="inline-flex items-center gap-2"><PencilLine size={14} />高级提示词</span>{advancedOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</button>
     {advancedOpen && <textarea value={prompt} readOnly rows={6} className="mt-2 w-full resize-none rounded-md border p-2.5 text-[11px] leading-relaxed" style={{ borderColor: "var(--border-base)", color: "var(--text-secondary)", background: "var(--gray-50)" }} />}
     <div className="mt-2 grid grid-cols-2 gap-2">
       <WorkbenchModelSelect value={model} onChange={setModel} options={textEditModels} />
       <WorkbenchParameterSelect
-        summary={`${resolution} · ${ratio} · ${quality} · ${count} 张`}
+        summary={`${resolution} · ${imageSize} · ${quality} · ${count} 张`}
         sections={[
           { key: "resolution", label: "清晰度", value: resolution, options: ["1K", "2K", "4K"], onChange: setResolution },
           { key: "quality", label: "画质", value: quality, options: ["标准画质", "高画质"], onChange: setQuality },
-          { key: "ratio", label: "图片尺寸", value: ratio, options: ["智能比例", "1:1", "3:2", "2:3", "16:9", "4:3", "3:4", "9:16"], onChange: setRatio, visual: "ratio" },
+          { key: "ratio", label: "图片尺寸", value: ratio, options: ["智能比例", "1:1", "3:2", "2:3", "16:9", "4:3", "3:4", "9:16", { value: "custom", label: "自定义" }], onChange: setRatio, visual: "ratio", custom: { value: "custom", size: customSize, onChange: setCustomSize } },
           { key: "count", label: "图片张数", value: count, options: ["1", "2", "3", "4", "5", "6", "7", "8", "9"], onChange: setCount },
         ]}
       />
