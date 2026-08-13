@@ -125,7 +125,18 @@ This confirmation gate does not apply to clearly scoped bug fixes, read-only inv
 
 ## 12. PRD file convention
 
-1. Markdown is the canonical source for project PRDs.
-2. New PRDs must be stored in the project `docs/` directory unless the user explicitly specifies another location.
+1. Markdown is the canonical format for project PRDs. The formal product fact source is the corresponding Markdown under `D:\HermesVault\10_先马电商\03_项目\01_先马AI设计平台`; the project `docs/` copy is the development baseline.
+2. New PRD development copies must be stored in the project `docs/` directory unless the user explicitly specifies another location.
 3. Use the filename format `功能名称PRD_YYMMDD.md`, where the date is the actual document creation date. Example: `素材库提示词库权限管理PRD_260810.md`.
 4. When a PRD is revised on a later date, update the document version and change history inside the canonical file; do not create duplicate dated files unless the user explicitly requests a snapshot.
+
+## 13. Xianma knowledge-base writeback
+
+1. For Xianma product work, read `D:\HermesVault\90_知识库管理\关系规范\Codex知识库协作治理规则.md` and the relevant project Markdown before relying on chat history.
+2. The code repository is the source of truth for current code, implementation state, Git history, and executable verification. The vault is the source of truth for formal product rules, PRDs, decisions, project status, acceptance, and launch conclusions.
+3. After a formal PRD or an important product rule is confirmed in this repository, compare it with the corresponding vault Markdown before finishing the task.
+4. Sync only user-confirmed or actually verified product facts: formal PRDs, confirmed product rules, important decisions, project-stage status, acceptance, and launch conclusions.
+5. Do not sync source code, `node_modules`, `.next`, temporary prototype iterations, unconfirmed drafts, complete repository snapshots, or chat transcripts into the vault.
+6. If the repository and vault contain different content for the same topic, present the difference first. Do not overwrite either side based only on modification time.
+7. Update the vault Markdown first after confirmation, then refresh any development copy or derived format that needs to stay aligned.
+8. This is a manual task-completion gate. Do not create background synchronization, automatic bidirectional copying, or a requirement-bot-to-PRD pipeline unless the user separately authorizes it.
