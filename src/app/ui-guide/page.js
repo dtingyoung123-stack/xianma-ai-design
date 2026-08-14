@@ -107,7 +107,7 @@ function PageTitle() {
     <div className="mb-8 pb-6 border-b flex items-start justify-between gap-4" style={{ borderColor: "var(--border-base)" }}>
       <div>
         <h1 className="text-[28px] font-bold mb-2" style={{ color: "var(--text-title)" }}>设计系统 · UI 规范</h1>
-        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>先马AI内容与视觉平台 · 品牌色 #2563EB · React + shadcn/ui + Tailwind CSS</p>
+        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>先马AI内容与视觉平台 · 山茶红交互主题 · React + shadcn/ui + Tailwind CSS</p>
       </div>
       <a href="/api/ui-spec" download
         className="shrink-0 inline-flex items-center gap-2 h-10 px-4 rounded-lg text-sm font-medium text-white transition-colors"
@@ -126,15 +126,17 @@ function PageTitle() {
 /* ── Brand Colors ── */
 function BrandColors() {
   const colors = [
-    { name: "Primary", color: "#2563EB", token: "--brand-primary", usage: "主按钮、选中态、强调" },
-    { name: "Primary Hover", color: "#1D4ED8", token: "--brand-primary-hover", usage: "Hover 加深" },
-    { name: "Primary Active", color: "#1E40AF", token: "--brand-primary-active", usage: "按下态" },
-    { name: "Primary Soft", color: "rgba(37,99,235,0.08)", token: "--brand-primary-soft", usage: "选中背景、标签底" },
+    { name: "Primary", color: "#D9353F", token: "--brand-primary", usage: "主按钮、选中态、强调" },
+    { name: "Primary Hover", color: "#C22F38", token: "--brand-primary-hover", usage: "Hover 加深" },
+    { name: "Primary Active", color: "#A92831", token: "--brand-primary-active", usage: "按下态" },
+    { name: "Primary Deep", color: "#A92831", token: "--brand-primary-deep", usage: "深色强调" },
+    { name: "Primary Soft", color: "rgba(217,53,63,0.08)", token: "--brand-primary-soft", usage: "选中背景、标签底" },
+    { name: "Primary Border", color: "rgba(217,53,63,0.15)", token: "--brand-primary-border", usage: "Soft 按钮、选中描边" },
     { name: "On Primary", color: "#FFFFFF", token: "--brand-on-primary", usage: "主色上的文字" },
   ]
   return (
-    <Section title="主题色" desc="蓝色系 #2563EB，仅用于主题、主操作、选中态、焦点态。大面积背景保持白色/浅中性色。">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+    <Section title="主题色" desc="先马山茶红 #D9353F，仅用于品牌交互、主操作、选中态和焦点态。大面积背景保持白色或浅中性色。">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
         {colors.map((c) => <ColorSwatch key={c.name} {...c} />)}
       </div>
     </Section>
@@ -181,7 +183,7 @@ function StateColors() {
     { name: "信息 Info", color: "#0EA5E9", token: "--info", bg: "#EFF6FF", bgToken: "--info-bg" },
   ]
   return (
-    <Section title="状态色" desc="语义色，仅用于表达操作结果和状态反馈。">
+    <Section title="状态色" desc="语义色保持独立，仅用于表达操作结果和状态反馈；危险操作需配合明确文案或警示图标。">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {states.map((s) => (
           <div key={s.name} className="flex flex-col gap-2">
@@ -327,7 +329,7 @@ function Buttons() {
       <div className="bg-white rounded-xl border p-6 space-y-5" style={{ borderColor: "var(--border-base)" }}>
         {/* Primary */}
         <div>
-          <div className="text-xs font-semibold mb-3" style={{ color: "var(--text-disabled)" }}>Primary · 蓝底白字 · 页面主操作</div>
+          <div className="text-xs font-semibold mb-3" style={{ color: "var(--text-disabled)" }}>Primary · 山茶红底白字 · 页面主操作</div>
           <div className="flex flex-wrap items-end gap-3">
             <button className="h-10 px-5 rounded-lg text-sm font-medium text-white" style={{ background: "var(--brand-primary)" }}>Large 40px</button>
             <button className="h-9 px-4 rounded-lg text-sm font-medium text-white" style={{ background: "var(--brand-primary)" }}>Medium 36px</button>
@@ -347,7 +349,7 @@ function Buttons() {
         </div>
         {/* Text */}
         <div>
-          <div className="text-xs font-semibold mb-3" style={{ color: "var(--text-disabled)" }}>Text · 蓝字无底无边 · 弱操作</div>
+          <div className="text-xs font-semibold mb-3" style={{ color: "var(--text-disabled)" }}>Text · 山茶红字无底无边 · 弱操作</div>
           <div className="flex flex-wrap items-end gap-3">
             <button className="h-9 px-2 rounded-lg text-sm font-medium" style={{ color: "var(--brand-primary)" }}>← 返回</button>
             <button className="h-9 px-2 rounded-lg text-sm font-medium" style={{ color: "var(--brand-primary)" }}>查看更多</button>
@@ -413,7 +415,7 @@ function TableDemo() {
 function Pagination() {
   const [page, setPage] = useState(1)
   return (
-    <Section title="分页 Pagination" desc="列表翻页。当前页蓝色实底，其他灰色。">
+    <Section title="分页 Pagination" desc="列表翻页。当前页使用山茶红实底，其他页使用中性色。">
       <div className="flex items-center justify-center gap-1">
         <button onClick={() => setPage(Math.max(1, page - 1))} className="h-8 px-3 rounded-lg text-sm border hover:text-[var(--brand-primary)] transition-colors" style={{ color: "var(--text-secondary)", borderColor: "var(--border-base)" }}>上一页</button>
         {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
@@ -562,7 +564,7 @@ function Tags() {
           </div>
         </div>
         <div>
-          <div className="text-xs font-semibold mb-2" style={{ color: "var(--text-disabled)" }}>能力状态标签 · --brand-primary-soft 底 + 蓝字 · 蓝色系</div>
+          <div className="text-xs font-semibold mb-2" style={{ color: "var(--text-disabled)" }}>能力状态标签 · --brand-primary-soft 底 + 山茶红字 · 品牌色系</div>
           <div className="flex flex-wrap gap-2">
             {["可用", "即将上线", "Beta"].map((t) => (
               <span key={t} className="inline-flex items-center h-6 px-2.5 rounded text-xs font-medium"
@@ -702,7 +704,7 @@ function ModelDropdownSelect() {
   const [open, setOpen] = useState(false)
   const [sel, setSel] = useState(models[0])
   return (
-    <Section title="模型下拉选择" desc="点击触发按钮展开下拉面板，选项以卡片形式展示完整信息。选中项：蓝色边框 + 浅蓝底 + 右下角「已选」。用于模型、模板等需展示辅助信息的选择。">
+    <Section title="模型下拉选择" desc="点击触发按钮展开下拉面板，选项以卡片形式展示完整信息。选中项：山茶红边框 + 品牌浅色底 + 右下角「已选」。用于模型、模板等需展示辅助信息的选择。">
       <div className="relative w-full max-w-sm">
         {/* Trigger */}
         <button onClick={() => setOpen(!open)}
@@ -968,7 +970,7 @@ function TabsSegment() {
     <Section title="Tabs · 标签页 & 分段控件" desc="Tabs 用于页面/面板级视图切换；分段控件用于互斥模式/参数选择（禁止彩色边框、彩色选中底）。">
       <div className="space-y-6">
         <div>
-          <div className="text-xs font-semibold mb-3" style={{ color: "var(--text-disabled)" }}>页面级 Tabs · 蓝色下划线选中态</div>
+          <div className="text-xs font-semibold mb-3" style={{ color: "var(--text-disabled)" }}>页面级 Tabs · 山茶红下划线选中态</div>
           <div className="flex border-b" style={{ borderColor: "var(--border-base)" }}>
             {tabs.map((t) => (
               <button key={t.key} onClick={() => setTab(t.key)}
@@ -1020,7 +1022,7 @@ function SliderBar() {
 /* ── Upload ── */
 function UploadZone() {
   return (
-    <Section title="上传入口 Upload" desc="图片/文件上传区域。高 88px、8px 圆角、白底虚线边框。Hover 边框变蓝。">
+    <Section title="上传入口 Upload" desc="图片/文件上传区域。高 88px、8px 圆角、白底虚线边框。Hover 使用山茶红边框和品牌浅色底。">
       <div className="bg-white rounded-xl border p-5" style={{ borderColor: "var(--border-base)" }}>
         <div className="max-w-md h-[88px] rounded-lg border border-dashed flex items-center gap-4 px-5 cursor-pointer transition-colors"
           style={{ borderColor: "var(--border-base)" }}
@@ -1045,7 +1047,7 @@ function UploadZone() {
 function ProgressBar() {
   const [pct, setPct] = useState(68)
   return (
-    <Section title="进度条 Progress" desc="任务进度展示，蓝色填充 + 灰色底槽。">
+    <Section title="进度条 Progress" desc="任务进度展示，山茶红填充 + 灰色底槽。">
       <div className="bg-white rounded-xl border p-5 max-w-sm space-y-4" style={{ borderColor: "var(--border-base)" }}>
         <div>
           <div className="flex justify-between text-xs mb-2" style={{ color: "var(--text-secondary)" }}>

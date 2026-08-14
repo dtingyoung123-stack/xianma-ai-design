@@ -2,6 +2,8 @@
 
 > 面向个人持续开发。本文档 + `src/app/globals.css` + `src/components/ui/` + 已调好的 `prototype/buyer-show-scene-page.html`、`prototype/cross-border-suite-page.html` = 当前 UI 规范与参考实现。新增模块必须遵守本文档和 `ARCHITECTURE.md`。
 
+> 主题规则（2026-08-14）：已确认将全站交互主色切换为山茶红。本次不改变背景、中性色、成功/警告/危险/信息等语义状态色或视觉资产；该状态不代表已部署或已上线。
+
 ## 0. 规范使用原则
 
 本规范从 `prototype` 中已经确认满意的两个页面反向沉淀，优先级高于早期通用后台式规范。后续新页面不要重新发明视觉语言，应先判断页面属于哪类工作流，再复用对应骨架和组件。
@@ -46,7 +48,7 @@
 
 | 层级 | 命名示例 | 作用 |
 |------|----------|------|
-| Primitive | `--blue-600`、`--slate-alpha-10` | 原始调色板和透明度，只被语义层引用 |
+| Primitive | `--camellia-600`、`--slate-alpha-10` | 原始调色板和透明度，只被语义层引用 |
 | Semantic | `--brand-primary`、`--text-title` | 表达产品含义，页面和组件优先使用 |
 | Component | `--button-height-md`、`--focus-ring` | 固化公共组件交互和尺寸契约 |
 
@@ -54,13 +56,22 @@
 
 ### 主题色
 
+交互主色采用先马山茶红。主色用于表达品牌操作和当前选择，不用于表达失败、删除或告警。大面积页面背景、内容面板和普通文字继续使用中性色，避免全页泛红。
+
 | Token | 色值 | 用途 |
 |-------|------|------|
-| `--brand-primary` | `#2563EB` | 主按钮、选中态、强调、链接 |
-| `--brand-primary-hover` | `#1D4ED8` | Hover 加深 |
-| `--brand-primary-active` | `#1E40AF` | 按下态 |
-| `--brand-primary-soft` | `rgba(37,99,235,0.08)` | 选中背景、标签底 |
+| `--brand-primary` | `#D9353F` | 主按钮、选中态、强调、链接 |
+| `--brand-primary-hover` | `#C22F38` | Hover 加深 |
+| `--brand-primary-active` | `#A92831` | 按下态 |
+| `--brand-primary-deep` | `#A92831` | 深色强调，不用于普通正文 |
+| `--brand-primary-soft` | `rgba(217,53,63,0.08)` | 选中背景、标签底 |
+| `--brand-primary-border` | `rgba(217,53,63,0.15)` | Soft 按钮、选中卡片描边 |
 | `--brand-on-primary` | `#FFFFFF` | 主色上的文字 |
+
+- `#D9353F` 为先马山茶红标准色；Hover 为本次交互梯度提案，Active/Deep 使用深红 `#A92831`。
+- 山茶红主按钮配白字的对比度约为 `4.63:1`，满足 WCAG AA 正常文字要求。
+- 公共焦点环使用 `0 0 0 3px rgba(217,53,63,0.14)`；键盘焦点不得只依赖颜色变化。
+- 品牌浅色只承载选中、Hover 或能力标签；普通信息提示继续使用 `--info` / `--info-bg`。
 
 ### 中性色
 
@@ -111,6 +122,8 @@
 
 ### 状态色
 
+状态色保持独立，不跟随品牌主题切换。由于品牌主色与危险色同属红色系，危险操作必须同时具备明确文案或警示图标，不能只靠颜色区分；`--danger` 只用于删除、失败、不可逆操作和错误反馈。
+
 | Token | 色值 | 用途 |
 |-------|------|------|
 | `--success` / `--success-bg` | `#16A34A` / `#EAF8F1` | 成功 |
@@ -144,7 +157,7 @@
 | Token | 值 | 场景 |
 |-------|-----|------|
 | `--shadow-card` | `0 16px 44px rgba(72,102,137,0.13)` | 默认主卡片、工作台面板 |
-| `--shadow-card-soft` | `0 10px 24px rgba(37,99,235,0.08)` | 选中态卡片 |
+| `--shadow-card-soft` | `0 10px 24px rgba(217,53,63,0.08)` | 选中态卡片 |
 | `--shadow-card-hover` | `0 8px 24px rgba(15,23,42,0.10)` | 可点击卡片 hover |
 | `--shadow-control` | `0 8px 18px rgba(15,23,42,0.06)` | 胶囊按钮、轻操作按钮 |
 
@@ -152,7 +165,7 @@
 
 ### 背景
 
-- 全局背景使用浅蓝灰工作台底色，工作流页面可使用原型中的柔和径向光背景：
+- 本轮仅调整交互主色；全局背景暂时沿用浅蓝灰工作台底色，工作流页面可使用原型中的柔和径向光背景：
   `radial-gradient(...) + linear-gradient(180deg, #f8fbff 0%, #eef4fb 52%, #f5f8fc 100%)`。
 - 主面板使用 `rgba(255,255,255,.92)` 或白色，保持轻微透气感。
 - 禁止用大面积深色渐变作为普通后台页面背景；深色渐变只用于主按钮、局部强调条或少量预览卡。
@@ -227,7 +240,7 @@ Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
 
 - 左侧：Logo 32x32 + 产品名 15px/700 + 副标题 12px。
 - 中间：一级菜单胶囊导航，文案为 `工作台 / 工具中心 / 能力中心 / 无限画布 / 素材库 / 历史记录 / 帮助文档`。
-- 一级菜单样式：外层 `--gray-100` 浅灰胶囊，高 38px；菜单项高 34px、左右 16px、14px/600；选中态为 `--brand-primary` 蓝字 + 底部 2px 蓝线。
+- 一级菜单样式：外层 `--gray-100` 浅灰胶囊，高 38px；菜单项高 34px、左右 16px、14px/600；选中态为 `--brand-primary` 山茶红字 + 底部 2px 山茶红线。
 - 右侧：积分胶囊 32px 高 + 头像 32px + 用户名/角色。
 - 点击头像展开个人信息面板：顶部展示演示用户身份，四格展示可用积分、今日使用、本年使用和待同步事件；操作区保留积分中心、修改密码、刷新账号信息和退出登录入口。
 - 个人信息面板使用顶层 DropdownMenu Portal，右对齐头像且不得被顶栏、侧栏或主内容裁切；积分统计随本地演示状态更新。
@@ -239,8 +252,8 @@ Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
 - 两个可展开组：生图工具（6项）、AI 能力中心（6项）
 - **一级菜单**：16px 图标 + 文字 + 数量角标 + 展开箭头，`h-36px rounded-8px`
 - **二级菜单**：不用图标，`h-34px`，靠左侧竖线 + 圆点 + 缩进表达层级
-- 选中态：`--brand-primary-soft` 浅蓝底 + `--brand-primary` 蓝字，当前项字重 600
-- 数量角标：浅蓝底 `--info-bg` + 蓝字，不用灰色角标
+- 选中态：`--brand-primary-soft` 山茶红浅底 + `--brand-primary` 山茶红字，当前项字重 600
+- 数量角标：`--gray-100` 中性底 + `--text-secondary` 字；不占用品牌色或信息状态色
 - 底部管理项（数据智能/积分审批/权限管理/模型管理/系统设置）：分隔线 + 图标 + 文字，非管理员不渲染
 - 默认展开：生图工具和 AI 能力中心都展开
 
@@ -378,14 +391,14 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 
 | 类型 | 样式 | Tailwind |
 |------|------|----------|
-| Primary | `--brand-primary` 纯蓝底、白字、胶囊/12px 圆角、h46 主操作 | 使用 `WorkbenchButton variant="primary"` |
+| Primary | `--brand-primary` 山茶红底、白字、胶囊/12px 圆角、h46 主操作 | 使用 `WorkbenchButton variant="primary"` |
 | Default | 白底灰边、柔和阴影、胶囊按钮 | 使用 `WorkbenchButton variant="ghost"` |
-| Soft | 浅蓝底、蓝字、无阴影 | 使用 `WorkbenchButton variant="soft"` |
-| Text | 蓝字无底无边 | `text-[var(--brand-primary)]` |
-| Danger | 红底/红边 | 使用 `--danger` Token |
+| Soft | 山茶红浅底、山茶红字、无阴影 | 使用 `WorkbenchButton variant="soft"` |
+| Text | 山茶红字、无底无边 | `text-[var(--brand-primary)]` |
+| Danger | 危险色实底/描边 + 明确警示文案或图标 | 使用 `--danger` Token，不得替换为品牌 Token |
 
 工作流底部主操作统一高度 46px；普通轻按钮 36-40px；图标按钮 32-36px。
-状态：Default → Hover(加深) → Focus(2px 蓝色环) → Disabled(opacity:50%) → Loading(保留宽度+旋转图标)
+状态：Default → Hover(加深) → Focus(3px 山茶红焦点环) → Disabled(opacity:50%) → Loading(保留宽度+旋转图标)
 
 ### 卡片
 
@@ -399,7 +412,7 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 | 类型 | 样式 |
 |------|------|
 | 分类标签 | `--gray-100` 底，高 24px，`--radius-sm`(6px) |
-| 能力状态标签 | `--brand-primary-soft` 底 + `--brand-primary` 字，蓝色系 |
+| 能力状态标签 | `--brand-primary-soft` 底 + `--brand-primary` 字，山茶红品牌色系 |
 | 任务状态标签 | 按 3.4 状态色（success/warning/danger/info） |
 | 图片 Badge | `rgba(16,24,40,0.75)` 暗底 + 白色字，右下角 |
 

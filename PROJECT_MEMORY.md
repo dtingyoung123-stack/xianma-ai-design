@@ -361,3 +361,30 @@
 - 状态：已修复本地开发环境中页面能渲染但按钮无法交互的问题。
 - 原因与规则：Next.js 开发服务默认拦截来自 `127.0.0.1` 的开发资源请求，导致客户端交互未挂载；开发配置显式允许 `127.0.0.1`，本地原型统一可通过 `http://127.0.0.1:3000` 访问。
 - 关联文件：`next.config.mjs`、`PROJECT_MEMORY.md`。
+
+### 2026-08-13：生成参数图片尺寸交互调整
+
+- 状态：已按最新确认规则更新前端交互原型；实际生成服务的尺寸支持和输出一致性仍待服务端验证。
+- 交互规则：AI 买家秀和一键改字的“图片尺寸”删除“自定义”比例项，宽度和高度输入区固定显示。选择预设比例后，用户可选填宽度，高度按所选比例自动计算且只读；宽度留空时由 AI 决定实际生成尺寸。
+- 智能比例：选择“智能比例”时，宽度和高度均禁用，尺寸摘要继续显示“智能比例”。
+- 模型边界：界面提示自定义像素仅 GPT 模型支持，且实际输出尺寸可能存在偏差；本次仅更新前端原型提示，不代表已完成模型能力校验或服务端限制。
+- 关联文件：`src/lib/image-size.js`、`src/components/workbench/WorkbenchControls.jsx`、`src/app/ai-hub/BuyerShowPage.jsx`、`src/app/image-tools/text-edit/TextEditWorkbench.jsx`、`tests/image-size.test.mjs`、`PROJECT_MEMORY.md`。
+
+### 2026-08-14：全站山茶红交互主题
+
+- 状态：项目实施已确认，前端主题改造已完成并通过当前可执行验证；不表示领导已审批、已部署或已上线。
+- 主题规则：全站品牌交互统一使用山茶红 `#D9353F`，Hover 使用 `#C22F38`，Active/Deep 使用 `#A92831`，Soft 使用 `rgba(217, 53, 63, 0.08)`，Focus 使用 `rgba(217, 53, 63, 0.14)`，Border 使用 `rgba(217, 53, 63, 0.15)`。
+- 语义边界：按钮、导航、链接、选中态、表单焦点、进度和蒙版使用品牌 Token；Success、Warning、Danger、Info 继续使用独立语义色。蓝灰工作台背景、登录页、Logo、插图和其他视觉资产未调整。
+- 实现边界：未新增共享组件，未调整路由、业务数据或交互流程；区域蒙版 Canvas 动态读取全局品牌 Token，UI 规范页直接展示正式全局主题。
+- 验证结果：正式源码旧品牌蓝色静态扫描通过；25 个导航页面均返回 200；源码 ESLint 0 error（保留 5 个既有图片性能 warning）；图片尺寸测试 4/4 通过；`next build --webpack` 通过；重点页面在 1280px 与当前窄屏浏览器视口下无横向溢出或项目控制台错误。1024px 与 390px 的浏览器视口覆盖在当前工具版本未生效，需后续人工补验。
+- 关联文件：`src/app/globals.css`、`src/app/ui-guide/page.js`、`src/components/workbench/Workbench.jsx`、`src/components/workbench/AssetPickerModal.jsx`、`src/components/workbench/RegionMaskEditor.jsx`、`UI_SPEC.md`、`docs/前端UI规范与需求说明-V1.md`、`PROJECT_MEMORY.md`。
+
+### 2026-08-14：历史记录前端原型优化
+
+- 状态：现有功能复刻与 UI 布局优化已完成，并通过当前可执行验证；仅代表前端原型更新，不表示服务端改造、部署或上线。
+- 功能范围：保留“我的记录 / 所有记录”、记录总数、账号/日期/功能筛选、刷新、结果预览、收藏、复制提示词、删除、详情、整条加入素材库、继续编辑和分页；功能点覆盖专家模式、一键改字、主体替换、产品微调、批量美颜、批量改图、AI能力中枢、AI多角度、AI买家秀、AI视频流、AI商品套图。
+- 权限边界：“所有记录”和账号筛选属于现网已有入口，本期予以保留；未新增角色、组织数据范围或服务端鉴权规则，真实数据接入前仍需由业务确认可见角色。
+- 数据边界：原型仅使用 `src/data/demo/` 下的脱敏演示数据，页面组件未写入现网真实账号、提示词或业务记录。
+- UI 规则：复用 `PageShell`、现有 Button、SafeImage 与全局山茶红 Token；卡片相较上一版宽度约缩小 33%，1280px 三列、1024px 双列、390px 单列。点击卡片主体或“查看详情”均打开弹窗，详情按元信息、提示词、原图、结果图分区展示；详情/删除弹窗通过 Portal 约束在视口内。未新增共享组件、路由或依赖。
+- 验证结果：源码 ESLint 0 error（保留 5 条既有图片性能 warning）；`next build --webpack` 通过；浏览器确认 11 个功能点均有当前账号脱敏记录，1280px 卡片宽 321px、页面三列，390px 卡片宽 353px；桌面和窄屏详情均可见提示词、原图和结果图，页面无横向溢出或控制台错误。
+- 关联文件：`src/app/history/HistoryClient.jsx`、`src/data/demo/history.js`、`PROJECT_MEMORY.md`。

@@ -10,13 +10,12 @@ import AssetPickerModal from "@/components/workbench/AssetPickerModal"
 import ImageQueueModule from "@/components/workbench/ImageQueueModule"
 import SafeImage from "@/components/SafeImage"
 import {
-  formatImageSize,
-  hasValidImageSize,
   WorkbenchIconButton,
   WorkbenchModelSelect,
   WorkbenchParameterSelect,
   WorkbenchToast,
 } from "@/components/workbench/WorkbenchControls"
+import { formatImageSize, hasValidImageSize } from "@/lib/image-size"
 import {
   WorkbenchButton, WorkbenchEmpty, WorkbenchFooter, WorkbenchModule,
   WorkbenchHistoryAction, WorkbenchPanel, WorkbenchPanelHead, WorkbenchScroll, WorkbenchShell,
@@ -43,7 +42,7 @@ export default function TextEditWorkbench() {
   const [resolution, setResolution] = useState("2K")
   const [quality, setQuality] = useState("标准画质")
   const [ratio, setRatio] = useState("智能比例")
-  const [customSize, setCustomSize] = useState({ width: "800", height: "800" })
+  const [customSize, setCustomSize] = useState({ width: "", height: "" })
   const [count, setCount] = useState("1")
   const [toast, setToast] = useState("")
   const [showBoxes, setShowBoxes] = useState(true)
@@ -131,7 +130,7 @@ export default function TextEditWorkbench() {
 
   function submitTask() {
     if (!image || !changedLayers.length || generationStatus === "processing") return
-    if (!hasValidImageSize(ratio, customSize)) { notify("请填写完整的自定义宽高"); return }
+    if (!hasValidImageSize(ratio, customSize)) { notify("请输入大于 0 的整数宽度"); return }
     setGenerationStatus("processing")
     notify("改字任务已提交")
     window.setTimeout(() => {
@@ -337,7 +336,7 @@ function GenerationSettings({ model, setModel, resolution, setResolution, qualit
         sections={[
           { key: "resolution", label: "清晰度", value: resolution, options: ["1K", "2K", "4K"], onChange: setResolution },
           { key: "quality", label: "画质", value: quality, options: ["标准画质", "高画质"], onChange: setQuality },
-          { key: "ratio", label: "图片尺寸", value: ratio, options: ["智能比例", "1:1", "3:2", "2:3", "16:9", "4:3", "3:4", "9:16", { value: "custom", label: "自定义" }], onChange: setRatio, visual: "ratio", custom: { value: "custom", size: customSize, onChange: setCustomSize } },
+          { key: "ratio", label: "图片尺寸", value: ratio, options: ["智能比例", "1:1", "3:2", "2:3", "16:9", "4:3", "3:4", "9:16"], onChange: setRatio, visual: "ratio", dimensions: { size: customSize, onChange: setCustomSize } },
           { key: "count", label: "图片张数", value: count, options: ["1", "2", "3", "4", "5", "6", "7", "8", "9"], onChange: setCount },
         ]}
       />

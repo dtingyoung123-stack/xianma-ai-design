@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { ChevronDown } from "lucide-react"
 import SafeImage from "@/components/SafeImage"
+import { calculateImageHeight } from "@/lib/image-size"
 import { cn } from "@/lib/utils"
 
 const ratioShapes = {
@@ -15,23 +16,6 @@ const ratioShapes = {
   "4:3": { width: 27, height: 22 },
   "3:4": { width: 22, height: 27 },
   "9:16": { width: 19, height: 30 },
-  "自定义": { width: 24, height: 24 },
-}
-
-export function formatImageSize(value, customSize) {
-  if (value !== "custom") return value
-  const width = Number(customSize?.width)
-  const height = Number(customSize?.height)
-  return Number.isInteger(width) && width > 0 && Number.isInteger(height) && height > 0
-    ? `${width}×${height}px`
-    : "自定义尺寸"
-}
-
-export function hasValidImageSize(value, customSize) {
-  if (value !== "custom") return true
-  const width = Number(customSize?.width)
-  const height = Number(customSize?.height)
-  return Number.isInteger(width) && width > 0 && Number.isInteger(height) && height > 0
 }
 
 function getPopoverPosition(trigger, preferredWidth, preferredHeight) {
@@ -184,11 +168,25 @@ export function WorkbenchParameterSelect({ summary, sections, label = "参数", 
       <Popover position={position} panelRef={panelRef}>
         <div className="space-y-3">
           {sections.map((section) => {
-            const customActive = section.custom && section.value === section.custom.value
-            const updateCustomDimension = (field, value) => section.custom?.onChange({
-              ...section.custom.size,
-              [field]: value.replace(/\D/g, ""),
-            })
+            const hasDimensions = section.visual === "ratio" && section.dimensions
+            const dimensionsDisabled = section.value === "智能比例"
+            const width = section.dimensions?.size.width ?? ""
+            const height = calculateImageHeight(section.value, width)
+            const updateWidth = (value) => {
+              const nextWidth = value.replace(/\D/g, "")
+              section.dimensions?.onChange({
+                width: nextWidth,
+                height: calculateImageHeight(section.value, nextWidth),
+              })
+            }
+            const selectOption = (optionValue) => {
+              section.onChange(optionValue)
+              if (!section.dimensions) return
+              section.dimensions.onChange({
+                width,
+                height: calculateImageHeight(optionValue, width),
+              })
+            }
 
             return (
               <section key={section.key}>
@@ -203,7 +201,7 @@ export function WorkbenchParameterSelect({ summary, sections, label = "参数", 
                       <button
                         key={optionValue}
                         type="button"
-                        onClick={() => section.onChange(optionValue)}
+                        onClick={() => selectOption(optionValue)}
                         className={cn("flex min-h-9 items-center justify-center rounded-lg px-1 text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]", section.visual === "ratio" && "min-h-16 flex-col gap-1.5")}
                         style={selected ? { background: "var(--white)", color: "var(--brand-primary)", boxShadow: "var(--shadow-control)" } : { color: "var(--text-secondary)" }}
                       >
@@ -213,20 +211,20 @@ export function WorkbenchParameterSelect({ summary, sections, label = "参数", 
                     )
                   })}
                 </div>
-                {customActive && (
+                {hasDimensions && (
                   <div className="mt-2 rounded-xl border p-2.5" style={{ borderColor: "var(--border-base)", background: "var(--gray-50)" }}>
                     <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
                       <label className="block">
                         <span className="mb-1 block text-xs" style={{ color: "var(--text-secondary)" }}>宽度</span>
-                        <input aria-label="自定义宽度" inputMode="numeric" value={section.custom.size.width} onChange={(event) => updateCustomDimension("width", event.target.value)} placeholder="宽" className="h-9 w-full rounded-lg border bg-white px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" style={{ borderColor: "var(--border-base)", color: "var(--text-title)" }} />
+                        <input aria-label="图片宽度" inputMode="numeric" value={dimensionsDisabled ? "" : width} onChange={(event) => updateWidth(event.target.value)} placeholder={dimensionsDisabled ? "由 AI 决定" : "选填"} disabled={dimensionsDisabled} className="h-9 w-full rounded-lg border bg-white px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:bg-[var(--gray-100)] disabled:text-[var(--text-disabled)]" style={{ borderColor: "var(--border-base)", color: "var(--text-title)" }} />
                       </label>
                       <span className="mb-2 text-sm font-semibold" style={{ color: "var(--text-disabled)" }}>×</span>
                       <label className="block">
                         <span className="mb-1 block text-xs" style={{ color: "var(--text-secondary)" }}>高度</span>
-                        <input aria-label="自定义高度" inputMode="numeric" value={section.custom.size.height} onChange={(event) => updateCustomDimension("height", event.target.value)} placeholder="高" className="h-9 w-full rounded-lg border bg-white px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" style={{ borderColor: "var(--border-base)", color: "var(--text-title)" }} />
+                        <input aria-label="图片高度（按比例自动计算）" value={dimensionsDisabled ? "" : height} placeholder={dimensionsDisabled ? "由 AI 决定" : "自动计算"} readOnly disabled={dimensionsDisabled} className="h-9 w-full rounded-lg border bg-[var(--gray-100)] px-2.5 text-sm outline-none disabled:cursor-not-allowed disabled:text-[var(--text-disabled)]" style={{ borderColor: "var(--border-base)", color: "var(--text-secondary)" }} />
                       </label>
                     </div>
-                    <p className="mb-0 mt-2 text-xs" style={{ color: "var(--text-secondary)" }}>按平台要求输入像素尺寸</p>
+                    <p className="mb-0 mt-2 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>留空则以 AI 实际生成尺寸为准；自定义像素仅 GPT 模型支持，且实际输出尺寸可能存在偏差。</p>
                   </div>
                 )}
               </section>

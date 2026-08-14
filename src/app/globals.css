@@ -4,25 +4,24 @@
 
 :root {
   /* Primitive tokens: raw palette values only. */
-  --blue-600: #2563EB;
-  --blue-700: #1D4ED8;
-  --blue-800: #1E40AF;
-  --blue-900: #0F2F6F;
+  --camellia-600: #D9353F;
+  --camellia-700: #C22F38;
+  --camellia-800: #A92831;
   --white: #FFFFFF;
   --black-alpha-30: rgba(0, 0, 0, 0.30);
-  --blue-alpha-08: rgba(37, 99, 235, 0.08);
-  --blue-alpha-14: rgba(37, 99, 235, 0.14);
-  --blue-alpha-04: rgba(37, 99, 235, 0.04);
-  --blue-alpha-06: rgba(37, 99, 235, 0.06);
+  --camellia-alpha-08: rgba(217, 53, 63, 0.08);
+  --camellia-alpha-14: rgba(217, 53, 63, 0.14);
+  --camellia-alpha-15: rgba(217, 53, 63, 0.15);
   --slate-alpha-08: rgba(15, 23, 42, 0.08);
   --slate-alpha-06: rgba(15, 23, 42, 0.06);
   --slate-alpha-10: rgba(15, 23, 42, 0.10);
   --workbench-shadow-rgb: 72, 102, 137;
-  --brand-primary:        var(--blue-600);
-  --brand-primary-hover:  var(--blue-700);
-  --brand-primary-active: var(--blue-800);
-  --brand-primary-deep:   var(--blue-900);
-  --brand-primary-soft:   var(--blue-alpha-08);
+  --brand-primary:        var(--camellia-600);
+  --brand-primary-hover:  var(--camellia-700);
+  --brand-primary-active: var(--camellia-800);
+  --brand-primary-deep:   var(--camellia-800);
+  --brand-primary-soft:   var(--camellia-alpha-08);
+  --brand-primary-border: var(--camellia-alpha-15);
   --brand-on-primary:     var(--white);
 
   --gray-25:  #FCFCFD;
@@ -60,7 +59,7 @@
   --danger-bg:  #FEF3F2;
   --info:       #0EA5E9;
   --info-bg:    #EFF6FF;
-  --annotation-accent: #D9353F;
+  --annotation-accent: var(--brand-primary);
 
   --radius:  0.5rem;
   --radius-sm: 6px;
@@ -75,7 +74,7 @@
   --space-8: 32px;
 
   --shadow-card:       0 16px 44px rgba(var(--workbench-shadow-rgb), 0.13);
-  --shadow-card-soft:  0 10px 24px rgba(37, 99, 235, 0.08);
+  --shadow-card-soft:  0 10px 24px var(--camellia-alpha-08);
   --shadow-card-hover: 0 8px 24px var(--slate-alpha-10);
   --shadow-control:    0 8px 18px var(--slate-alpha-06);
 
@@ -85,7 +84,7 @@
   --button-height-lg: 40px;
   --button-radius: 999px;
   --input-height: 40px;
-  --focus-ring: 0 0 0 3px var(--blue-alpha-14);
+  --focus-ring: 0 0 0 3px var(--camellia-alpha-14);
   --overlay-scrim: var(--black-alpha-30);
   --page-max-width: none;
   --z-sidebar: 40;

@@ -9,8 +9,6 @@ import {
 import SafeImage from "@/components/SafeImage"
 
 const EMPTY_DOCUMENT = { maskActions: [], annotations: [] }
-const MASK_COLOR = "37, 99, 235"
-
 export default function RegionMaskEditor({ image, value, onApply, onClose, onUnavailable }) {
   const viewportRef = useRef(null)
   const canvasRef = useRef(null)
@@ -75,10 +73,12 @@ export default function RegionMaskEditor({ image, value, onApply, onClose, onUna
 
   useEffect(() => {
     const scale = stageSize.width / imageSize.width
+    const maskColor = getComputedStyle(window.document.documentElement).getPropertyValue("--brand-primary").trim()
     const annotationColor = getComputedStyle(window.document.documentElement).getPropertyValue("--annotation-accent").trim()
     drawOverlay(canvasRef.current, imageSize, editorDoc, draft, {
       annotationColor,
       annotationsVisible,
+      maskColor,
       scale,
       selectedId: selectedAnnotationId,
     })
@@ -279,7 +279,7 @@ export default function RegionMaskEditor({ image, value, onApply, onClose, onUna
           <aside className="flex w-[148px] shrink-0 flex-col gap-2 p-3" style={{ background: "var(--gray-900)" }}>
             <div className="grid grid-cols-2 gap-1.5">
               {[{ key: "remove", label: "局部移除" }, { key: "replace", label: "局部替换" }].map((item) => (
-                <button key={item.key} type="button" onClick={() => { setOperation(item.key); onUnavailable?.(`${item.label}需接入图像处理 API`) }} className="h-8 rounded-md border text-[11px] font-bold" style={operation === item.key ? { borderColor: "var(--brand-primary)", color: "var(--brand-primary)", background: "var(--info-bg)" } : { borderColor: "var(--gray-700)", color: "var(--gray-200)" }}>{item.label}</button>
+                <button key={item.key} type="button" onClick={() => { setOperation(item.key); onUnavailable?.(`${item.label}需接入图像处理 API`) }} className="h-8 rounded-md border text-[11px] font-bold" style={operation === item.key ? { borderColor: "var(--brand-primary)", color: "var(--brand-primary)", background: "var(--brand-primary-soft)" } : { borderColor: "var(--gray-700)", color: "var(--gray-200)" }}>{item.label}</button>
               ))}
             </div>
 
@@ -377,21 +377,21 @@ function drawOverlay(canvas, imageSize, documentValue, draft, annotationOptions)
   canvas.height = imageSize.height
   const context = canvas.getContext("2d")
   context.clearRect(0, 0, canvas.width, canvas.height)
-  drawMask(context, documentValue.maskActions, draft)
+  drawMask(context, documentValue.maskActions, draft, annotationOptions.maskColor)
   context.globalCompositeOperation = "source-over"
   if (annotationOptions.annotationsVisible) {
     documentValue.annotations.forEach((item) => drawAnnotation(context, item, annotationOptions, imageSize))
   }
 }
 
-function drawMask(context, actions, draft) {
+function drawMask(context, actions, draft, maskColor) {
   context.clearRect(0, 0, context.canvas.width, context.canvas.height)
   ;[...actions, ...(draft ? [draft] : [])].forEach((action) => {
     context.save()
     context.globalCompositeOperation = action.erase ? "destination-out" : "source-over"
     context.globalAlpha = action.erase ? 1 : action.opacity
-    context.fillStyle = `rgb(${MASK_COLOR})`
-    context.strokeStyle = `rgb(${MASK_COLOR})`
+    context.fillStyle = maskColor
+    context.strokeStyle = maskColor
     if (action.type === "stroke") {
       context.lineWidth = action.size
       context.lineCap = "round"

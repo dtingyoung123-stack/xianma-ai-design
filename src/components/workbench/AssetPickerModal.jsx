@@ -179,7 +179,7 @@ export default function AssetPickerModal({
             </>
           )}
 
-          <div className="mt-3 flex items-center justify-between rounded-lg border px-3 py-3" style={{ borderColor: "var(--brand-primary-soft)", background: "var(--info-bg)" }}>
+          <div className="mt-3 flex items-center justify-between rounded-lg border px-3 py-3" style={{ borderColor: "var(--brand-primary-border)", background: "var(--brand-primary-soft)" }}>
             <div>
               <strong className="block text-sm" style={{ color: "var(--text-title)" }}>已选择 {selectedKeys.length} 张</strong>
               <span className="text-xs" style={{ color: "var(--text-secondary)" }}>请选择图片后再继续</span>

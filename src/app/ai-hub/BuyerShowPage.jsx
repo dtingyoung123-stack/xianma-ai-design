@@ -8,12 +8,11 @@ import ImageQueueModule from "@/components/workbench/ImageQueueModule"
 import AssetPickerModal from "@/components/workbench/AssetPickerModal"
 import { ColorConstraintChips } from "@/components/workbench/ColorConstraintPicker"
 import {
-  formatImageSize,
-  hasValidImageSize,
   WorkbenchModelSelect,
   WorkbenchParameterSelect,
   WorkbenchToast,
 } from "@/components/workbench/WorkbenchControls"
+import { formatImageSize, hasValidImageSize } from "@/lib/image-size"
 import {
   WorkbenchButton,
   WorkbenchEmpty,
@@ -191,7 +190,7 @@ export default function BuyerShowPage() {
   const [model, setModel] = useState("Nano Banana 2")
   const [resolution, setResolution] = useState("2K")
   const [ratio, setRatio] = useState("4:3")
-  const [customSize, setCustomSize] = useState({ width: "800", height: "800" })
+  const [customSize, setCustomSize] = useState({ width: "", height: "" })
   const [quality, setQuality] = useState("高画质")
   const [count, setCount] = useState("4")
   const [productImages, setProductImages] = useState([])
@@ -261,7 +260,7 @@ export default function BuyerShowPage() {
   }
 
   function handleSubmit() {
-    if (!hasValidImageSize(ratio, customSize)) { showToast("请填写完整的自定义宽高"); return }
+    if (!hasValidImageSize(ratio, customSize)) { showToast("请输入大于 0 的整数宽度"); return }
     if (!productImages.length) { showToast("请先添加商品图片"); return }
     if (!category || !scene) { showToast("请先选择产品品类和场景"); return }
     if (generating) { showToast("正在生成中，请等待完成"); return }
@@ -583,7 +582,7 @@ function ConfigPanel(p) {
               sections={[
                 { key: "resolution", label: "清晰度", value: p.resolution, options: resolutionOptions, onChange: p.setResolution },
                 { key: "quality", label: "画质", value: p.quality, options: ["标准画质", "高画质"], onChange: p.setQuality },
-                { key: "ratio", label: "图片尺寸", value: p.ratio, options: [...ratioOptions, { value: "custom", label: "自定义" }], onChange: p.setRatio, visual: "ratio", custom: { value: "custom", size: p.customSize, onChange: p.setCustomSize } },
+                { key: "ratio", label: "图片尺寸", value: p.ratio, options: ratioOptions, onChange: p.setRatio, visual: "ratio", dimensions: { size: p.customSize, onChange: p.setCustomSize } },
                 { key: "count", label: "图片张数", value: p.count, options: countOptions, onChange: p.setCount },
               ]}
             />

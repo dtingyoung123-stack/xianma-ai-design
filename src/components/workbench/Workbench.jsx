@@ -58,7 +58,7 @@ export function WorkbenchTopline({ crumbs = [], status, title, description, acti
           {status && (
             <span
               className="ml-1 inline-flex h-6 shrink-0 items-center rounded-full px-2 text-xs font-bold"
-              style={{ background: "var(--info-bg)", color: "var(--brand-primary)" }}
+              style={{ background: "var(--info-bg)", color: "var(--info)" }}
             >
               {status}
             </span>
@@ -143,8 +143,8 @@ export function WorkbenchButton({ children, variant = "primary", className = "",
     },
     soft: {
       color: "var(--brand-primary)",
-      borderColor: "rgba(37,99,235,.15)",
-      background: "var(--info-bg)",
+      borderColor: "var(--brand-primary-border)",
+      background: "var(--brand-primary-soft)",
       boxShadow: "none",
     },
   }
