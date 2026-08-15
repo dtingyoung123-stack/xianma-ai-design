@@ -154,6 +154,34 @@ body {
 .xm-panel ::-webkit-scrollbar-thumb,
 .xm-workbench ::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 2px; }
 
+@media (max-width: 1100px) {
+  .xm-workbench:has(.xm-expert-grid) {
+    height: auto;
+    min-height: calc(100% + 48px);
+  }
+
+  .xm-expert-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .xm-expert-grid > .xm-panel {
+    min-height: 680px;
+  }
+}
+
+@media (max-width: 639px) {
+  .xm-workbench:has(.xm-expert-grid) {
+    margin-left: -16px;
+    margin-right: -16px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .xm-expert-grid > .xm-panel {
+    min-height: 760px;
+  }
+}
+
 button, a, input, textarea, select {
   -webkit-tap-highlight-color: transparent;
 }

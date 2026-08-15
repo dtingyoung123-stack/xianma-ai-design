@@ -10,13 +10,14 @@ export function WorkbenchShell({
   description,
   actions,
   columns = "minmax(0, 3fr) minmax(0, 7fr)",
+  contentClassName = "",
   children,
 }) {
   return (
     <div className="xm-workbench -mx-6 -my-6 flex h-[calc(100%+48px)] min-h-0 flex-col px-6 py-5">
       <WorkbenchTopline crumbs={crumbs} status={status} title={title} description={description} actions={actions} />
       <div
-        className="mt-3 grid flex-1 min-h-0 items-stretch gap-3.5"
+        className={cn("mt-3 grid flex-1 min-h-0 items-stretch gap-3.5", contentClassName)}
         style={{ gridTemplateColumns: columns }}
       >
         {children}
