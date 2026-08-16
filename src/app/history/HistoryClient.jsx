@@ -172,19 +172,24 @@ export default function HistoryClient() {
           </Button>
         </div>
 
-        <div className="flex flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex items-center gap-1 rounded-lg bg-[var(--gray-100)] p-1" role="tablist" aria-label="历史记录范围">
-            <ScopeTab selected={scope === "mine"} onClick={() => { setScope("mine"); setAccount("all"); setPage(1) }}>我的记录</ScopeTab>
-            <ScopeTab selected={scope === "all"} onClick={() => updateFilter(setScope, "all")}>所有记录</ScopeTab>
+        <div className="px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-1 rounded-lg bg-[var(--gray-100)] p-1" role="tablist" aria-label="历史记录范围">
+              <ScopeTab selected={scope === "mine"} onClick={() => { setScope("mine"); setAccount("all"); setPage(1) }}>我的记录</ScopeTab>
+              <ScopeTab selected={scope === "all"} onClick={() => updateFilter(setScope, "all")}>所有记录</ScopeTab>
+            </div>
+            <span className="shrink-0 text-sm text-[var(--text-secondary)]">共 <strong className="font-semibold text-[var(--text-title)]">{filtered.length}</strong> 条记录</span>
           </div>
-          <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="历史记录功能筛选">
-            {historySources.map((item) => (
-              <button key={item.value} type="button" role="tab" aria-selected={source === item.value} onClick={() => updateFilter(setSource, item.value)} className="h-8 rounded-md border px-2.5 text-xs font-medium transition-colors" style={source === item.value ? { borderColor: "var(--brand-primary-border)", color: "var(--brand-primary)", background: "var(--brand-primary-soft)" } : { borderColor: "var(--border-base)", color: "var(--text-body)", background: "var(--white)" }}>
-                {item.label}
-              </button>
-            ))}
+          <div className="mt-3 flex flex-col gap-2 border-t pt-3 sm:flex-row sm:items-start" style={{ borderColor: "var(--border-light)" }}>
+            <span className="shrink-0 pt-1.5 text-xs font-medium text-[var(--text-secondary)]">功能类型</span>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5" role="tablist" aria-label="历史记录功能筛选">
+              {historySources.map((item) => (
+                <button key={item.value} type="button" role="tab" aria-selected={source === item.value} onClick={() => updateFilter(setSource, item.value)} className="h-8 rounded-md border px-2.5 text-xs font-medium transition-colors" style={source === item.value ? { borderColor: "var(--brand-primary-border)", color: "var(--brand-primary)", background: "var(--brand-primary-soft)" } : { borderColor: "var(--border-base)", color: "var(--text-body)", background: "var(--white)" }}>
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <span className="shrink-0 text-sm text-[var(--text-secondary)]">共 <strong className="font-semibold text-[var(--text-title)]">{filtered.length}</strong> 条记录</span>
         </div>
       </section>
 

@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import PublicComponentsCatalog from "@/app/ui-guide/PublicComponentsCatalog"
 
 const tocItems = [
   { id: "design", label: "设计基础" },
@@ -13,9 +14,35 @@ const tocItems = [
 ]
 
 export default function UiGuidePage() {
+  const [activeView, setActiveView] = useState("spec")
+
+  useEffect(() => {
+    function syncViewFromUrl() {
+      setActiveView(new URLSearchParams(window.location.search).get("view") === "components" ? "components" : "spec")
+    }
+
+    syncViewFromUrl()
+    window.addEventListener("popstate", syncViewFromUrl)
+    return () => window.removeEventListener("popstate", syncViewFromUrl)
+  }, [])
+
+  function changeView(nextView) {
+    const url = new URL(window.location.href)
+    if (nextView === "components") url.searchParams.set("view", "components")
+    else url.searchParams.delete("view")
+    window.history.pushState({}, "", url)
+    setActiveView(nextView)
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
   return (
     <div className="w-full pb-16">
       <PageTitle />
+      <GuideTabs value={activeView} onChange={changeView} />
+
+      <div id={`${activeView}-panel`} role="tabpanel" aria-labelledby={`${activeView}-tab`}>
+        {activeView === "components" ? <PublicComponentsCatalog /> : (
+          <>
 
       <div id="design"><CategoryDivider title="设计基础 Design Foundation" /></div>
       <BrandColors />
@@ -62,6 +89,27 @@ export default function UiGuidePage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <DialogDemo /><SheetDemo />
       </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function GuideTabs({ value, onChange }) {
+  return (
+    <div className="mb-8 flex border-b" role="tablist" aria-label="UI 规范视图" style={{ borderColor: "var(--border-base)" }}>
+      {[
+        { id: "spec", label: "UI 规范" },
+        { id: "components", label: "公共组件" },
+      ].map((item) => (
+        <button key={item.id} id={`${item.id}-tab`} type="button" role="tab" aria-selected={value === item.id} aria-controls={`${item.id}-panel`} tabIndex={value === item.id ? 0 : -1} onClick={() => onChange(item.id)}
+          className="relative h-11 px-5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+          style={{ color: value === item.id ? "var(--brand-primary)" : "var(--text-secondary)" }}>
+          {item.label}
+          {value === item.id && <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[var(--brand-primary)]" />}
+        </button>
+      ))}
     </div>
   )
 }

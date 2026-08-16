@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react"
 import SafeImage from "@/components/SafeImage"
 import ImageQueueModule from "@/components/workbench/ImageQueueModule"
 import AssetPickerModal from "@/components/workbench/AssetPickerModal"
+import WorkbenchTextEditor, { WorkbenchTextEditorAction } from "@/components/workbench/WorkbenchTextEditor"
+import { Sparkles } from "lucide-react"
 import {
   WorkbenchModelSelect,
   WorkbenchParameterSelect,
@@ -367,26 +369,23 @@ function ConfigPanel(props) {
         />
 
         {/* ② 卖点文案 */}
-        <Module
+        <WorkbenchTextEditor
           title="② 卖点文案"
-          action={(
-            <button onClick={onPolish}
-              className="h-7 px-3 rounded-full text-xs font-bold border bg-white transition-colors hover:text-[var(--brand-primary)]"
-              style={{ color: "var(--text-secondary)", borderColor: "var(--border-base)" }}>AI 润色</button>
-          )}
-        >
-          <label className="text-[13px] font-bold block" style={{ color: "var(--text-secondary)" }}>填写商品卖点，生成时按所选语言上图</label>
-          <textarea value={sellPoints} onChange={(e) => setSellPoints(e.target.value)} maxLength={500}
-            placeholder="请输入商品核心卖点" rows={4}
-            className="w-full p-3 rounded-xl border text-sm outline-none resize-y"
-            style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }} />
-          <div className="text-right">
-            <span className="text-xs" style={{ color: "var(--text-disabled)" }}>{sellPoints.length} / 500</span>
-          </div>
-          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>卖点通过版式模板叠加到图上，文字清晰可改、可一字不差复刻。</p>
-          <div className="mt-2">
-            <label className="text-[13px] font-bold block mb-2" style={{ color: "var(--text-secondary)" }}>生成图片语言</label>
-            <div className="grid grid-cols-2 gap-2 p-1 rounded-xl" style={{ background: "var(--gray-100)" }}>
+          value={sellPoints}
+          onChange={setSellPoints}
+          onClear={() => setSellPoints("")}
+          maxLength={500}
+          rows={4}
+          resize="vertical"
+          placeholder="请输入商品核心卖点"
+          ariaLabel="商品卖点"
+          helperText="卖点通过版式模板叠加到图上，文字清晰可改、可一字不差复刻。"
+          toolbar={<WorkbenchTextEditorAction icon={Sparkles} label="AI 润色" onClick={onPolish} primary disabled={!sellPoints.trim()} />}
+          beforeInput={<span className="block text-[13px] font-bold text-[var(--text-secondary)]">填写商品卖点，生成时按所选语言上图</span>}
+          afterInput={(
+            <div>
+              <label className="text-[13px] font-bold block mb-2" style={{ color: "var(--text-secondary)" }}>生成图片语言</label>
+              <div className="grid grid-cols-2 gap-2 p-1 rounded-xl" style={{ background: "var(--gray-100)" }}>
               {["英语", "中文"].map((l) => (
                 <button key={l} onClick={() => setLanguage(l)}
                   className="h-[38px] rounded-lg text-sm font-bold border transition-all"
@@ -395,8 +394,9 @@ function ConfigPanel(props) {
                     : { borderColor: "transparent", background: "transparent", color: "var(--text-secondary)" }}>{l}</button>
               ))}
             </div>
-          </div>
-        </Module>
+            </div>
+          )}
+        />
 
         {/* ③ 主副图设置 */}
         <Module title="③ 主副图设置" sub="多选 · 常用 1:1">

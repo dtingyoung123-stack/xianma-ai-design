@@ -6,6 +6,8 @@ import { X, Settings, Sparkles, Search, ChevronDown, RefreshCw, Download, Thumbs
 import SafeImage from "@/components/SafeImage"
 import ImageQueueModule from "@/components/workbench/ImageQueueModule"
 import AssetPickerModal from "@/components/workbench/AssetPickerModal"
+import PromptPickerModal from "@/components/workbench/PromptPickerModal"
+import WorkbenchPromptEditor from "@/components/workbench/WorkbenchPromptEditor"
 import { ColorConstraintChips } from "@/components/workbench/ColorConstraintPicker"
 import {
   WorkbenchModelSelect,
@@ -30,6 +32,7 @@ import {
   quickEditTemplates, assetPool, defaultLibrary, seedTasks, buildReviewText, buildQuickInstruction,
 } from "@/data/demo/buyer-show"
 import { buyerShowPersonalAssets, buyerShowPublicAssets, buyerShowTeamAssets } from "@/data/demo/asset-picker"
+import { initialPrompts } from "@/data/demo/prompts"
 
 const labelStyles = {
   认可: { bg: "var(--success-bg)", color: "var(--success)" },
@@ -196,6 +199,7 @@ export default function BuyerShowPage() {
   const [productImages, setProductImages] = useState([])
   const [assetPickerOpen, setAssetPickerOpen] = useState(false)
   const [assetReplaceIndex, setAssetReplaceIndex] = useState(null)
+  const [promptPickerOpen, setPromptPickerOpen] = useState(false)
 
   const [tasks, setTasks] = useState(() => clone(seedTasks))
   const [taskSearch, setTaskSearch] = useState("")
@@ -414,7 +418,7 @@ export default function BuyerShowPage() {
       crumbs={crumbs} library={library} activeLib={activeLib} switchLib={switchLib}
       allCatNames={allCatNames} cats={cats} category={category} categoryName={categoryName} pickCategory={pickCategory}
       scene={scene} sceneId={sceneId} pickScene={pickScene} ruleSummary={ruleSummary}
-      prompt={prompt} setPrompt={setPrompt} onPolish={() => setPolishOpen(true)}
+      prompt={prompt} setPrompt={setPrompt} onPolish={() => setPolishOpen(true)} onOpenPromptPicker={() => setPromptPickerOpen(true)}
       colorConstraints={colorConstraints} onPickColor={addColorConstraint} onRemoveColor={removeColorConstraint}
       productImages={productImages} setProductImages={setProductImages} onLocalImages={addLocalImages}
       onEditRegion={(index, regionEdit) => {
@@ -441,6 +445,8 @@ export default function BuyerShowPage() {
       openAssetPicker={() => { setAssetReplaceIndex(null); setAssetPickerOpen(true) }}
       replaceAsset={(index) => { setAssetReplaceIndex(index); setAssetPickerOpen(true) }}
       onChooseAsset={handleAssetConfirm}
+      promptPickerOpen={promptPickerOpen}
+      closePromptPicker={() => setPromptPickerOpen(false)}
     />
   )
 }
@@ -475,6 +481,16 @@ function BuyerShowView(p) {
         />
       )}
       {p.polishOpen && <PolishModal prompt={p.prompt} onApply={(v) => { p.setPrompt(v); p.closePolish(); p.showToast("已应用润色结果") }} onClose={p.closePolish} />}
+      {p.promptPickerOpen && (
+        <PromptPickerModal
+          prompts={initialPrompts}
+          defaultLibrary="team"
+          initialSelectedId=""
+          onClear={() => { p.setPrompt(""); p.closePromptPicker() }}
+          onClose={p.closePromptPicker}
+          onConfirm={(selectedPrompt) => { p.setPrompt(selectedPrompt.content); p.closePromptPicker(); p.showToast("提示词模板已回填") }}
+        />
+      )}
       {p.editContext && p.editResult && <ImageEditModal task={p.editContext} result={p.editResult} updateTask={p.updateTask} showToast={p.showToast} onClose={p.closeEdit} />}
       {p.confirm && <ConfirmModal text={p.confirm.text} onOk={p.confirm.onOk} onClose={() => p.setConfirm(null)} />}
       <WorkbenchToast message={p.toast} />
@@ -568,11 +584,18 @@ function ConfigPanel(p) {
           )}
         </Module>
 
-        <Module title="综合提示词" action={<button onClick={p.onPolish} className="inline-flex items-center gap-1 text-xs px-2.5 h-7 rounded-md transition-opacity hover:opacity-85" style={{ background: "var(--brand-primary-soft)", color: "var(--brand-primary)" }}><Sparkles size={13} /> AI 润色</button>}>
-          <textarea value={p.prompt} onChange={(e) => p.setPrompt(e.target.value)} rows={3} placeholder="例如：画面像手机随手拍，人物穿深色开衫，整体干净可信。"
-            className="w-full rounded-lg border p-3 text-sm outline-none resize-y" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }} />
-          <ColorConstraintChips colors={p.colorConstraints} onRemove={p.onRemoveColor} onNotify={p.showToast} />
-        </Module>
+        <WorkbenchPromptEditor
+          title="综合提示词"
+          value={p.prompt}
+          onChange={p.setPrompt}
+          onTemplate={p.onOpenPromptPicker}
+          onClear={() => p.setPrompt("")}
+          onPolish={p.onPolish}
+          rows={4}
+          placeholder="例如：画面像手机随手拍，人物穿深色开衫，整体干净可信。"
+          ariaLabel="综合提示词"
+          afterInput={<ColorConstraintChips colors={p.colorConstraints} onRemove={p.onRemoveColor} onNotify={p.showToast} />}
+        />
 
         <Module title="生成参数">
           <div className="grid grid-cols-2 gap-3">

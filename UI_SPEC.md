@@ -353,7 +353,9 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 | `WorkbenchParameterSelect` | 生成参数选择弹层 | 复用模型以外的清晰度、画质、尺寸、张数等参数；图片尺寸支持预设比例与自定义宽高像素输入，选择后任务摘要和历史记录展示实际尺寸 |
 | `AssetPickerModal` | 素材选择弹窗 | 工作台从个人素材、团体素材、公共素材和本地上传中选择图片；保留类目、标签、搜索、多选和数量上限 |
 | `PromptPickerModal` | 提示词选择弹窗 | 工作台从个人提示词、团队提示词、公共提示词和灵感广场中单选模板；公共提示词标记公司验证，灵感内容标记未经验证 |
-| `WorkbenchPromptEditor` | 工作台提示词编辑器 | 统一编辑/预览、提示词模板、AI 润色、字数与输入框内清空；顶部操作靠右，预览态隐藏清空，空内容时清空禁用 |
+| `WorkbenchTextEditor` | 工作台通用文本编辑器 | 统一标题、字数、最大长度、输入框内清空、顶部工具栏、输入前后业务扩展区和辅助说明；不绑定提示词业务 |
+| `WorkbenchPromptEditor` | 工作台提示词编辑器 | 提示词始终可填写和编辑，不设置编辑/预览切换；基于 `WorkbenchTextEditor` 组合提示词模板和 AI 润色，顶部操作靠右，空内容时清空和 AI 润色禁用 |
+| `WorkbenchRecentHistory` | 最近三天历史窄栏 | 结果工作台内展示当前功能最近 3 天任务；保留缩略图、状态、时间、提示词摘要、复制提示词、继续编辑、刷新和完整历史入口 |
 | `WorkbenchButton` | 胶囊纯色主按钮、轻按钮 | 生成、历史记录、清空、辅助操作 |
 | `WorkbenchEmpty` | 右侧空状态 | 未生成结果、无匹配任务、无数据 |
 
@@ -377,8 +379,11 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
   </WorkbenchPanel>
 
   <WorkbenchPanel>
-    <WorkbenchPanelHead title="结果预览" />
-    <WorkbenchScroll>...</WorkbenchScroll>
+    <WorkbenchPanelHead title="结果工作台" />
+    <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_280px]">
+      <WorkbenchScroll>...</WorkbenchScroll>
+      <WorkbenchRecentHistory ... />
+    </div>
   </WorkbenchPanel>
 </WorkbenchShell>
 ```
@@ -389,6 +394,8 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 - 不要在每个页面复制一套面包屑；要改面包屑时，只改 `WorkbenchTopline`。
 - 不要在页面级新增 raw hex/rgba；若确需新增视觉值，先补 token 或组件样式。
 - 不要让整页滚动和左右面板内部滚动同时存在。
+- 需要页内近期历史时，结果面板使用“结果主区 + 280px 历史窄栏”；最近历史固定为最近 3 天、不分页并在栏内滚动，窄屏改为可展开区域。
+- 结果面板不得再嵌套重复的“结果预览”标题、状态摘要或请求 ID/模型/任务类型/参考图数量信息条；任务状态统一放在 `WorkbenchPanelHead`。
 
 ### 按钮
 
@@ -486,29 +493,38 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 
 素材库和提示词库的状态筛选仅在个人、团队管理范围显示，并随范围提供适用选项：个人为可用、团队审核中、团队已驳回，团队为团队可用、公共审核中、公共已驳回；公共范围只展示公共可用，灵感广场不进入内部审批状态筛选。状态必须以文字和语义色共同表达，卡片或列表、详情和操作权限保持一致。个人提交团队、团队申请公共时，在现有确认弹窗内使用 Warning 语义提示审批后的资产归属和删除权限：团队资产由团队负责人管理，公共资产由系统管理员管理。审核中必须先取消申请再编辑或删除，不新增独立下架流程。
 
-专家模式保留现网 0～14 张参考图的实际能力和纯文生图模式，复用工作台素材与提示词选择器、`WorkbenchPromptEditor` 和 `WorkbenchParameterSelect`；包含参考图排序、预览、替换、删除、区域编辑，5 个模型、1K/2K/4K、8 种比例、按比例计算的可选像素宽高、1～9 张输出、异步任务状态、下载及页内历史。`WorkbenchShell` 通过 `contentClassName` 对专家模式启用 1100px 以下单栏布局，其他工作台布局不受影响。
+专家模式保留现网 0～14 张参考图的实际能力和纯文生图模式，复用工作台素材与提示词选择器、`WorkbenchPromptEditor` 和 `WorkbenchParameterSelect`；提示词输入框始终可填写和编辑，不提供编辑/预览切换；包含参考图排序、预览、替换、删除、区域编辑，5 个模型、1K/2K/4K、8 种比例、按比例计算的可选像素宽高、1～9 张输出、异步任务状态、下载及页内历史。`WorkbenchShell` 通过 `contentClassName` 对专家模式启用 1100px 以下单栏布局，其他工作台布局不受影响。
 
 ## 9. 公共组件清单
+
+`src/config/component-catalog.js` 是公共组件目录的统一登记表，`/ui-guide?view=components` 按登记表展示组件分布、源码路径、职责、使用页面、成熟度、搜索筛选和真实交互演示。新增、删除、重命名或调整公共组件使用范围时，必须同步登记表；页面局部组件不登记。`/ui-guide` 顶部使用“UI 规范 / 公共组件”两个页签，公共组件视图支持 URL 深链、刷新及浏览器前进后退。
+
+当前公共组件按真实目录分为全局组件、基础 UI、AI 工作台三层，共 22 个组件文件：
 
 | 组件 | 文件 | 类型 | 说明 |
 |------|------|------|------|
 | LayoutClient | `src/components/LayoutClient.jsx` | 客户端 | 全局布局容器，管理侧栏状态 + 响应式 |
 | Topbar | `src/components/Topbar.jsx` | 客户端 | 全局顶部栏，承载品牌、一级菜单、UI 样式入口、积分和用户入口 |
-| UI 规范页 | `src/app/ui-guide/page.js` | 客户端 | 设计系统与组件规范演示页 |
 | Sidebar | `src/components/Sidebar.jsx` | 客户端 | 全局侧栏，移动端抽屉 |
-| WorkbenchShell 等 | `src/components/workbench/Workbench.jsx` | 客户端 | AI 能力工作流页面母版、顶部信息条、左右面板、模块、按钮、空状态 |
+| PageHeader | `src/components/PageHeader.jsx` | 客户端 | 旧版/非工作流子页面面包屑+返回；AI 能力工作流页优先使用 WorkbenchTopline |
+| PageShell | `src/components/PageShell.jsx` | 服务端 | 页面标题、面包屑、状态和内容外壳 |
+| PlaceholderState | `src/components/PlaceholderState.jsx` | 服务端 | 原型/规划页面的统一空状态 |
+| SafeImage | `src/components/SafeImage.jsx` | 客户端 | 图片组件，加载失败自动隐藏 |
+| Button | `src/components/ui/button.jsx` | shadcn | 按钮 |
+| Avatar | `src/components/ui/avatar.jsx` | shadcn | 头像 |
+| DropdownMenu | `src/components/ui/dropdown-menu.jsx` | shadcn | 下拉菜单 |
+| Workbench 页面骨架 | `src/components/workbench/Workbench.jsx` | 客户端 | AI 能力工作流页面母版、顶部信息条、左右面板、模块、按钮和空状态 |
+| WorkbenchControls | `src/components/workbench/WorkbenchControls.jsx` | 客户端 | 模型选择、参数组合选择、Toast 和图标按钮 |
 | WorkbenchPickerDialog | `src/components/workbench/WorkbenchPickerDialog.jsx` | 客户端 | 工作台大型选择弹窗母版，统一 Portal、焦点循环、Esc、遮罩关闭、滚动锁定和响应式固定头尾 |
 | AssetPickerModal | `src/components/workbench/AssetPickerModal.jsx` | 客户端 | 个人/团体/公共/本地四来源素材选择、固定类目、标签、搜索与多选上限 |
 | PromptPickerModal | `src/components/workbench/PromptPickerModal.jsx` | 客户端 | 个人/团队/公共/灵感广场四来源提示词模板选择、用途筛选与正文预览 |
-| ColorSamplerButton / ColorConstraintChips | `src/components/workbench/ColorConstraintPicker.jsx` | 客户端 | 工作台公共吸色入口与颜色记录，包含色块、HEX、复制和删除；按页面需求接入 |
+| ImageQueueModule | `src/components/workbench/ImageQueueModule.jsx` | 客户端 | 参考图片选择、上传、排序、预览、替换和删除 |
 | ImagePreviewModal | `src/components/workbench/ImagePreviewModal.jsx` | 客户端 | 工作台公共图片预览弹窗，统一缩放、拖动、翻转、下载、吸色及色值复制交互 |
-| PageHeader | `src/components/PageHeader.jsx` | 客户端 | 旧版/非工作流子页面面包屑+返回；AI 能力工作流页优先使用 WorkbenchTopline |
-| SafeImage | `src/components/SafeImage.jsx` | 客户端 | 图片组件，加载失败自动隐藏 |
-| PageShell | `src/components/PageShell.jsx` | 服务端 | 页面标题、面包屑、状态和内容外壳 |
-| PlaceholderState | `src/components/PlaceholderState.jsx` | 服务端 | 原型/规划页面的统一空状态 |
-| Button | `src/components/ui/button.jsx` | shadcn | 按钮 |
-| DropdownMenu | `src/components/ui/dropdown-menu.jsx` | shadcn | 下拉菜单 |
-| Avatar | `src/components/ui/avatar.jsx` | shadcn | 头像 |
+| RegionMaskEditor | `src/components/workbench/RegionMaskEditor.jsx` | 客户端 | 图片区域编辑、遮罩、擦除、撤销、重做和文本标注 |
+| ColorSamplerButton / ColorConstraintChips | `src/components/workbench/ColorConstraintPicker.jsx` | 客户端 | 工作台公共吸色入口与颜色记录，包含色块、HEX、复制和删除；按页面需求接入 |
+| WorkbenchTextEditor | `src/components/workbench/WorkbenchTextEditor.jsx` | 客户端 | 通用工作台文本输入、字数、清空、工具栏和业务扩展区 |
+| WorkbenchPromptEditor | `src/components/workbench/WorkbenchPromptEditor.jsx` | 客户端 | 基于通用文本编辑器组合提示词模板和 AI 润色 |
+| WorkbenchRecentHistory | `src/components/workbench/WorkbenchRecentHistory.jsx` | 客户端 | 当前功能最近 3 天历史，支持刷新、复制提示词、继续编辑和跳转完整历史；窄屏折叠 |
 
 ### 文档导出入口
 

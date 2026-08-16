@@ -1,14 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   CheckCircle2,
-  Clipboard,
   Download,
   ImageIcon,
   LoaderCircle,
-  PencilLine,
-  RefreshCw,
   RotateCcw,
   Type,
   WandSparkles,
@@ -18,6 +15,7 @@ import AssetPickerModal from "@/components/workbench/AssetPickerModal"
 import ImageQueueModule from "@/components/workbench/ImageQueueModule"
 import PromptPickerModal from "@/components/workbench/PromptPickerModal"
 import WorkbenchPromptEditor from "@/components/workbench/WorkbenchPromptEditor"
+import WorkbenchRecentHistory from "@/components/workbench/WorkbenchRecentHistory"
 import {
   WorkbenchModelSelect,
   WorkbenchParameterSelect,
@@ -44,14 +42,12 @@ import { initialPrompts } from "@/data/demo/prompts"
 import { formatImageSize, hasValidImageSize } from "@/lib/image-size"
 
 const MAX_REFERENCE_IMAGES = 14
-const PAGE_SIZE = 4
 const ratioOptions = ["智能比例", "1:1", "3:2", "2:3", "16:9", "4:3", "3:4", "9:16"]
 
 export default function ExpertWorkbench() {
   const [mode, setMode] = useState("reference")
   const [images, setImages] = useState([])
   const [prompt, setPrompt] = useState(expertDefaultPrompts.reference)
-  const [promptView, setPromptView] = useState("edit")
   const [model, setModel] = useState(expertModels[0].name)
   const [resolution, setResolution] = useState("1K")
   const [ratio, setRatio] = useState("智能比例")
@@ -61,14 +57,11 @@ export default function ExpertWorkbench() {
   const [promptPickerOpen, setPromptPickerOpen] = useState(false)
   const [replaceIndex, setReplaceIndex] = useState(null)
   const [task, setTask] = useState({ status: "idle", progress: 0, requestId: "", results: [] })
-  const [historyPage, setHistoryPage] = useState(1)
   const [toast, setToast] = useState("")
   const timerRef = useRef(null)
 
   const canSubmit = prompt.trim() && (mode === "text" || images.length > 0) && task.status !== "processing"
   const imageSize = formatImageSize(ratio, customSize)
-  const totalHistoryPages = Math.ceil(expertHistory.length / PAGE_SIZE)
-  const visibleHistory = useMemo(() => expertHistory.slice((historyPage - 1) * PAGE_SIZE, historyPage * PAGE_SIZE), [historyPage])
 
   useEffect(() => () => clearInterval(timerRef.current), [])
 
@@ -127,7 +120,6 @@ export default function ExpertWorkbench() {
     clearInterval(timerRef.current)
     setImages([])
     setPrompt(expertDefaultPrompts[mode])
-    setPromptView("edit")
     setResolution("1K")
     setRatio("智能比例")
     setCustomSize({ width: "", height: "" })
@@ -161,7 +153,6 @@ export default function ExpertWorkbench() {
   function continueHistory(item) {
     setPrompt(item.prompt)
     setMode("reference")
-    setPromptView("edit")
     notify("历史提示词已回填")
   }
 
@@ -201,8 +192,6 @@ export default function ExpertWorkbench() {
             <WorkbenchPromptEditor
               title="专家级创作指令"
               value={prompt}
-              view={promptView}
-              onViewChange={setPromptView}
               onChange={setPrompt}
               onTemplate={() => setPromptPickerOpen(true)}
               onClear={() => setPrompt("")}
@@ -238,19 +227,17 @@ export default function ExpertWorkbench() {
 
         <WorkbenchPanel>
           <WorkbenchPanelHead title="结果工作台" description="查看任务结果并继续处理历史创作。" meta={<StatusBadge status={task.status} />} />
-          <div className="grid min-h-0 flex-1 grid-rows-[minmax(360px,1fr)_minmax(250px,0.72fr)]">
-            <ResultWorkspace task={task} mode={mode} model={model} referenceCount={images.length} onDownload={() => notify("结果图片已开始下载")} />
-            <HistoryPanel
-              items={visibleHistory}
-              page={historyPage}
-              pages={totalHistoryPages}
+          <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_280px]">
+            <ResultWorkspace task={task} mode={mode} onDownload={() => notify("结果图片已开始下载")} />
+            <WorkbenchRecentHistory
+              items={expertHistory.slice(0, 7)}
+              source="expert"
+              sourceLabel="专家模式"
               onRefresh={() => notify("历史记录已刷新")}
-              onPage={setHistoryPage}
               onCopy={(text) => { navigator.clipboard?.writeText(text); notify("提示词已复制") }}
               onContinue={continueHistory}
             />
           </div>
-          <TaskSummary task={task} mode={mode} />
         </WorkbenchPanel>
       </WorkbenchShell>
 
@@ -273,7 +260,7 @@ export default function ExpertWorkbench() {
           initialSelectedId=""
           onClear={() => { setPrompt(""); setPromptPickerOpen(false) }}
           onClose={() => setPromptPickerOpen(false)}
-          onConfirm={(selectedPrompt) => { setPrompt(selectedPrompt.content); setPromptPickerOpen(false); setPromptView("edit") }}
+          onConfirm={(selectedPrompt) => { setPrompt(selectedPrompt.content); setPromptPickerOpen(false) }}
         />
       )}
       <WorkbenchToast message={toast} />
@@ -304,14 +291,9 @@ function ModeSwitch({ value, onChange }) {
   )
 }
 
-function ResultWorkspace({ task, mode, model, referenceCount, onDownload }) {
-  const statusText = task.status === "processing" ? "生成中" : task.status === "completed" ? "已完成" : "暂无结果"
+function ResultWorkspace({ task, mode, onDownload }) {
   return (
     <div className="min-h-0 overflow-y-auto p-4">
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-        <div><h3 className="m-0 text-sm font-black text-[var(--text-title)]">结果预览</h3><p className="mb-0 mt-1 text-xs text-[var(--text-secondary)]">结果会结合参考图顺序、专家指令和当前配置输出。</p></div>
-        <span className="rounded-md bg-[var(--gray-100)] px-2 py-1 text-xs font-bold text-[var(--text-secondary)]">{statusText} · {task.results.length} 个可下载</span>
-      </div>
       {task.status === "processing" ? (
         <div className="flex min-h-64 flex-col items-center justify-center rounded-lg border border-dashed text-center" style={{ borderColor: "var(--border-base)" }}>
           <LoaderCircle className="animate-spin text-[var(--brand-primary)]" size={30} />
@@ -335,50 +317,8 @@ function ResultWorkspace({ task, mode, model, referenceCount, onDownload }) {
           <span className="mt-1 max-w-md text-xs leading-5 text-[var(--text-secondary)]">{mode === "reference" ? "添加参考图并提交任务后，结果会在这里展示。" : "填写提示词并提交任务后，可生成全新的商业视觉画面。"}</span>
         </div>
       )}
-      <dl className="mt-3 grid grid-cols-2 gap-2 text-xs lg:grid-cols-4">
-        <SummaryCell label="请求 ID" value={task.requestId || "-"} />
-        <SummaryCell label="模型" value={model} />
-        <SummaryCell label="任务类型" value={mode === "reference" ? "参考图生成" : "纯文生图"} />
-        <SummaryCell label="参考图" value={`${referenceCount} 张`} />
-      </dl>
     </div>
   )
-}
-
-function HistoryPanel({ items, page, pages, onRefresh, onPage, onCopy, onContinue }) {
-  return (
-    <aside className="min-h-0 overflow-hidden border-t bg-[var(--gray-50)]" style={{ borderColor: "var(--border-light)" }}>
-      <div className="flex items-center justify-between gap-2 px-4 py-2.5"><div><strong className="text-sm text-[var(--text-title)]">历史记录</strong><span className="ml-2 text-xs text-[var(--text-secondary)]">61 条</span></div><button type="button" onClick={onRefresh} className="inline-flex h-8 items-center gap-1.5 rounded-full border bg-white px-3 text-xs font-bold text-[var(--text-body)]" style={{ borderColor: "var(--border-base)" }}><RefreshCw size={13} />刷新</button></div>
-      <div className="grid max-h-[calc(100%-84px)] gap-2 overflow-y-auto px-4 pb-2 sm:grid-cols-2">
-        {items.map((item) => (
-          <article key={item.id} className="flex min-w-0 gap-2.5 rounded-lg border bg-white p-2.5" style={{ borderColor: "var(--border-light)" }}>
-            <SafeImage src={item.image} alt="专家模式历史结果" className="size-14 shrink-0 rounded-lg object-cover" />
-            <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><strong className="text-xs text-[var(--text-title)]">专家模式</strong><span className="text-[10px] font-bold text-[var(--success)]">completed</span></div><p className="my-1 line-clamp-2 text-[11px] leading-4 text-[var(--text-secondary)]">{item.prompt}</p><div className="flex items-center justify-between gap-2"><span className="truncate text-[10px] text-[var(--text-disabled)]">{item.count} 张 · {item.id}</span><span className="flex shrink-0 gap-1"><HistoryAction title="复制提示词" onClick={() => onCopy(item.prompt)}><Clipboard size={12} /></HistoryAction><HistoryAction title="继续编辑" onClick={() => onContinue(item)}><PencilLine size={12} /></HistoryAction></span></div></div>
-          </article>
-        ))}
-      </div>
-      <div className="flex items-center justify-center gap-2 px-4 py-2"><button type="button" disabled={page === 1} onClick={() => onPage(page - 1)} className="h-7 rounded-md border bg-white px-2 text-xs disabled:opacity-40" style={{ borderColor: "var(--border-base)" }}>上一页</button><span className="text-xs text-[var(--text-secondary)]">{page} / {pages}</span><button type="button" disabled={page === pages} onClick={() => onPage(page + 1)} className="h-7 rounded-md border bg-white px-2 text-xs disabled:opacity-40" style={{ borderColor: "var(--border-base)" }}>下一页</button></div>
-    </aside>
-  )
-}
-
-function HistoryAction({ title, onClick, children }) {
-  return <button type="button" title={title} aria-label={title} onClick={onClick} className="grid size-7 place-items-center rounded-md border bg-white text-[var(--text-secondary)]" style={{ borderColor: "var(--border-base)" }}>{children}</button>
-}
-
-function TaskSummary({ task, mode }) {
-  return (
-    <div className="grid shrink-0 grid-cols-2 border-t bg-white text-xs sm:grid-cols-4" style={{ borderColor: "var(--border-light)" }}>
-      <SummaryCell label="当前状态" value={task.status === "processing" ? "生成中" : task.status === "completed" ? "已完成" : "未开始"} compact />
-      <SummaryCell label="请求 ID" value={task.requestId || "-"} compact />
-      <SummaryCell label="模式" value={mode === "reference" ? "参考图" : "纯文生图"} compact />
-      <SummaryCell label="进度" value={task.status === "idle" ? "-" : `${task.progress}%`} compact />
-    </div>
-  )
-}
-
-function SummaryCell({ label, value, compact = false }) {
-  return <div className={compact ? "min-w-0 border-r px-3 py-2 last:border-r-0" : "min-w-0 rounded-lg bg-[var(--gray-50)] px-3 py-2"} style={compact ? { borderColor: "var(--border-light)" } : undefined}><dt className="text-[10px] text-[var(--text-secondary)]">{label}</dt><dd className="m-0 mt-0.5 truncate font-bold text-[var(--text-title)]" title={value}>{value}</dd></div>
 }
 
 function StatusBadge({ status }) {

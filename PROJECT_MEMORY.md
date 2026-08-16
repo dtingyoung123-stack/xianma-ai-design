@@ -431,3 +431,82 @@
 - 文档结构：状态链路、角色口径、素材和提示词按钮矩阵、审批入口、顶部按钮、公共选择器及删除联动统一集中在 PRD 7.6 节，其他章节只引用该唯一完整口径。
 - 范围边界：不包含专家模式或其他 AI 生成工具的页面、参数及生成流程。
 - 关联文件：`docs/素材库提示词库权限管理PRD_260810.md`、`PROJECT_MEMORY.md`。
+
+### 2026-08-15：工作台提示词输入交互简化
+
+- 状态：已按确认方案完成前端公共组件调整；仅代表前端原型更新，不表示真实 AI 润色或生成服务已部署、上线。
+- 当前规则：工作台提示词输入框始终可填写和编辑，删除“编辑 / 预览”切换；此前专家模式中关于提示词编辑/预览双模式的记录由本条规则替代。
+- 公共组件：继续使用 `WorkbenchPromptEditor` 作为 AI 工作台创作提示词输入区，不新增另一套组件；提示词模板和 AI 润色位于顶部右侧，清空位于输入框右下角，空内容时清空和 AI 润色禁用。
+- 复用边界：组件面向具备提示词模板或 AI 润色能力的生成工作台，不替代提示词库内容维护、系统提示词配置、审批意见等普通文本输入；其他工作台后续随页面优化逐步接入，本次不批量迁移。
+- 文档边界：本次只同步 UI 规范和项目记忆，不修改素材库/提示词库权限 PRD。
+- 关联文件：`src/components/workbench/WorkbenchPromptEditor.jsx`、`src/app/image-tools/expert/ExpertWorkbench.jsx`、`UI_SPEC.md`、`PROJECT_MEMORY.md`。
+
+### 2026-08-15：公共组件目录与工作台文本编辑器复用
+
+- 状态：已按确认方案完成并验证前端原型实现；不表示真实 AI 润色、素材服务或生成服务已部署、上线。
+- 组件目录：`/ui-guide` 新增“UI 规范 / 公共组件”顶部页签，公共组件视图支持 `?view=components` 深链、搜索和三层目录筛选，展示 `src/components` 下 21 个真实公共组件文件的路径、职责、使用页面、成熟度及交互演示。
+- 登记规则：`src/config/component-catalog.js` 是公共组件目录的统一登记表；公共组件新增、删除、重命名或使用范围变化时必须同步登记，页面局部组件不计入。
+- 编辑器体系：新增 `WorkbenchTextEditor` 负责通用工作台文本输入、字数、最大长度、输入框内清空、顶部工具栏和业务扩展区；`WorkbenchPromptEditor` 基于它组合提示词模板与 AI 润色，不保留编辑/预览切换。
+- 页面接入：专家模式和 AI 买家秀复用 `WorkbenchPromptEditor`；AI 买家秀同步接入公共 `PromptPickerModal`；AI 商品套图的卖点文案复用 `WorkbenchTextEditor`，保留 500 字限制、AI 润色、语言选择和辅助说明。
+- 后续规则：新增 AI 工作台子页面优先评估并复用现有工作台骨架、选择器和文本编辑器；只有现有组件职责无法覆盖且存在明确复用价值时，才按共享组件确认流程新增组件。
+- 文档边界：本次同步 UI 规范和项目记忆，不修改素材库/提示词库权限 PRD。
+- 验证结果：全量源码 ESLint 0 error（保留 5 条既有图片性能 warning）；`next build --webpack` 通过并生成 28 个页面；组件登记表与 `src/components` 均为 21 个文件且路径一一对应；浏览器验证 Top Tab 深链、目录搜索筛选、下拉菜单、模型/参数弹层、素材/提示词选择器、图片预览和编辑器输入联动，修复 Base UI 菜单分组契约后干净页面控制台 0 warning、0 error；`/ui-guide?view=components`、专家模式、AI 买家秀和 AI 商品套图在 1280px、1024px、390px 均无横向溢出，窄屏选择弹窗保持视口内固定头尾和正文滚动。
+- 关联文件：`src/app/ui-guide/page.js`、`src/app/ui-guide/PublicComponentsCatalog.jsx`、`src/config/component-catalog.js`、`src/components/workbench/WorkbenchTextEditor.jsx`、`src/components/workbench/WorkbenchPromptEditor.jsx`、`src/app/image-tools/expert/ExpertWorkbench.jsx`、`src/app/ai-hub/BuyerShowPage.jsx`、`src/app/ai-hub/SuitePage.jsx`、`UI_SPEC.md`、`PROJECT_MEMORY.md`。
+
+### 2026-08-15：基础 UI 组件适配平台规范
+
+- 状态：已按确认方案完成 `Button`、`Avatar`、`DropdownMenu` 三个基础公共组件的样式适配与浏览器验收。
+- 按钮规则：移除未映射的 shadcn 默认主题类，统一山茶红主按钮、白底描边、品牌浅色、幽灵、危险和链接变体；默认高度 36px，小尺寸 32px、大尺寸 40px，统一 8px 圆角、焦点环和明确禁用态。
+- 头像规则：回退头像使用中性浅灰底和深色文字；状态点使用品牌色与白色分隔环；头像组使用白色叠放分隔，避免出现透明空圆环。
+- 菜单规则：菜单浮层默认最小宽度 160px，不再强制与触发器等宽；统一白底、8px 圆角、细边框和控制阴影，菜单项最小高度 36px，并补齐普通、禁用、危险及分组状态。
+- 演示与验证：公共组件目录补齐按钮变体与尺寸、图片/回退头像及状态点、菜单普通/禁用/危险项演示；受影响文件定向 ESLint 0 error，Next.js 生产构建通过并生成 28 个页面；浏览器验证窄屏和 1280px 布局、菜单键盘关闭及顶部个人菜单均正常。
+- 关联文件：`src/components/ui/button.jsx`、`src/components/ui/avatar.jsx`、`src/components/ui/dropdown-menu.jsx`、`src/app/ui-guide/PublicComponentsCatalog.jsx`、`PROJECT_MEMORY.md`。
+
+### 2026-08-15：主体替换与工作台近期历史布局
+
+- 状态：已按确认方案完成前端交互原型；真实生成任务、历史记录接口、服务端权限、部署和上线尚未据此完成。
+- 近期历史：新增公共 `WorkbenchRecentHistory`，在结果面板右侧直接展示当前功能最近 3 天历史，不分页、栏内滚动，保留缩略图、状态、时间、提示词摘要、复制提示词、继续编辑、刷新和完整历史入口；窄屏改为可展开区域。
+- 结果布局：专家模式和主体替换统一使用“结果主区 + 280px 历史窄栏”。结果面板只保留外层标题、说明和任务状态，删除内部重复标题、状态摘要和请求 ID、模型、任务类型、参考图数量信息行。
+- 主体替换：完成 `/image-tools/subject-replace` 工作台，采用 3:7 双栏；最多 14 张图片且图一为原图、其余为主体参考；复用素材选择、本地上传、拖拽排序、大图预览、替换、删除、提示词模板、AI 润色、模型和参数公共组件，不提供替换范围或区域编辑。
+- 参数与任务：支持线上确认的 5 个模型、1K/2K/4K、智能比例及 7 个固定比例、1～9 张输出，包含提交禁用、清空、异步进度、空/成功/失败结果结构、下载、近期历史和完整历史筛选入口。
+- 公共组件目录：`WorkbenchRecentHistory` 已登记到 `src/config/component-catalog.js`，并在 `/ui-guide?view=components` 提供真实组件演示；公共组件总数由 21 增至 22。
+- 验证结果：定向及全量源码 ESLint 0 error（保留 5 条既有图片性能 warning）；图片尺寸测试 4/4 通过；Next.js 生产构建通过并生成 28 个页面；浏览器验证专家模式与主体替换在 1280px、1024px、390px 均无横向溢出，390px 最近历史默认折叠且可展开。主体替换素材弹窗包含个人/团体/公共/本地及固定类目，提示词弹窗包含个人/团队/公共/灵感广场；素材回填、提交禁用、生成进度、成功结果和下载入口可用，公共组件目录登记与演示正常，页面控制台无应用错误。
+- 关联文件：`src/components/workbench/WorkbenchRecentHistory.jsx`、`src/app/image-tools/expert/ExpertWorkbench.jsx`、`src/app/image-tools/subject-replace/SubjectReplaceWorkbench.jsx`、`src/app/image-tools/subject-replace/page.js`、`src/data/demo/subject-replace.js`、`src/config/component-catalog.js`、`src/app/ui-guide/PublicComponentsCatalog.jsx`、`UI_SPEC.md`、`PROJECT_MEMORY.md`。
+
+### 2026-08-15：产品微调工作台
+
+- 状态：已按确认方案完成 `/image-tools/product-refine` 前端交互原型并通过浏览器验收；真实生成接口、积分扣减、服务端权限、持久化历史、部署和上线尚未据此完成。
+- 页面与素材：页面由占位页升级为 3:7 工作台，一次处理 1 张 JPG/PNG/WEBP 商品图；复用公共素材选择器，支持个人、团体、公共和本地来源，并保留固定一级类目、预览、替换、删除及区域编辑。
+- 提示词与参数：提示词始终可填写和编辑，不提供编辑/预览切换；复用公共提示词编辑器和模板选择器，模板来源为个人提示词、团队提示词、公共提示词和灵感广场。保留 5 个模型、1K/2K/4K、智能比例及 7 个固定比例、1～9 张输出。
+- 任务与结果：支持未开始、处理中、已完成、失败和已终止状态；处理中可终止，终止后保留图片、区域和提示词并可再次提交。结果区保留原图/AI 输出对照、失败重试和单图下载，不展示请求 ID、模型、水印或重复状态摘要。
+- 近期历史：复用 `WorkbenchRecentHistory` 展示当前功能最近 3 天记录，支持刷新、复制提示词、继续编辑和进入完整历史；组件目录使用范围已补充“产品微调”，公共组件总数不变。
+- 验证结果：浏览器验证素材与提示词弹窗、单图上限、区域编辑、任务终止/再次提交、成功结果、下载入口、历史复制/继续编辑和清空链路可用；1280px、1024px、390px 均无横向溢出，390px 历史默认折叠且可展开，页面控制台无应用错误。
+- 关联文件：`src/app/image-tools/product-refine/ProductRefineWorkbench.jsx`、`src/app/image-tools/product-refine/page.js`、`src/data/demo/product-refine.js`、`src/config/component-catalog.js`、`PROJECT_MEMORY.md`。
+
+### 2026-08-16：批量美颜工作台
+
+- 状态：已按线上实际能力完成 `/image-tools/batch-beautify` 前端交互原型并通过浏览器验收；真实批量生成接口、积分扣减、任务持久化、打包下载、部署和上线尚未据此完成。
+- 页面与输入：页面由占位页升级为 3:7 工作台，一次最多处理 14 张 JPG/PNG/WEBP 人像图；复用公共图片队列和素材选择器，支持个人、团体、公共、本地来源及多图上传、排序、预览、替换、删除。
+- 美颜与提示词：保留自然、标准、精修三个业务预设，删除与预设重复的处理强度下拉；切换预设同步推荐提示词，提示词仍可自由编辑。复用公共提示词编辑器和模板选择器，模板来源为个人提示词、团队提示词、公共提示词和灵感广场。
+- 模型与参数：保留 5 个现有模型、1K/2K/4K、智能比例及 7 个固定比例；图片张数定义为每张输入图生成 1～9 张，页面同步展示预计结果总数，极限为 14×9=126 张。
+- 任务与结果：结果按输入图片分组并默认只展开首组，覆盖未开始、待处理、处理中、成功、失败、部分成功和已终止状态；处理中可终止且保留输入与已有结果，失败项可单独重试，成功项支持单张下载和批量下载入口。通过任务轮次校验隔离已终止、清空或重新提交后的旧异步回调。
+- 近期历史：复用 `WorkbenchRecentHistory` 展示当前功能最近 3 天记录，支持刷新、复制提示词、继续编辑和进入完整历史；公共组件目录使用范围已补充“批量美颜”，未新增共享组件。
+- 验证结果：全量源码 ESLint 0 error（保留 5 条既有图片性能 warning）；图片尺寸测试 4/4 通过；`next build --webpack` 通过并生成 28 个页面。浏览器完成素材四来源与固定类目、提示词四来源、3 张输入×每张 3 张、部分成功、失败重试及输入保留链路核对；1280px、1024px、390px 无横向溢出，页面控制台无应用错误。
+- 关联文件：`src/app/image-tools/batch-beautify/BatchBeautifyWorkbench.jsx`、`src/app/image-tools/batch-beautify/page.js`、`src/data/demo/batch-beautify.js`、`src/config/component-catalog.js`、`PROJECT_MEMORY.md`。
+
+### 2026-08-16：历史记录筛选层级调整
+
+- 状态：已按确认规则完成历史记录筛选区的前端布局调整；筛选数据、权限、接口和记录内容未变更。
+- 一级范围：筛选区第一行只保留“我的记录 / 所有记录”，用于决定当前账号或全员记录范围；记录总数在同一行右侧展示，并按全部筛选条件实时计算。
+- 二级功能：全部功能节点移至一级范围下方，统一归入“功能类型”二级筛选；切换范围时保留当前功能条件，工作台携带 `source` 参数进入历史记录时仍能直接选中对应功能。
+- 关联文件：`src/app/history/HistoryClient.jsx`、`PROJECT_MEMORY.md`。
+
+### 2026-08-16：数据智能一期企业历史基线
+
+- 状态：已按确认方案完成 `/admin/data` 可点击前端原型并通过浏览器验收；页面数据为截至 2026-07-30 的一次性历史快照，不代表实时数据，真实报表接口、新埋点验收、部署和上线尚未据此完成。
+- 一期范围：展示注册用户、实际生图用户、任务用户覆盖率、累计任务、成功任务、累计积分和平均每任务积分；展示任务状态构成、功能任务量/用户数排行，以及 16 项功能的任务数、用户数、成功、失败、取消和未完成明细。
+- 数据口径：累计积分以任务快照 136,167 为主数值；账号同步积分 105,452 仅在指标说明中作为参考，两者相差 30,715，当前材料不足以解释差异，不据此推算人民币成本或节省工时。功能名称保留快照原始标识，技术型功能不归并。
+- 交互与边界：支持任务状态切换、任务数/用户数排行切换、明细列排序和指标说明弹窗；无日期序列、组织、结果采纳、耗时、失败原因和资产复用字段，因此一期不展示趋势、部门/个人下钻、采纳率、平均耗时、失败原因、资产复用或单有效产出成本。
+- 响应式规则：1280px 与 1024px 使用桌面明细表，736px 与 360px 使用移动卡片明细；四档宽度均无页面横向溢出，360px 指标说明弹窗保持在视口内并仅滚动正文。
+- 验证结果：快照 16 项功能汇总与总任务 49,512、成功 43,246、失败 1,096、取消 5,165、未完成 5 逐项一致；定向 ESLint 0 error；`next build --webpack` 通过并生成 28 个页面；浏览器验证排行切换、状态切换、明细排序和指标说明交互正常，页面控制台 0 warning、0 error。
+- 关联文件：`src/app/admin/data/page.js`、`src/app/admin/data/DataOverviewClient.jsx`、`src/data/demo/data-intelligence.js`、`PROJECT_MEMORY.md`。

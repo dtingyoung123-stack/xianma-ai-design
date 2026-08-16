@@ -60,7 +60,7 @@ export default function Topbar() {
           {open ? <X size={20} /> : <Menu size={20} />}
         </button>
         <Link href="/home" className="flex items-center gap-2 md:gap-2.5">
-          <SafeImage src="/logo.png" alt="先马" className="w-7 h-7 md:w-8 md:h-8 rounded-full" />
+          <SafeImage src="/logo.png" alt="先马" className="w-7 h-7 object-contain md:w-8 md:h-8 rounded-full" />
           <div className="hidden sm:block leading-tight">
             <div className="whitespace-nowrap text-[13px] font-semibold md:text-[15px]" style={{ color: "var(--text-title)" }}>先马AI内容与视觉平台</div>
             <div className="hidden text-[10px] text-[var(--text-secondary)] xl:block xl:text-[11px]">企业智能设计工作台</div>
