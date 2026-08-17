@@ -90,7 +90,7 @@ export default function PublicComponentsCatalog() {
         </div>
       </section>
 
-      <div className="sticky top-0 z-20 mb-2 flex flex-col gap-2 border-y bg-[var(--white)]/95 py-3 backdrop-blur-sm sm:flex-row sm:items-center" style={{ borderColor: "var(--border-light)" }}>
+      <div className="sticky -top-4 z-20 mb-2 flex flex-col gap-2 border-y bg-[var(--white)]/95 py-3 backdrop-blur-sm md:-top-5 lg:-top-6 sm:flex-row sm:items-center" style={{ borderColor: "var(--border-light)" }}>
         <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-[var(--white)] px-3 text-[var(--text-secondary)]" style={{ borderColor: "var(--border-base)" }}>
           <Search size={16} />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索组件名称、路径或使用页面" aria-label="搜索公共组件" className="min-w-0 flex-1 bg-transparent text-sm text-[var(--text-body)] outline-none" />
