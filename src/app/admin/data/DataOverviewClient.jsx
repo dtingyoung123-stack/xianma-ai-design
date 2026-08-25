@@ -16,6 +16,7 @@ import {
   Clock3,
   Coins,
   Database,
+  Download,
   Gauge,
   Layers3,
   LockKeyhole,
@@ -507,9 +508,19 @@ export default function DataOverviewClient() {
       pathname="/admin/data"
       description="查看平台使用、任务运行、积分消耗与资产复用情况"
       actions={(
-        <span className="inline-flex min-h-9 items-center gap-2 rounded-lg border bg-white px-3 text-xs font-medium text-[var(--text-secondary)]" style={{ borderColor: "var(--border-base)" }}>
-          <LockKeyhole size={15} className="text-[var(--brand-primary)]" />系统管理员 · {selectedScope.path}
-        </span>
+        <>
+          <span className="inline-flex min-h-9 items-center gap-2 rounded-lg border bg-white px-3 text-xs font-medium text-[var(--text-secondary)]" style={{ borderColor: "var(--border-base)" }}>
+            <LockKeyhole size={15} className="text-[var(--brand-primary)]" />系统管理员 · {selectedScope.path}
+          </span>
+          <a
+            href="/api/data-intelligence-prd"
+            download
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[var(--brand-primary)] px-4 text-sm font-medium text-[var(--brand-on-primary)] transition-colors hover:bg-[var(--brand-primary-hover)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--brand-primary-soft)] sm:w-auto"
+          >
+            <Download size={16} />
+            导出 PRD
+          </a>
+        </>
       )}
     >
       <div className="min-w-0 space-y-4">
