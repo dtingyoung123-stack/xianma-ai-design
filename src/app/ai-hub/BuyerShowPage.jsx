@@ -2,11 +2,12 @@
 
 import { useState, useMemo, useRef, useEffect } from "react"
 import { createPortal } from "react-dom"
-import { X, Settings, Sparkles, Search, ChevronDown, RefreshCw, Download, ThumbsUp, ThumbsDown, Pencil, Plus, Trash2, Send, Lightbulb, ArrowLeft, Copy } from "lucide-react"
+import { X, Settings, Sparkles, Search, ChevronDown, RefreshCw, Download, ThumbsUp, ThumbsDown, Pencil, Plus, Trash2, Send, ArrowLeft, Copy } from "lucide-react"
 import SafeImage from "@/components/SafeImage"
 import ImageQueueModule from "@/components/workbench/ImageQueueModule"
 import AssetPickerModal from "@/components/workbench/AssetPickerModal"
 import PromptPickerModal from "@/components/workbench/PromptPickerModal"
+import ResultLocalEditDialog from "@/components/workbench/ResultLocalEditDialog"
 import WorkbenchPromptEditor from "@/components/workbench/WorkbenchPromptEditor"
 import { ColorConstraintChips } from "@/components/workbench/ColorConstraintPicker"
 import {
@@ -15,6 +16,7 @@ import {
   WorkbenchToast,
 } from "@/components/workbench/WorkbenchControls"
 import { formatImageSize, hasValidImageSize } from "@/lib/image-size"
+import { downloadImage, downloadImageZip } from "@/lib/image-download"
 import {
   WorkbenchButton,
   WorkbenchEmpty,
@@ -61,116 +63,33 @@ function downloadTextFile(content, filename, type = "text/plain;charset=utf-8") 
   URL.revokeObjectURL(url)
 }
 
-function downloadImage(src, filename) {
-  const link = document.createElement("a")
-  link.href = src
-  link.download = filename
-  link.target = "_blank"
-  link.click()
-}
-
 async function downloadTaskImagesZip(task, showToast) {
-  const files = await Promise.all(task.results
+  const items = task.results
     .filter((result) => result.src && result.label !== "处理中")
-    .map(async (result, index) => {
-      const response = await fetch(result.src)
-      if (!response.ok) throw new Error(`download failed: ${result.src}`)
-      const buffer = await response.arrayBuffer()
-      return {
-        name: `${String(index + 1).padStart(2, "0")}-${sanitizeFilename(result.shot)}-${sanitizeFilename(result.title)}.${getImageExtension(result.src)}`,
-        buffer,
-      }
-    }))
-
-  if (!files.length) {
+    .map((result, index) => ({ src: result.src, name: result.name || `${result.shot}-${result.title}`, index }))
+  if (!items.length) {
     showToast("当前任务暂无可下载图片")
     return
   }
-
-  const zipBlob = createStoredZip(files)
-  downloadBlob(zipBlob, `${sanitizeFilename(task.title)}-结果图片.zip`)
-  showToast(`已打包下载 ${files.length} 张图片`)
+  await downloadImageZip({ items, zipName: `${task.title}-结果图片`, featureName: "AI买家秀" })
+  showToast(`已打包下载 ${items.length} 张图片`)
 }
 
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement("a")
-  link.href = url
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
-function sanitizeFilename(value) {
-  return String(value || "未命名")
-    .replace(/[\\/:*?"<>|]/g, "-")
-    .replace(/\s+/g, " ")
-    .trim()
-}
-
-function getImageExtension(src) {
-  const ext = String(src || "").split("?")[0].match(/\.([a-zA-Z0-9]+)$/)?.[1]?.toLowerCase()
-  return ["jpg", "jpeg", "png", "webp", "gif"].includes(ext) ? ext : "png"
-}
-
-function createStoredZip(files) {
-  const encoder = new TextEncoder()
-  const localParts = []
-  const centralParts = []
-  let offset = 0
-
-  files.forEach((file) => {
-    const nameBytes = encoder.encode(file.name)
-    const data = new Uint8Array(file.buffer)
-    const crc = crc32(data)
-    const localHeader = zipHeader([
-      0x04034b50, 20, 0, 0, 0, 0, crc, data.length, data.length, nameBytes.length, 0,
-    ], [4, 2, 2, 2, 2, 2, 4, 4, 4, 2, 2])
-    localParts.push(localHeader, nameBytes, data)
-
-    const centralHeader = zipHeader([
-      0x02014b50, 20, 20, 0, 0, 0, 0, crc, data.length, data.length, nameBytes.length, 0, 0, 0, 0, 0, offset,
-    ], [4, 2, 2, 2, 2, 2, 2, 4, 4, 4, 2, 2, 2, 2, 2, 4, 4])
-    centralParts.push(centralHeader, nameBytes)
-    offset += localHeader.length + nameBytes.length + data.length
-  })
-
-  const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0)
-  const endRecord = zipHeader([
-    0x06054b50, 0, 0, files.length, files.length, centralSize, offset, 0,
-  ], [4, 2, 2, 2, 2, 4, 4, 2])
-
-  return new Blob([...localParts, ...centralParts, endRecord], { type: "application/zip" })
-}
-
-function zipHeader(values, sizes) {
-  const length = sizes.reduce((sum, size) => sum + size, 0)
-  const bytes = new Uint8Array(length)
-  const view = new DataView(bytes.buffer)
-  let offset = 0
-  values.forEach((value, index) => {
-    if (sizes[index] === 2) view.setUint16(offset, value, true)
-    else view.setUint32(offset, value, true)
-    offset += sizes[index]
-  })
-  return bytes
-}
-
-function crc32(data) {
-  let crc = -1
-  for (let i = 0; i < data.length; i += 1) {
-    crc = (crc >>> 8) ^ crcTable[(crc ^ data[i]) & 0xff]
+function withVersionHistory(result) {
+  if (Array.isArray(result.versions) && result.versions.length) return result
+  const originalVersion = { id: `${result.id}-original`, src: result.src, label: "原始结果", note: "任务首次生成结果" }
+  return {
+    ...result,
+    name: result.name || `${result.shot}-${result.title}`,
+    originalSrc: result.src,
+    currentVersionId: originalVersion.id,
+    versions: [originalVersion],
   }
-  return (crc ^ -1) >>> 0
 }
 
-const crcTable = Array.from({ length: 256 }, (_, index) => {
-  let value = index
-  for (let bit = 0; bit < 8; bit += 1) {
-    value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1
-  }
-  return value >>> 0
-})
+function normalizeTask(task) {
+  return { ...task, results: task.results.map(withVersionHistory) }
+}
 
 function buildRuleSummary(cat, scene) {
   if (!cat) return ""
@@ -201,7 +120,7 @@ export default function BuyerShowPage() {
   const [assetReplaceIndex, setAssetReplaceIndex] = useState(null)
   const [promptPickerOpen, setPromptPickerOpen] = useState(false)
 
-  const [tasks, setTasks] = useState(() => clone(seedTasks))
+  const [tasks, setTasks] = useState(() => clone(seedTasks).map(normalizeTask))
   const [taskSearch, setTaskSearch] = useState("")
   const [detailId, setDetailId] = useState(null)
   const [generating, setGenerating] = useState(false)
@@ -284,7 +203,7 @@ export default function BuyerShowPage() {
     ]
     const results = Array.from({ length: n }, (_, i) => {
       const sb = storyboard[i % storyboard.length]
-      return { id: newId("result"), shot: sb.index, title: sb.title, label: "处理中", note: "正在生成中…", src: assetPool[i % assetPool.length], version: "原始结果", editHistory: [] }
+      return withVersionHistory({ id: newId("result"), shot: sb.index, title: sb.title, label: "处理中", note: "正在生成中…", src: assetPool[i % assetPool.length], version: "原始结果", editHistory: [] })
     })
     const task = {
       id: newId("demo"), title: `${n} 张买家秀 · ${hh}:${mm}`, time: "刚刚", status: "生成中", progress: 0, doneText: `0/${n}`,
@@ -491,7 +410,36 @@ function BuyerShowView(p) {
           onConfirm={(selectedPrompt) => { p.setPrompt(selectedPrompt.content); p.closePromptPicker(); p.showToast("提示词模板已回填") }}
         />
       )}
-      {p.editContext && p.editResult && <ImageEditModal task={p.editContext} result={p.editResult} updateTask={p.updateTask} showToast={p.showToast} onClose={p.closeEdit} />}
+      {p.editContext && p.editResult && (
+        <ResultLocalEditDialog
+          result={p.editResult}
+          context={{ taskName: p.editContext.title, scene: p.editContext.scene, model: p.editContext.model, spec: `${p.editContext.resolution} · ${p.editContext.ratio}` }}
+          directions={quickEditTemplates.map((item) => ({ ...item, defaultInstruction: buildQuickInstruction(p.editContext.productType, p.editContext.scene, item.key, p.editResult.title) }))}
+          candidateImages={assetPool}
+          onNotify={p.showToast}
+          onClose={p.closeEdit}
+          onApply={async ({ candidate, direction, instruction }) => {
+            p.updateTask(p.editContext.id, (task) => ({
+              ...task,
+              results: task.results.map((result) => {
+                if (result.id !== p.editResult.id) return result
+                const versions = withVersionHistory(result).versions
+                const versionNumber = versions.length
+                const version = { id: `${result.id}-edit-${Date.now()}`, src: candidate.src, label: `局部编辑 v${versionNumber}`, note: direction.title }
+                return {
+                  ...result,
+                  src: candidate.src,
+                  version: version.label,
+                  currentVersionId: version.id,
+                  versions: [...versions, version],
+                  editHistory: [...(result.editHistory || []), { quickKey: direction.key, instruction }],
+                }
+              }),
+            }))
+            p.showToast("当前结果已更新，原始版本已保留")
+          }}
+        />
+      )}
       {p.confirm && <ConfirmModal text={p.confirm.text} onOk={p.confirm.onOk} onClose={() => p.setConfirm(null)} />}
       <WorkbenchToast message={p.toast} />
     </WorkbenchShell>
@@ -866,8 +814,8 @@ function ImagesView({ task, onApprove, onReject, onEditResult, showToast }) {
                     <IconBtn active={r.label === "认可"} disabled={!canAct} onClick={() => onApprove(task.id, r.id)} activeColor="var(--success)"><ThumbsUp size={14} /></IconBtn>
                     <IconBtn active={r.label === "待调整"} disabled={!canAct} onClick={() => onReject(task.id, r.id)} activeColor="var(--danger)"><ThumbsDown size={14} /></IconBtn>
                     <div className="flex-1" />
-                    <button disabled={!canAct} onClick={() => onEditResult(task.id, r.id)} className="p-1.5 rounded-md border disabled:opacity-40" style={{ borderColor: "var(--border-base)", color: "var(--text-secondary)" }}><Pencil size={13} /></button>
-                    <button disabled={!canAct} onClick={() => downloadImage(r.src, `${r.shot}-${r.title}.png`)} className="p-1.5 rounded-md border disabled:opacity-40" style={{ borderColor: "var(--border-base)", color: "var(--text-secondary)" }}><Download size={13} /></button>
+                    <button disabled={!canAct} title="局部编辑" aria-label={`局部编辑${r.title}`} onClick={() => onEditResult(task.id, r.id)} className="grid size-8 place-items-center rounded-md border disabled:opacity-40" style={{ borderColor: "var(--border-base)", color: "var(--text-secondary)" }}><Pencil size={13} /></button>
+                    <button disabled={!canAct} title="下载图片" aria-label={`下载${r.title}`} onClick={() => downloadImage({ src: r.src, name: r.name || `${r.shot}-${r.title}`, featureName: "AI买家秀" }).then(() => showToast("图片已开始下载")).catch(() => showToast("图片下载失败，请重试"))} className="grid size-8 place-items-center rounded-md border disabled:opacity-40" style={{ borderColor: "var(--border-base)", color: "var(--text-secondary)" }}><Download size={13} /></button>
                   </div>
                 </div>
               </div>
@@ -953,92 +901,6 @@ function ReviewsView({ task, reviews, countMode, setCountMode, customCount, setC
         </div>
       )}
     </div>
-  )
-}
-
-function ImageEditModal({ task, result, updateTask, showToast, onClose }) {
-  const [quickKey, setQuickKey] = useState("pose")
-  const [instruction, setInstruction] = useState(() => buildQuickInstruction(task.productType, task.scene, "pose", result.title))
-  const [selected, setSelected] = useState("c1")
-  const [candidateSeed, setCandidateSeed] = useState(0)
-
-  function pickQuick(key) {
-    setQuickKey(key)
-    setInstruction(buildQuickInstruction(task.productType, task.scene, key, result.title))
-  }
-  const idx = assetPool.indexOf(result.src)
-  const candidates = [
-    { id: "c1", src: assetPool[(idx + 1 + candidateSeed) % assetPool.length], title: "候选 A", note: "保留原构图，按返修方向轻量调整。" },
-    { id: "c2", src: assetPool[(idx + 2 + candidateSeed) % assetPool.length], title: "候选 B", note: "画面更像手机抓拍，人物状态更自然。" },
-  ]
-  function applyCandidate() {
-    const cand = candidates.find((c) => c.id === selected)
-    updateTask(task.id, (t) => ({
-      ...t,
-      results: t.results.map((r) => r.id === result.id
-        ? { ...r, src: cand.src, version: "返修 v" + ((r.editHistory?.length || 0) + 1), editHistory: [...(r.editHistory || []), { quickKey, instruction }] }
-        : r),
-    }))
-    showToast("已用所选候选替换当前结果")
-    onClose()
-  }
-
-  return (
-    <Scrim onClose={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-[880px] max-w-full max-h-[88vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between p-5 border-b" style={{ borderColor: "var(--border-light)" }}>
-          <div>
-            <div className="text-xs font-semibold tracking-wider uppercase" style={{ color: "var(--brand-primary)" }}>SINGLE IMAGE EDIT</div>
-            <h3 className="text-lg font-semibold mt-0.5" style={{ color: "var(--text-title)" }}>单图返修 · {result.shot} {result.title}</h3>
-            <div className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>只改当前这一张，其他结果不受影响；默认继承原任务场景规则和参数。</div>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-[var(--bg-hover)]" style={{ color: "var(--text-secondary)" }}><X size={18} /></button>
-        </div>
-        <div className="p-5 overflow-auto grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5">
-          <div>
-            <div className="rounded-xl overflow-hidden border mb-3" style={{ borderColor: "var(--border-light)" }}>
-              <SafeImage src={result.src} alt={result.title} className="w-full aspect-square object-cover" />
-            </div>
-            <div className="p-3 rounded-lg text-xs space-y-1" style={{ background: "var(--gray-50)", color: "var(--text-body)" }}>
-              <div><b style={{ color: "var(--text-secondary)" }}>场景：</b>{task.scene}</div>
-              <div><b style={{ color: "var(--text-secondary)" }}>模型：</b>{task.model} · {task.resolution} · {task.ratio}</div>
-              <div><b style={{ color: "var(--text-secondary)" }}>当前版本：</b>{result.version}</div>
-            </div>
-            <div className="mt-2 p-2.5 rounded-lg text-[11px] flex items-start gap-1.5" style={{ background: "var(--warning-bg)", color: "var(--warning)" }}>
-              <Lightbulb size={13} className="shrink-0 mt-0.5" /> 开发注意：点「替换当前结果」需调用图像模型重新生成（传入当前结果图 + 返修方向 + 补充要求），当前原型为静态演示占位。
-            </div>
-          </div>
-          <div>
-            <div className="text-sm font-semibold mb-2" style={{ color: "var(--text-title)" }}>快速返修 <span className="text-xs font-normal" style={{ color: "var(--text-secondary)" }}>推荐先选一个方向</span></div>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              {quickEditTemplates.map((q) => (
-                <button key={q.key} onClick={() => pickQuick(q.key)} className="text-left p-2.5 rounded-lg border"
-                  style={quickKey === q.key ? { borderColor: "var(--brand-primary)", background: "var(--brand-primary-soft)" } : { borderColor: "var(--border-base)" }}>
-                  <strong className="block text-xs" style={{ color: "var(--text-title)" }}>{q.title}</strong>
-                  <span className="block text-[11px] mt-0.5 leading-snug" style={{ color: "var(--text-secondary)" }}>{q.desc}</span>
-                </button>
-              ))}
-            </div>
-            <div className="text-sm font-semibold mb-2" style={{ color: "var(--text-title)" }}>补充要求 <span className="text-xs font-normal" style={{ color: "var(--text-secondary)" }}>只写这次差异</span></div>
-            <textarea value={instruction} onChange={(e) => setInstruction(e.target.value)} rows={2} className="w-full rounded-lg border p-2.5 text-sm outline-none resize-y mb-3" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }} />
-            <div className="text-sm font-semibold mb-2" style={{ color: "var(--text-title)" }}>返修候选 <span className="text-xs font-normal" style={{ color: "var(--text-secondary)" }}>选一个替换</span></div>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              {candidates.map((c) => (
-                <button key={c.id} onClick={() => setSelected(c.id)} className="text-left rounded-lg border overflow-hidden"
-                  style={selected === c.id ? { borderColor: "var(--brand-primary)", boxShadow: "var(--shadow-card)" } : { borderColor: "var(--border-base)" }}>
-                  <SafeImage src={c.src} alt={c.title} className="w-full aspect-[4/3] object-cover" />
-                  <div className="p-2"><strong className="block text-xs" style={{ color: "var(--text-title)" }}>{c.title}</strong><span className="block text-[11px] mt-0.5 leading-snug" style={{ color: "var(--text-secondary)" }}>{c.note}</span></div>
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <button onClick={applyCandidate} className="flex-1 h-9 rounded-lg text-sm font-semibold text-white" style={{ background: "var(--brand-primary)" }}>替换当前结果</button>
-              <button onClick={() => { setCandidateSeed((v) => (v + 1) % assetPool.length); setSelected("c1"); showToast("已刷新 2 张返修候选") }} className="h-9 px-4 rounded-lg text-sm font-medium border" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }}>重新生成</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Scrim>
   )
 }
 

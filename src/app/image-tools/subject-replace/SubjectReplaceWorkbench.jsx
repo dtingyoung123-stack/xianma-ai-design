@@ -1,11 +1,13 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { AlertCircle, CheckCircle2, Download, LoaderCircle, RotateCcw, WandSparkles } from "lucide-react"
+import { AlertCircle, Ban, CheckCircle2, Download, FolderPlus, LoaderCircle, Pencil, RotateCcw, ThumbsDown, ThumbsUp, WandSparkles } from "lucide-react"
 import SafeImage from "@/components/SafeImage"
 import AssetPickerModal from "@/components/workbench/AssetPickerModal"
+import ImagePreviewModal from "@/components/workbench/ImagePreviewModal"
 import ImageQueueModule from "@/components/workbench/ImageQueueModule"
 import PromptPickerModal from "@/components/workbench/PromptPickerModal"
+import ResultLocalEditDialog from "@/components/workbench/ResultLocalEditDialog"
 import WorkbenchPromptEditor from "@/components/workbench/WorkbenchPromptEditor"
 import WorkbenchRecentHistory from "@/components/workbench/WorkbenchRecentHistory"
 import {
@@ -32,8 +34,9 @@ import {
 } from "@/data/demo/subject-replace"
 import { initialPrompts } from "@/data/demo/prompts"
 import { formatImageSize, hasValidImageSize } from "@/lib/image-size"
+import { downloadImage } from "@/lib/image-download"
 
-const MAX_IMAGES = 14
+const MAX_IMAGES = 16
 const ratioOptions = ["智能比例", "1:1", "3:2", "2:3", "16:9", "4:3", "3:4", "9:16"]
 
 export default function SubjectReplaceWorkbench() {
@@ -48,6 +51,8 @@ export default function SubjectReplaceWorkbench() {
   const [promptPickerOpen, setPromptPickerOpen] = useState(false)
   const [replaceIndex, setReplaceIndex] = useState(null)
   const [task, setTask] = useState({ status: "idle", progress: 0, results: [], error: "" })
+  const [previewIndex, setPreviewIndex] = useState(null)
+  const [editResultId, setEditResultId] = useState(null)
   const [toast, setToast] = useState("")
   const timerRef = useRef(null)
 
@@ -111,6 +116,8 @@ export default function SubjectReplaceWorkbench() {
     setCustomSize({ width: "", height: "" })
     setCount("1")
     setTask({ status: "idle", progress: 0, results: [], error: "" })
+    setPreviewIndex(null)
+    setEditResultId(null)
   }
 
   function submitTask() {
@@ -126,7 +133,21 @@ export default function SubjectReplaceWorkbench() {
       progress = Math.min(progress + 22, 100)
       if (progress >= 100) {
         window.clearInterval(timerRef.current)
-        const results = subjectReplaceResultImages.slice(0, Number(count)).map((src, index) => ({ id: `subject-result-${Date.now()}-${index}`, src, name: `主体替换结果 ${index + 1}` }))
+        const results = subjectReplaceResultImages.slice(0, Number(count)).map((src, index) => {
+          const id = `subject-result-${Date.now()}-${index}`
+          const originalVersion = { id: `${id}-original`, src, label: "原始结果", note: "任务首次生成结果" }
+          return {
+            id,
+            src,
+            originalSrc: src,
+            name: `主体替换结果 ${index + 1}`,
+            status: "completed",
+            feedback: null,
+            inMaterials: false,
+            versions: [originalVersion],
+            currentVersionId: originalVersion.id,
+          }
+        })
         setTask({ status: "completed", progress: 100, results, error: "" })
         notify("主体替换任务已完成")
       } else {
@@ -134,6 +155,37 @@ export default function SubjectReplaceWorkbench() {
       }
     }, 420)
   }
+
+  function stopTask() {
+    window.clearInterval(timerRef.current)
+    setTask((current) => ({ ...current, status: "cancelled", results: [] }))
+    notify("任务已终止，当前输入已保留")
+  }
+
+  function updateResult(resultId, updater) {
+    setTask((current) => ({
+      ...current,
+      results: current.results.map((result) => result.id === resultId ? updater(result) : result),
+    }))
+  }
+
+  async function downloadResult(result, mime) {
+    try {
+      await downloadImage({ src: result.src, name: result.name, format: mime === "image/png" ? "png" : "jpg", featureName: "主体替换" })
+      notify(`${mime === "image/png" ? "PNG" : "JPG"} 图片已开始下载`)
+    } catch {
+      notify("图片下载失败，请重试")
+    }
+  }
+
+  function openLocalEdit(resultId) {
+    const result = task.results.find((item) => item.id === resultId)
+    if (!isEditableResult(result)) return
+    setPreviewIndex(null)
+    setEditResultId(resultId)
+  }
+
+  const editResult = task.results.find((result) => result.id === editResultId) || null
 
   function continueHistory(item) {
     setPrompt(item.prompt)
@@ -196,10 +248,11 @@ export default function SubjectReplaceWorkbench() {
             </WorkbenchModule>
           </WorkbenchScroll>
           <div className="grid shrink-0 grid-cols-1 gap-2 border-t bg-[var(--white)] p-3 sm:grid-cols-[1fr_auto]" style={{ borderColor: "var(--border-light)" }}>
-            <WorkbenchButton type="button" disabled={!canSubmit} onClick={submitTask}>
-              {task.status === "processing" ? <LoaderCircle className="animate-spin" size={16} /> : <WandSparkles size={16} />}
-              {task.status === "processing" ? "正在替换" : "提交主体替换任务"}
-            </WorkbenchButton>
+            {task.status === "processing" ? (
+              <WorkbenchButton type="button" variant="ghost" onClick={stopTask} style={{ color: "var(--danger)", borderColor: "var(--danger)" }}><Ban size={16} />终止任务</WorkbenchButton>
+            ) : (
+              <WorkbenchButton type="button" disabled={!canSubmit} onClick={submitTask}><WandSparkles size={16} />提交主体替换任务</WorkbenchButton>
+            )}
             <WorkbenchButton type="button" variant="ghost" onClick={clearWorkbench}><RotateCcw size={15} />清空重来</WorkbenchButton>
           </div>
         </WorkbenchPanel>
@@ -207,7 +260,16 @@ export default function SubjectReplaceWorkbench() {
         <WorkbenchPanel>
           <WorkbenchPanelHead title="结果工作台" description="查看替换结果并继续处理最近任务。" meta={<StatusBadge status={task.status} />} />
           <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_280px]">
-            <SubjectReplaceResult task={task} onDownload={() => notify("结果图片已开始下载")} onRetry={submitTask} />
+            <SubjectReplaceResult
+              task={task}
+              onRetry={submitTask}
+              onPreview={setPreviewIndex}
+              onFeedback={(resultId, feedback) => updateResult(resultId, (result) => ({ ...result, feedback: result.feedback === feedback ? null : feedback }))}
+              onEdit={openLocalEdit}
+              onAddToMaterials={(resultId) => updateResult(resultId, (result) => ({ ...result, inMaterials: true }))}
+              onDownload={downloadResult}
+              onImageError={(resultId) => updateResult(resultId, (result) => ({ ...result, status: "unavailable" }))}
+            />
             <WorkbenchRecentHistory
               items={subjectReplaceHistory}
               source="subject-replace"
@@ -242,12 +304,44 @@ export default function SubjectReplaceWorkbench() {
           onConfirm={(selectedPrompt) => { setPrompt(selectedPrompt.content); setPromptPickerOpen(false) }}
         />
       )}
+      {previewIndex !== null && task.results[previewIndex] && (
+        <ImagePreviewModal
+          images={task.results}
+          index={previewIndex}
+          setIndex={setPreviewIndex}
+          getSrc={(result) => result.src}
+          getName={(result) => result.name}
+          featureName="主体替换"
+          onClose={() => setPreviewIndex(null)}
+          onNotify={notify}
+          renderHeaderAction={(result) => isEditableResult(result) ? (
+            <button type="button" onClick={() => openLocalEdit(result.id)} className="inline-flex h-9 items-center gap-1.5 rounded-md border bg-white px-3 text-xs font-semibold text-[var(--text-body)]" style={{ borderColor: "var(--border-base)" }} title="局部编辑" aria-label={`局部编辑${result.name}`}><Pencil size={14} />局部编辑</button>
+          ) : null}
+        />
+      )}
+      {editResult && (
+        <ResultLocalEditDialog
+          result={editResult}
+          context={{ taskName: "主体替换", model, spec: `${resolution} · ${imageSize}` }}
+          candidateImages={subjectReplaceResultImages}
+          onNotify={notify}
+          onClose={() => setEditResultId(null)}
+          onApply={async ({ candidate, direction }) => {
+            updateResult(editResult.id, (result) => {
+              const versions = result.versions || []
+              const version = { id: `${result.id}-edit-${Date.now()}`, src: candidate.src, label: `局部编辑 v${versions.length}`, note: direction.title }
+              return { ...result, src: candidate.src, currentVersionId: version.id, versions: [...versions, version], status: "completed" }
+            })
+            notify("当前结果已更新，原始版本已保留")
+          }}
+        />
+      )}
       <WorkbenchToast message={toast} />
     </>
   )
 }
 
-function SubjectReplaceResult({ task, onDownload, onRetry }) {
+function SubjectReplaceResult({ task, onDownload, onRetry, onPreview, onFeedback, onEdit, onAddToMaterials, onImageError }) {
   if (task.status === "processing") {
     return (
       <div className="min-h-0 overflow-y-auto p-4">
@@ -274,16 +368,43 @@ function SubjectReplaceResult({ task, onDownload, onRetry }) {
     )
   }
 
+  if (task.status === "cancelled") {
+    return (
+      <div className="min-h-0 overflow-y-auto p-4">
+        <div className="flex min-h-64 flex-col items-center justify-center rounded-lg border border-dashed px-4 text-center" style={{ borderColor: "var(--border-base)" }}>
+          <Ban size={28} className="text-[var(--text-disabled)]" />
+          <strong className="mt-3 text-sm text-[var(--text-title)]">任务已终止</strong>
+          <span className="mt-1 text-xs text-[var(--text-secondary)]">当前图片和提示词已保留，可调整后再次提交。</span>
+          <WorkbenchButton type="button" variant="ghost" className="mt-4" onClick={onRetry}>再次提交</WorkbenchButton>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-0 overflow-y-auto p-4">
       {task.results.length ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {task.results.map((result) => (
+          {task.results.map((result, index) => (
             <article key={result.id} className="overflow-hidden rounded-lg border bg-[var(--white)]" style={{ borderColor: "var(--border-base)" }}>
-              <SafeImage src={result.src} alt={result.name} className="aspect-square w-full object-cover" />
-              <div className="flex items-center justify-between gap-2 p-2.5">
-                <strong className="truncate text-xs text-[var(--text-title)]">{result.name}</strong>
-                <a href={result.src} download onClick={onDownload} className="grid size-8 shrink-0 place-items-center rounded-full border text-[var(--brand-primary)]" style={{ borderColor: "var(--brand-primary-border)" }} title="下载结果" aria-label={`下载${result.name}`}><Download size={14} /></a>
+              <button type="button" onClick={() => onPreview(index)} className="block w-full bg-[var(--gray-50)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus-ring)]" aria-label={`预览${result.name}`}>
+                <SafeImage src={result.src} alt={result.name} onError={() => onImageError(result.id)} className="aspect-square w-full object-cover" />
+              </button>
+              <div className="border-t p-2.5" style={{ borderColor: "var(--border-light)" }}>
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <strong className="truncate text-xs text-[var(--text-title)]">{result.name}</strong>
+                  <span className="shrink-0 text-[11px] text-[var(--text-secondary)]">{result.versions?.at(-1)?.label || "原始结果"}</span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <ResultAction active={result.feedback === "approved"} disabled={!isEditableResult(result)} title="认可" onClick={() => onFeedback(result.id, "approved")}><ThumbsUp size={13} /></ResultAction>
+                  <ResultAction active={result.feedback === "rejected"} disabled={!isEditableResult(result)} title="不行" onClick={() => onFeedback(result.id, "rejected")}><ThumbsDown size={13} /></ResultAction>
+                  <button type="button" disabled={!isEditableResult(result)} onClick={() => onEdit(result.id)} className="inline-flex h-8 items-center gap-1.5 rounded-md border px-2 text-xs font-semibold text-[var(--text-body)] disabled:cursor-not-allowed disabled:opacity-40" style={{ borderColor: "var(--border-base)" }} title="局部编辑"><Pencil size={13} />局部编辑</button>
+                  <button type="button" disabled={result.inMaterials || !isEditableResult(result)} onClick={() => onAddToMaterials(result.id)} className="inline-flex h-8 items-center gap-1.5 rounded-md border px-2 text-xs font-semibold text-[var(--text-body)] disabled:cursor-not-allowed disabled:opacity-50" style={{ borderColor: "var(--border-base)" }} title="加入素材库"><FolderPlus size={13} />{result.inMaterials ? "已入库" : "加入素材库"}</button>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-1.5">
+                  <button type="button" disabled={!isEditableResult(result)} onClick={() => onDownload(result, "image/png")} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border text-xs font-semibold text-[var(--brand-primary)] disabled:opacity-40" style={{ borderColor: "var(--brand-primary-border)" }}><Download size={13} />PNG</button>
+                  <button type="button" disabled={!isEditableResult(result)} onClick={() => onDownload(result, "image/jpeg")} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border text-xs font-semibold text-[var(--brand-primary)] disabled:opacity-40" style={{ borderColor: "var(--brand-primary-border)" }}><Download size={13} />JPG</button>
+                </div>
               </div>
             </article>
           ))}
@@ -299,6 +420,14 @@ function SubjectReplaceResult({ task, onDownload, onRetry }) {
   )
 }
 
+function ResultAction({ active, disabled, title, onClick, children }) {
+  return <button type="button" disabled={disabled} title={title} aria-label={title} aria-pressed={active} onClick={onClick} className="grid size-8 place-items-center rounded-md border disabled:cursor-not-allowed disabled:opacity-40" style={active ? { borderColor: "var(--brand-primary)", background: "var(--brand-primary-soft)", color: "var(--brand-primary)" } : { borderColor: "var(--border-base)", color: "var(--text-secondary)" }}>{children}</button>
+}
+
+function isEditableResult(result) {
+  return Boolean(result?.src && result.status === "completed")
+}
+
 function StatusBadge({ status }) {
   const meta = status === "processing"
     ? { label: "生成中", bg: "var(--warning-bg)", color: "var(--warning)" }
@@ -306,6 +435,8 @@ function StatusBadge({ status }) {
       ? { label: "已完成", bg: "var(--success-bg)", color: "var(--success)" }
       : status === "failed"
         ? { label: "失败", bg: "var(--danger-bg)", color: "var(--danger)" }
+        : status === "cancelled"
+          ? { label: "已终止", bg: "var(--gray-100)", color: "var(--text-secondary)" }
         : { label: "未开始", bg: "var(--gray-100)", color: "var(--text-secondary)" }
   return <span className="inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-bold" style={{ background: meta.bg, color: meta.color }}>{status === "completed" && <CheckCircle2 size={13} />}{meta.label}</span>
 }

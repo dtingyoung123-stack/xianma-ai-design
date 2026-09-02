@@ -25,10 +25,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import WorkbenchPickerDialog from "@/components/workbench/WorkbenchPickerDialog"
+import PromptPickerModal from "@/components/workbench/PromptPickerModal"
 import {
   initialCanvasFolders,
   initialCanvasProjects,
 } from "@/data/demo/ai-canvas-projects"
+import { initialPrompts } from "@/data/demo/prompts"
 
 const prototypePath = "/prototypes/xianma-ai-canvas-v1.html"
 const prototypeThemeStyleId = "xianma-project-theme-overrides"
@@ -76,6 +78,24 @@ const prototypeThemeStyles = `
     cursor: not-allowed !important;
     transform: none !important;
   }
+
+  .xm-prompt-template-button {
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #E5E5E5;
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  .xm-prompt-template-button:hover,
+  .xm-prompt-template-button:focus-visible {
+    border-color: #D9353F;
+    color: #FFFFFF;
+    outline: none;
+  }
 `
 
 function formatNow() {
@@ -91,6 +111,13 @@ function formatNow() {
 
 function createDemoId(prefix) {
   return `${prefix}${Date.now()}${Math.random().toString(36).slice(2, 6)}`
+}
+
+function replacePrototypePrompt(target, content, frameWindow) {
+  if (!target || !frameWindow) return false
+  target.value = content
+  target.dispatchEvent(new frameWindow.Event("input", { bubbles: true }))
+  return true
 }
 
 export default function CanvasProjectsClient() {
@@ -489,7 +516,10 @@ function FolderOption({ label, selected, onClick }) {
 function CanvasPrototypeFrame({ project, onExit }) {
   const [status, setStatus] = useState("loading")
   const [frameKey, setFrameKey] = useState(0)
+  const [promptPickerOpen, setPromptPickerOpen] = useState(false)
   const bridgeCleanupRef = useRef(null)
+  const frameWindowRef = useRef(null)
+  const promptTargetRef = useRef(null)
 
   const connectPrototype = useCallback((event) => {
     bridgeCleanupRef.current?.()
@@ -499,6 +529,7 @@ function CanvasPrototypeFrame({ project, onExit }) {
       if (!frameWindow || typeof frameWindow.createProject !== "function" || !backButton) {
         throw new Error("prototype bridge unavailable")
       }
+      frameWindowRef.current = frameWindow
 
       const themeStyle = frameWindow.document.createElement("style")
       themeStyle.id = prototypeThemeStyleId
@@ -512,11 +543,38 @@ function CanvasPrototypeFrame({ project, onExit }) {
       }
 
       backButton.addEventListener("click", handlePrototypeBack, true)
+      frameWindow.createProject(project.name)
+
+      function installPromptTemplateButton() {
+        const promptInput = frameWindow.document.getElementById("promptInput")
+        const promptHeader = promptInput?.closest(".generate-card")?.querySelector(".generate-head")
+        if (!promptInput || !promptHeader || promptHeader.querySelector("[data-xm-prompt-template]")) return
+        const button = frameWindow.document.createElement("button")
+        button.type = "button"
+        button.dataset.xmPromptTemplate = "true"
+        button.className = "xm-prompt-template-button"
+        button.textContent = "提示词模板"
+        button.title = "提示词模板"
+        button.setAttribute("aria-label", "提示词模板")
+        button.addEventListener("click", (clickEvent) => {
+          clickEvent.preventDefault()
+          clickEvent.stopPropagation()
+          promptTargetRef.current = promptInput
+          setPromptPickerOpen(true)
+        })
+        promptHeader.appendChild(button)
+      }
+
+      installPromptTemplateButton()
+      const promptObserver = new frameWindow.MutationObserver(installPromptTemplateButton)
+      promptObserver.observe(frameWindow.document.body, { childList: true, subtree: true })
       bridgeCleanupRef.current = () => {
+        promptObserver.disconnect()
         backButton.removeEventListener("click", handlePrototypeBack, true)
         themeStyle.remove()
+        frameWindowRef.current = null
+        promptTargetRef.current = null
       }
-      frameWindow.createProject(project.name)
       setStatus("ready")
     } catch {
       setStatus("error")
@@ -530,7 +588,21 @@ function CanvasPrototypeFrame({ project, onExit }) {
     setFrameKey((current) => current + 1)
   }
 
+  function closePromptPicker() {
+    promptTargetRef.current = null
+    setPromptPickerOpen(false)
+  }
+
+  function applyPromptTemplate(selectedPrompt) {
+    const target = promptTargetRef.current?.isConnected
+      ? promptTargetRef.current
+      : frameWindowRef.current?.document.getElementById("promptInput")
+    if (replacePrototypePrompt(target, selectedPrompt.content, frameWindowRef.current)) target.focus()
+    closePromptPicker()
+  }
+
   return (
+    <>
     <div className="fixed inset-0 z-[1000] bg-white">
       {status === "ready" && (
         <Button
@@ -573,5 +645,19 @@ function CanvasPrototypeFrame({ project, onExit }) {
         </div>
       )}
     </div>
+    {promptPickerOpen && (
+      <PromptPickerModal
+        prompts={initialPrompts}
+        initialSelectedId=""
+        onClear={() => {
+          const target = promptTargetRef.current?.isConnected ? promptTargetRef.current : frameWindowRef.current?.document.getElementById("promptInput")
+          replacePrototypePrompt(target, "", frameWindowRef.current)
+          closePromptPicker()
+        }}
+        onClose={closePromptPicker}
+        onConfirm={applyPromptTemplate}
+      />
+    )}
+    </>
   )
 }

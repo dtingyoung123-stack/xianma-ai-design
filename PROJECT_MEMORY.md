@@ -764,3 +764,12 @@
 - 下载规则：点击后直接下载 `docs/数据智能报表PRD_260825.md`；接口返回 `text/markdown; charset=utf-8` 和 UTF-8 中文文件名，源文件缺失时返回 404，不生成空文件。
 - 验证结果：相关文件定向 ESLint 通过；Webpack 生产构建通过并生成 29 个页面；接口返回 200 且响应内容 SHA-256 与源文件一致；浏览器在 1280px、360px 下无整页横向溢出，实际下载触发成功，控制台无警告或错误。
 - 关联文件：`src/app/admin/data/DataOverviewClient.jsx`、`src/app/api/data-intelligence-prd/route.js`、`docs/数据智能报表PRD_260825.md`、`PROJECT_MEMORY.md`。
+
+### 2026-09-02：运营反馈四项交互优化前端原型
+
+- 状态：已在现有前端原型内完成并验证主体替换局部编辑、已实现生成页提示词模板、大图预览循环和图片下载命名统一；本结论只代表本地前端原型已实现并通过检查，不代表接口、真实任务数据、部署或上线完成。
+- 主体替换：保留左侧输入、中间结果、右侧历史结构及既有流程，上传上限调整为 16 张；成功结果支持认可/不行、加入素材库、PNG/JPG 下载、结果卡及大图顶部局部编辑。局部编辑复用 AI 买家秀单结果返修能力，只更新当前结果最新版本，并保留原始结果及版本记录。
+- 提示词模板：专家模式、主体替换、产品微调、批量美颜、AI 买家秀和无限画布生成配置已复用现有模板选择器；选择模板后覆盖提示词全文，关闭或取消不改变原内容。批量改图、AI 多角度、AI 区域重绘、AI 提示词和 AI 视频流因当前为占位页，本期按用户确认跳过。
+- 预览与下载：共享大图预览在当前图片组内首尾循环，单图隐藏箭头，切图重置缩放、拖动、翻转和临时取色状态，失败图不阻断切换；结果卡、大图、历史记录、素材详情、批量单图和 ZIP 包内图片统一按展示名称与实际格式命名，清理双扩展名和 Windows 非法字符，ZIP 同名使用两位序号。
+- 验证结果：新增下载命名回归测试后共 10 项测试通过；`src` 与 `tests` ESLint 0 error，保留 5 条仓库既有图片性能 warning；Webpack 生产构建通过并生成 29 个页面；浏览器完成 1440px、1280px、1024px、390px 主流程、弹窗、循环切换与无限画布模板回填检查，页面控制台无错误。
+- 关联文件：`src/app/image-tools/subject-replace/SubjectReplaceWorkbench.jsx`、`src/app/ai-hub/BuyerShowPage.jsx`、`src/app/ai-canvas/CanvasProjectsClient.jsx`、`src/components/workbench/ResultLocalEditDialog.jsx`、`src/components/workbench/ImagePreviewModal.jsx`、`src/lib/image-download.js`、`tests/image-download.test.mjs`。

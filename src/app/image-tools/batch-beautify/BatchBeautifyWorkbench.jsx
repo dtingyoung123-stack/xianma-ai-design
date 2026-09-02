@@ -21,6 +21,7 @@ import {
 } from "@/data/demo/batch-beautify"
 import { initialPrompts } from "@/data/demo/prompts"
 import { formatImageSize, hasValidImageSize } from "@/lib/image-size"
+import { downloadImage, downloadImageZip } from "@/lib/image-download"
 
 const MAX_IMAGES = 14
 const ratioOptions = ["智能比例", "1:1", "3:2", "2:3", "16:9", "4:3", "3:4", "9:16"]
@@ -56,6 +57,25 @@ export default function BatchBeautifyWorkbench() {
     setToast(message)
     window.clearTimeout(toastRef.current)
     toastRef.current = window.setTimeout(() => setToast(""), 1800)
+  }
+
+  async function downloadResult(result) {
+    try {
+      await downloadImage({ src: result.src, name: result.name, featureName: "批量美颜" })
+      notify("结果图片已开始下载")
+    } catch {
+      notify("图片下载失败，请重试")
+    }
+  }
+
+  async function downloadCompletedResults() {
+    const items = task.groups.flatMap((group) => group.results).filter((result) => result.status === "completed")
+    try {
+      await downloadImageZip({ items, zipName: "批量美颜-成功结果", featureName: "批量美颜" })
+      notify(`已打包下载 ${items.length} 张成功结果`)
+    } catch {
+      notify("批量下载失败，请重试")
+    }
   }
 
   function resetTask() {
@@ -281,7 +301,7 @@ export default function BatchBeautifyWorkbench() {
         <WorkbenchPanel>
           <WorkbenchPanelHead title="批量结果" description="按输入图片查看处理状态和独立结果，失败项可单独重试。" meta={<StatusBadge status={task.status} />} />
           <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_280px]">
-            <BatchResultWorkspace task={task} onToggle={toggleGroup} onRetry={retryResult} onDownload={() => notify("结果图片已开始下载")} onBatchDownload={() => notify("已开始打包下载成功结果")} />
+            <BatchResultWorkspace task={task} onToggle={toggleGroup} onRetry={retryResult} onDownload={downloadResult} onBatchDownload={downloadCompletedResults} />
             <WorkbenchRecentHistory
               items={batchBeautifyHistory}
               source="batch-beautify"
@@ -414,7 +434,7 @@ function ResultCard({ result, onRetry, onDownload }) {
       <div className="flex min-h-11 items-center justify-between gap-2 p-2">
         <strong className="truncate text-xs text-[var(--text-title)]">{result.name}</strong>
         {failed && <button type="button" onClick={onRetry} className="shrink-0 text-xs font-bold text-[var(--brand-primary)]">重试</button>}
-        {result.status === "completed" && <a href={result.src} download onClick={onDownload} className="grid size-8 shrink-0 place-items-center rounded-full border text-[var(--brand-primary)]" style={{ borderColor: "var(--brand-primary-border)" }} title="下载结果" aria-label={`下载${result.name}`}><Download size={14} /></a>}
+        {result.status === "completed" && <button type="button" onClick={() => onDownload(result)} className="grid size-8 shrink-0 place-items-center rounded-full border text-[var(--brand-primary)]" style={{ borderColor: "var(--brand-primary-border)" }} title="下载结果" aria-label={`下载${result.name}`}><Download size={14} /></button>}
       </div>
     </div>
   )

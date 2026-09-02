@@ -68,7 +68,7 @@ export default function WorkbenchPickerDialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-5"
+      className="fixed inset-0 z-[1200] flex items-center justify-center p-3 sm:p-5"
       style={{ background: "var(--overlay-scrim)" }}
       role="presentation"
       onMouseDown={(event) => {

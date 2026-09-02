@@ -39,6 +39,7 @@ import {
   materialCategoryFilterOptions,
   materialCategoryOptions,
 } from "@/data/demo/materials"
+import { downloadImage } from "@/lib/image-download"
 
 const scopeOptions = [
   { id: "personal", label: "个人素材", shortLabel: "个人", description: "仅自己可见" },
@@ -417,7 +418,16 @@ export default function MaterialsClient() {
     setToast("素材已删除")
   }
 
-  function downloadMaterial(material) {
+  async function downloadMaterial(material) {
+    if (material.type === "image" && material.src) {
+      try {
+        await downloadImage({ src: material.src, name: material.title, mime: material.mime, featureName: "素材" })
+        setToast("已开始下载")
+      } catch {
+        setToast("图片下载失败，请重试")
+      }
+      return
+    }
     const link = document.createElement("a")
     if (material.src) {
       link.href = material.src

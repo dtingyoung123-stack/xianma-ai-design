@@ -32,6 +32,7 @@ import {
 } from "@/data/demo/product-refine"
 import { initialPrompts } from "@/data/demo/prompts"
 import { formatImageSize, hasValidImageSize } from "@/lib/image-size"
+import { downloadImage } from "@/lib/image-download"
 
 const ratioOptions = ["智能比例", "1:1", "3:2", "2:3", "16:9", "4:3", "3:4", "9:16"]
 
@@ -223,7 +224,14 @@ export default function ProductRefineWorkbench() {
         <WorkbenchPanel>
           <WorkbenchPanelHead title="结果工作台" description="对照原图查看 AI 精修结果，并继续处理最近任务。" meta={<StatusBadge status={task.status} />} />
           <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_280px]">
-            <ProductRefineResult image={image} task={task} onDownload={() => notify("结果图片已开始下载")} onRetry={submitTask} />
+            <ProductRefineResult image={image} task={task} onDownload={async (result) => {
+              try {
+                await downloadImage({ src: result.src, name: result.name, featureName: "产品微调" })
+                notify("结果图片已开始下载")
+              } catch {
+                notify("图片下载失败，请重试")
+              }
+            }} onRetry={submitTask} />
             <WorkbenchRecentHistory
               items={productRefineHistory}
               source="product-refine"
@@ -304,7 +312,7 @@ function ProductRefineResult({ image, task, onDownload, onRetry }) {
                   <SafeImage src={result.src} alt={result.name} className="aspect-square w-full object-cover" />
                   <div className="flex items-center justify-between gap-2 p-2">
                     <strong className="truncate text-xs text-[var(--text-title)]">{result.name}</strong>
-                    <a href={result.src} download onClick={onDownload} className="grid size-8 shrink-0 place-items-center rounded-full border text-[var(--brand-primary)]" style={{ borderColor: "var(--brand-primary-border)" }} title="下载结果" aria-label={`下载${result.name}`}><Download size={14} /></a>
+                    <button type="button" onClick={() => onDownload(result)} className="grid size-8 shrink-0 place-items-center rounded-full border text-[var(--brand-primary)]" style={{ borderColor: "var(--brand-primary-border)" }} title="下载结果" aria-label={`下载${result.name}`}><Download size={14} /></button>
                   </div>
                 </article>
               ))}

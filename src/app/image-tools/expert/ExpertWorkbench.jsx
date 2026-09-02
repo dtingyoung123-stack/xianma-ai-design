@@ -40,6 +40,7 @@ import {
 } from "@/data/demo/expert"
 import { initialPrompts } from "@/data/demo/prompts"
 import { formatImageSize, hasValidImageSize } from "@/lib/image-size"
+import { downloadImage } from "@/lib/image-download"
 
 const MAX_REFERENCE_IMAGES = 14
 const ratioOptions = ["智能比例", "1:1", "3:2", "2:3", "16:9", "4:3", "3:4", "9:16"]
@@ -228,7 +229,14 @@ export default function ExpertWorkbench() {
         <WorkbenchPanel>
           <WorkbenchPanelHead title="结果工作台" description="查看任务结果并继续处理历史创作。" meta={<StatusBadge status={task.status} />} />
           <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_280px]">
-            <ResultWorkspace task={task} mode={mode} onDownload={() => notify("结果图片已开始下载")} />
+            <ResultWorkspace task={task} mode={mode} onDownload={async (result) => {
+              try {
+                await downloadImage({ src: result.src, name: result.name, featureName: "专家模式" })
+                notify("结果图片已开始下载")
+              } catch {
+                notify("图片下载失败，请重试")
+              }
+            }} />
             <WorkbenchRecentHistory
               items={expertHistory.slice(0, 7)}
               source="expert"
@@ -306,7 +314,7 @@ function ResultWorkspace({ task, mode, onDownload }) {
           {task.results.map((result) => (
             <article key={result.id} className="overflow-hidden rounded-lg border bg-white" style={{ borderColor: "var(--border-base)" }}>
               <SafeImage src={result.src} alt={result.name} className="aspect-square w-full object-cover" />
-              <div className="flex items-center justify-between gap-2 p-2.5"><strong className="truncate text-xs text-[var(--text-title)]">{result.name}</strong><a href={result.src} download onClick={onDownload} className="grid size-8 shrink-0 place-items-center rounded-full border text-[var(--brand-primary)]" style={{ borderColor: "var(--brand-primary-border)" }} title="下载结果" aria-label={`下载${result.name}`}><Download size={14} /></a></div>
+              <div className="flex items-center justify-between gap-2 p-2.5"><strong className="truncate text-xs text-[var(--text-title)]">{result.name}</strong><button type="button" onClick={() => onDownload(result)} className="grid size-8 shrink-0 place-items-center rounded-full border text-[var(--brand-primary)]" style={{ borderColor: "var(--brand-primary-border)" }} title="下载结果" aria-label={`下载${result.name}`}><Download size={14} /></button></div>
             </article>
           ))}
         </div>

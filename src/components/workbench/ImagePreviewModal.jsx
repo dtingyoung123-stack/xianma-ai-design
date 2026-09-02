@@ -1,12 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { Check, ChevronLeft, ChevronRight, Copy, Download, FlipHorizontal, FlipVertical, X, ZoomIn, ZoomOut } from "lucide-react"
 import SafeImage from "@/components/SafeImage"
 import { ColorSamplerButton } from "@/components/workbench/ColorConstraintPicker"
+import { downloadImage } from "@/lib/image-download"
 
-export default function ImagePreviewModal({ images, index, setIndex, getSrc, getName, onClose, onColorPick, onNotify }) {
+export default function ImagePreviewModal(props) {
+  const image = props.images[props.index]
+  return <ImagePreviewContent key={`${props.index}-${props.getSrc(image)}`} {...props} />
+}
+
+function ImagePreviewContent({ images, index, setIndex, getSrc, getName, getMime, featureName = "图片", renderHeaderAction, onClose, onColorPick, onNotify }) {
   const [scale, setScale] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [dragState, setDragState] = useState(null)
@@ -14,15 +20,28 @@ export default function ImagePreviewModal({ images, index, setIndex, getSrc, get
   const [flipY, setFlipY] = useState(false)
   const [pickedColor, setPickedColor] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [imageError, setImageError] = useState(false)
+  const [imageRetryKey, setImageRetryKey] = useState(0)
   const image = images[index]
   const total = images.length
 
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        event.preventDefault()
+        onClose()
+      }
+      if (total < 2 || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault()
+        setIndex((current) => (current + (event.key === "ArrowLeft" ? -1 : 1) + total) % total)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [onClose, setIndex, total])
+
   function go(nextIndex) {
-    setScale(1)
-    setPan({ x: 0, y: 0 })
-    setDragState(null)
-    setFlipX(false)
-    setFlipY(false)
     setIndex((nextIndex + total) % total)
   }
 
@@ -56,13 +75,13 @@ export default function ImagePreviewModal({ images, index, setIndex, getSrc, get
     setDragState(null)
   }
 
-  function downloadCurrentImage() {
-    const src = getSrc(image)
-    const link = document.createElement("a")
-    link.href = src
-    link.download = buildDownloadFilename(getName(image), src, index)
-    link.target = "_blank"
-    link.click()
+  async function downloadCurrentImage() {
+    try {
+      await downloadImage({ src: getSrc(image), name: getName(image), mime: getMime?.(image), featureName, index })
+      onNotify?.("图片已开始下载")
+    } catch {
+      onNotify?.("图片下载失败，请重试")
+    }
   }
 
   async function copyColor(hex, notify = true) {
@@ -85,14 +104,15 @@ export default function ImagePreviewModal({ images, index, setIndex, getSrc, get
   }
 
   const content = (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" style={{ background: "var(--overlay-scrim)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4 sm:p-6" style={{ background: "var(--overlay-scrim)" }} onClick={onClose}>
       <div className="flex h-[min(86vh,760px)] w-[min(1040px,calc(100vw-40px))] flex-col overflow-hidden rounded-lg bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3" style={{ borderColor: "var(--border-light)" }}>
+        <div className="flex shrink-0 flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: "var(--border-light)" }}>
           <div className="min-w-0">
             <strong className="block truncate text-sm" style={{ color: "var(--text-title)" }}>{getName(image)}</strong>
             <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{index + 1} / {total} · 滚轮缩放</span>
           </div>
-          <div className="flex min-w-0 items-center justify-end gap-1.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:justify-end">
+            {renderHeaderAction?.(image, index)}
             {pickedColor && (
               <button type="button" onClick={() => copyColor(pickedColor)} title="复制色值" aria-label={`复制颜色 ${pickedColor}`} className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-white px-2 text-xs font-semibold" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }}>
                 <span className="h-4 w-4 rounded border" style={{ background: pickedColor, borderColor: "var(--border-base)" }} />
@@ -114,13 +134,20 @@ export default function ImagePreviewModal({ images, index, setIndex, getSrc, get
         <div className="relative min-h-0 flex-1 overflow-hidden" style={{ background: "var(--gray-900)" }} onWheel={handleWheel}>
           {total > 1 && (
             <>
-              <button type="button" onClick={() => go(index - 1)} aria-label="上一张图片" className="absolute left-4 top-1/2 z-10 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/90 shadow"><ChevronLeft size={20} /></button>
-              <button type="button" onClick={() => go(index + 1)} aria-label="下一张图片" className="absolute right-4 top-1/2 z-10 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/90 shadow"><ChevronRight size={20} /></button>
+              <button type="button" onClick={() => go(index - 1)} title="上一张图片" aria-label="上一张图片" className="absolute left-3 top-1/2 z-10 grid size-11 -translate-y-1/2 place-items-center rounded-full bg-white/90 shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] sm:left-4"><ChevronLeft size={20} /></button>
+              <button type="button" onClick={() => go(index + 1)} title="下一张图片" aria-label="下一张图片" className="absolute right-3 top-1/2 z-10 grid size-11 -translate-y-1/2 place-items-center rounded-full bg-white/90 shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] sm:right-4"><ChevronRight size={20} /></button>
             </>
           )}
           <div className="flex h-full w-full touch-none select-none items-center justify-center overflow-hidden p-8" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} style={{ cursor: dragState ? "grabbing" : "grab" }}>
             <div className="grid h-full w-full place-items-center" style={{ transform: `translate(${pan.x}px, ${pan.y}px)`, transformOrigin: "center" }}>
-              <SafeImage src={getSrc(image)} alt={getName(image)} className="max-h-full max-w-full object-contain transition-transform" style={{ transform: `scaleX(${flipX ? -1 : 1}) scaleY(${flipY ? -1 : 1}) scale(${scale})`, transformOrigin: "center" }} draggable={false} />
+              {!imageError && <SafeImage key={`${getSrc(image)}-${imageRetryKey}`} src={getSrc(image)} alt={getName(image)} onError={() => setImageError(true)} className="max-h-full max-w-full object-contain transition-transform motion-reduce:transition-none" style={{ transform: `scaleX(${flipX ? -1 : 1}) scaleY(${flipY ? -1 : 1}) scale(${scale})`, transformOrigin: "center" }} draggable={false} />}
+              {imageError && (
+                <div className="flex max-w-sm flex-col items-center rounded-lg bg-white p-5 text-center shadow-[var(--shadow-card)]">
+                  <strong className="text-sm text-[var(--text-title)]">图片加载失败</strong>
+                  <span className="mt-1 text-xs text-[var(--text-secondary)]">可以重试当前图片，或继续切换其他图片。</span>
+                  <button type="button" onClick={() => { setImageError(false); setImageRetryKey((value) => value + 1) }} className="mt-3 h-9 rounded-md border px-4 text-xs font-semibold text-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" style={{ borderColor: "var(--brand-primary-border)" }}>重新加载</button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -131,14 +158,6 @@ export default function ImagePreviewModal({ images, index, setIndex, getSrc, get
   return typeof document !== "undefined" ? createPortal(content, document.body) : null
 }
 
-function buildDownloadFilename(name, src, index) {
-  const cleanName = String(name || "").replace(/\.[a-zA-Z0-9]+$/, "").replace(/[\\/:*?"<>|]/g, "-").trim()
-  const match = String(src || "").split("?")[0].match(/\.([a-zA-Z0-9]+)$/)
-  const candidate = match?.[1]?.toLowerCase()
-  const extension = ["jpg", "jpeg", "png", "webp", "gif"].includes(candidate) ? candidate : "png"
-  return `${cleanName || `image-${index + 1}`}.${extension}`
-}
-
 function PreviewButton({ title, onClick, children }) {
-  return <button type="button" title={title} aria-label={title} onClick={onClick} className="grid h-8 w-8 place-items-center rounded-md border bg-white transition-colors hover:bg-[var(--bg-hover)]" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }}>{children}</button>
+  return <button type="button" title={title} aria-label={title} onClick={onClick} className="grid size-9 place-items-center rounded-md border bg-white transition-colors hover:bg-[var(--bg-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }}>{children}</button>
 }

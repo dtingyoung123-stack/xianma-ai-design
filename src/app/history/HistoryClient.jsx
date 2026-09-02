@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Clock3,
   Copy,
+  Download,
   Eye,
   FolderPlus,
   Heart,
@@ -26,6 +27,7 @@ import PageShell from "@/components/PageShell"
 import SafeImage from "@/components/SafeImage"
 import { Button } from "@/components/ui/button"
 import { historyAccounts, historyOriginalImages, historyRecords, historySources } from "@/data/demo/history"
+import { downloadImage } from "@/lib/image-download"
 
 const PAGE_SIZE = 12
 const CURRENT_ACCOUNT_ID = "current"
@@ -144,6 +146,15 @@ export default function HistoryClient() {
     showToast("历史记录已删除")
   }
 
+  async function downloadHistoryImage(record, src, index) {
+    try {
+      await downloadImage({ src, name: `${record.title}-${index + 1}`, featureName: sourceRoutes[record.source] ? (historySources.find((item) => item.value === record.source)?.label || "历史记录") : "历史记录", index })
+      showToast("结果图片已开始下载")
+    } catch {
+      showToast("图片下载失败，请重试")
+    }
+  }
+
   return (
     <PageShell pathname="/history" description="查找、复用和管理各项 AI 生成记录。">
       {sourceFromUrl !== "all" && (
@@ -215,7 +226,7 @@ export default function HistoryClient() {
       )}
 
       {filtered.length > PAGE_SIZE && <Pagination page={page} totalPages={totalPages} onChange={setPage} />}
-      {dialog?.type === "detail" && <HistoryDetailDialog record={dialog.record} showAccount={scope === "all"} onClose={() => setDialog(null)} onCopy={() => copyPrompt(dialog.record)} onAdd={() => addToMaterials(dialog.record)} />}
+      {dialog?.type === "detail" && <HistoryDetailDialog record={dialog.record} showAccount={scope === "all"} onClose={() => setDialog(null)} onCopy={() => copyPrompt(dialog.record)} onAdd={() => addToMaterials(dialog.record)} onDownload={(src, index) => downloadHistoryImage(dialog.record, src, index)} />}
       {dialog?.type === "delete" && <DeleteHistoryDialog record={dialog.record} onClose={() => setDialog(null)} onConfirm={() => deleteRecord(dialog.record)} />}
       {toast && <div className="fixed bottom-5 left-1/2 z-[100] -translate-x-1/2 rounded-lg bg-[var(--gray-900)] px-4 py-2.5 text-sm text-white shadow-lg" role="status">{toast}</div>}
     </PageShell>
@@ -373,7 +384,7 @@ function Modal({ title, description, onClose, width = "780px", footer, role = "d
   )
 }
 
-function HistoryDetailDialog({ record, showAccount, onClose, onCopy, onAdd }) {
+function HistoryDetailDialog({ record, showAccount, onClose, onCopy, onAdd, onDownload }) {
   const sourceLabel = historySources.find((item) => item.value === record.source)?.label
   const originalImages = historyOriginalImages[record.source] || []
   return (
@@ -395,7 +406,7 @@ function HistoryDetailDialog({ record, showAccount, onClose, onCopy, onAdd }) {
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
         <ImageGallery title="原图" images={originalImages} altPrefix={`${record.title}原图`} compact />
-        <ImageGallery title="结果图" images={record.previewImages} altPrefix={`${record.title}结果图`} />
+        <ImageGallery title="结果图" images={record.previewImages} altPrefix={`${record.title}结果图`} onDownload={onDownload} />
       </div>
     </Modal>
   )
@@ -405,7 +416,7 @@ function DetailChip({ children }) {
   return <span className="rounded-md border bg-[var(--gray-50)] px-2.5 py-1.5 text-xs text-[var(--text-secondary)]" style={{ borderColor: "var(--border-base)" }}>{children}</span>
 }
 
-function ImageGallery({ title, images, altPrefix, compact = false }) {
+function ImageGallery({ title, images, altPrefix, compact = false, onDownload }) {
   return (
     <section className="min-w-0">
       <div className="flex items-center justify-between gap-3">
@@ -415,8 +426,9 @@ function ImageGallery({ title, images, altPrefix, compact = false }) {
       {images.length ? (
         <div className={`mt-2 grid gap-2 ${compact ? "grid-cols-2 lg:grid-cols-1" : "grid-cols-2 sm:grid-cols-3"}`}>
           {images.map((src, index) => (
-            <figure key={`${src}-${index}`} className="overflow-hidden rounded-lg border bg-[var(--gray-50)]" style={{ borderColor: "var(--border-base)" }}>
+            <figure key={`${src}-${index}`} className="relative overflow-hidden rounded-lg border bg-[var(--gray-50)]" style={{ borderColor: "var(--border-base)" }}>
               <SafeImage src={src} alt={`${altPrefix} ${index + 1}`} className="aspect-square w-full object-cover" />
+              {onDownload && <button type="button" onClick={() => onDownload(src, index)} title={`下载${title} ${index + 1}`} aria-label={`下载${title} ${index + 1}`} className="absolute right-2 top-2 grid size-8 place-items-center rounded-md border bg-white/95 text-[var(--brand-primary)] shadow-[var(--shadow-control)]" style={{ borderColor: "var(--brand-primary-border)" }}><Download size={14} /></button>}
               <figcaption className="border-t px-2.5 py-2 text-xs text-[var(--text-secondary)]" style={{ borderColor: "var(--border-light)" }}>{title} {index + 1}</figcaption>
             </figure>
           ))}
