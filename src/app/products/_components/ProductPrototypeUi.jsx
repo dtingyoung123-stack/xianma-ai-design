@@ -15,9 +15,11 @@ import {
   Upload,
 } from "lucide-react"
 import SafeImage from "@/components/SafeImage"
+import OrganizationScopeSelector from "@/components/OrganizationScopeSelector"
 import RegionMaskEditor from "@/components/workbench/RegionMaskEditor"
 import WorkbenchPickerDialog from "@/components/workbench/WorkbenchPickerDialog"
 import { WorkbenchButton } from "@/components/workbench/Workbench"
+import { organizationTree } from "@/data/demo/admin"
 import { productRoleOptions } from "@/data/demo/products"
 import { getProductDisplayStatus } from "@/lib/product-prototype.mjs"
 
@@ -29,9 +31,23 @@ const toneStyles = {
   success: { color: "var(--success)", background: "var(--success-bg)" },
 }
 
-export function ProductStatusBadge({ status }) {
-  const meta = getProductDisplayStatus(status)
+export function ProductStatusBadge({ status, product }) {
+  const meta = getProductDisplayStatus(status, product?.teamReviewStatus, product?.publicReviewStatus, product?.scope)
   return <span className="inline-flex min-h-6 items-center rounded-md px-2 text-xs font-semibold" style={toneStyles[meta.tone]}>{meta.label}</span>
+}
+
+export function ProductReviewDialog({ product, reviewType = "team", role, onClose, onApprove, onReject }) {
+  const [mode, setMode] = useState("approve")
+  const [organizationIds, setOrganizationIds] = useState(product.visibleOrgIds?.length ? product.visibleOrgIds : [product.orgId])
+  const [reason, setReason] = useState("")
+  const teamReview = reviewType === "team"
+  const title = teamReview ? "审核团队商品" : "审核公共商品"
+  const description = teamReview ? `${product.ownerName || "创建人"} · ${product.orgName || "所属组织"}` : "公共发布仅由系统管理员处理。"
+  return <WorkbenchPickerDialog eyebrow={teamReview ? "团队入库" : "公共发布"} title={title} description={description} width={teamReview ? "820px" : "680px"} onClose={onClose} footer={<><WorkbenchButton variant="ghost" onClick={onClose}>取消</WorkbenchButton>{mode === "approve" ? <WorkbenchButton disabled={teamReview && !organizationIds.length} onClick={() => onApprove(teamReview ? organizationIds : undefined)}>通过并发布</WorkbenchButton> : <WorkbenchButton disabled={!reason.trim()} onClick={() => onReject(reason.trim())}>确认驳回</WorkbenchButton>}</>}>
+    <div className="rounded-lg border bg-[var(--gray-50)] p-4" style={{ borderColor: "var(--border-base)" }}><strong className="block text-sm text-[var(--text-title)]">{product.name}</strong><p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">{product.category} · {product.source}</p><CoverageSummary coverage={product.coverage} compact /></div>
+    <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-[var(--gray-100)] p-1"><button type="button" onClick={() => setMode("approve")} className={`h-9 rounded-md text-sm font-medium ${mode === "approve" ? "bg-white text-[var(--success)] shadow-sm" : "text-[var(--text-secondary)]"}`}>通过</button><button type="button" onClick={() => setMode("reject")} className={`h-9 rounded-md text-sm font-medium ${mode === "reject" ? "bg-white text-[var(--danger)] shadow-sm" : "text-[var(--text-secondary)]"}`}>驳回</button></div>
+    {mode === "approve" ? (teamReview ? <OrganizationScopeSelector value={organizationIds} onChange={setOrganizationIds} organizations={organizationTree} allowedScopeIds={role === "system_admin" ? null : [product.orgId]} /> : <p className="mt-4 rounded-lg bg-[var(--success-bg)] p-3 text-xs leading-5 text-[var(--text-body)]">通过后商品将进入公共商品库，对全公司有效账号可见。</p>) : <label className="mt-4 block"><span className="mb-1.5 block text-xs font-semibold text-[var(--text-title)]">驳回原因</span><textarea autoFocus value={reason} onChange={(event) => setReason(event.target.value)} rows={5} placeholder="请输入明确的修改建议" className="w-full resize-none rounded-md border px-3 py-2.5 text-sm outline-none" style={{ borderColor: "var(--border-base)" }} /></label>}
+  </WorkbenchPickerDialog>
 }
 
 export function ProductRoleSwitch({ role, onChange, compact = false }) {

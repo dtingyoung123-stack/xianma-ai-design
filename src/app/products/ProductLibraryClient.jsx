@@ -7,7 +7,9 @@ import {
   Archive,
   Box,
   Building2,
+  Check,
   CircleAlert,
+  ClipboardCheck,
   Eye,
   FilePenLine,
   FolderSearch,
@@ -15,26 +17,36 @@ import {
   LoaderCircle,
   RotateCcw,
   Search,
+  Send,
   Settings2,
   Trash2,
   UserRound,
+  XCircle,
 } from "lucide-react"
 import SafeImage from "@/components/SafeImage"
+import OrganizationScopeSelector from "@/components/OrganizationScopeSelector"
 import WorkbenchPickerDialog from "@/components/workbench/WorkbenchPickerDialog"
 import { WorkbenchButton } from "@/components/workbench/Workbench"
+import { organizationTree } from "@/data/demo/admin"
 import { productCategoryOptions } from "@/data/demo/products"
 import { deleteStoredProduct, getServerProductState, readProductState, subscribeProductState, updateStoredProduct } from "@/lib/product-demo-store"
 import {
   canAdjustProductScope,
   canArchiveProduct,
+  canCancelPublicProductSubmission,
+  canCancelTeamProductSubmission,
   canDeleteProduct,
   canContinueProduct,
+  canRequestPublicProduct,
+  canReviewPublicProduct,
+  canReviewProduct,
   canReviseProduct,
+  canSubmitProductForTeam,
   filterProducts,
   productDisplayStatusMeta,
   transitionProduct,
 } from "@/lib/product-prototype.mjs"
-import { CoverageSummary, ProductRoleSwitch, ProductStatusBadge } from "@/app/products/_components/ProductPrototypeUi"
+import { CoverageSummary, ProductReviewDialog, ProductRoleSwitch, ProductStatusBadge } from "@/app/products/_components/ProductPrototypeUi"
 
 const scopeOptions = [
   { id: "mine", label: "我创建的", icon: UserRound },
@@ -45,14 +57,16 @@ const scopeOptions = [
 export default function ProductLibraryClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const initialRole = ["member", "department_admin", "system_admin"].includes(searchParams.get("role")) ? searchParams.get("role") : "member"
+  const initialRole = ["member", "department_admin", "approval_admin", "system_admin"].includes(searchParams.get("role")) ? searchParams.get("role") : "member"
   const products = useSyncExternalStore(subscribeProductState, readProductState, getServerProductState)
   const [role, setRole] = useState(initialRole)
   const [scope, setScope] = useState(searchParams.get("scope") || "mine")
+  const [reviewTab, setReviewTab] = useState("")
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState("all")
   const [status, setStatus] = useState("all")
   const [scopeProduct, setScopeProduct] = useState(null)
+  const [reviewProduct, setReviewProduct] = useState(null)
   const [deleteProduct, setDeleteProduct] = useState(null)
   const [toast, setToast] = useState("")
   const scenario = searchParams.get("state") || "ready"
@@ -63,14 +77,32 @@ export default function ProductLibraryClient() {
     return () => window.clearTimeout(timer)
   }, [toast])
 
-  const visibleProducts = useMemo(() => filterProducts(products, { scope, role, query, category, status }), [category, products, query, role, scope, status])
+  const visibleProducts = useMemo(() => filterProducts(products, { scope, role, query, category, status, review: reviewTab }), [category, products, query, reviewTab, role, scope, status])
   const counts = useMemo(() => Object.fromEntries(scopeOptions.map((option) => [option.id, filterProducts(products, { scope: option.id, role }).length])), [products, role])
+  const teamPendingCount = products.filter((product) => canReviewProduct(product, role)).length
+  const publicPendingCount = products.filter((product) => canReviewPublicProduct(product, role)).length
 
   function changeRole(nextRole) {
     setRole(nextRole)
     const params = new URLSearchParams(searchParams.toString())
     params.set("role", nextRole)
     router.replace(`/products?${params.toString()}`, { scroll: false })
+  }
+
+  function openPendingApprovals() {
+    setScope("team")
+    setReviewTab("team")
+    setQuery("")
+    setCategory("all")
+    setStatus("all")
+  }
+
+  function openPublicApprovals() {
+    setScope("team")
+    setReviewTab("public")
+    setQuery("")
+    setCategory("all")
+    setStatus("all")
   }
 
   function applyTransition(product, event, message) {
@@ -88,10 +120,10 @@ export default function ProductLibraryClient() {
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 gap-1 overflow-x-auto rounded-lg bg-[var(--gray-100)] p-1" role="tablist" aria-label="商品范围">
             {scopeOptions.map(({ id, label, icon: Icon }) => (
-              <button key={id} type="button" role="tab" aria-selected={scope === id} onClick={() => setScope(id)} className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors" style={scope === id ? { color: "var(--brand-primary)", background: "var(--white)", boxShadow: "var(--shadow-control)" } : { color: "var(--text-secondary)" }}><Icon size={15} />{label}<span className="rounded bg-[var(--gray-100)] px-1.5 py-0.5 text-[10px] tabular-nums">{counts[id]}</span></button>
+              <button key={id} type="button" role="tab" aria-selected={scope === id} onClick={() => { setScope(id); setReviewTab("") }} className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors" style={scope === id ? { color: "var(--brand-primary)", background: "var(--white)", boxShadow: "var(--shadow-control)" } : { color: "var(--text-secondary)" }}><Icon size={15} />{label}<span className="rounded bg-[var(--gray-100)] px-1.5 py-0.5 text-[10px] tabular-nums">{counts[id]}</span></button>
             ))}
           </div>
-          <ProductRoleSwitch role={role} onChange={changeRole} />
+          <div className="flex flex-wrap items-center gap-2"><ProductRoleSwitch role={role} onChange={changeRole} />{teamPendingCount > 0 && <button type="button" onClick={openPendingApprovals} className="inline-flex h-9 items-center gap-1 rounded-md border px-2.5 text-xs font-semibold text-[var(--text-body)]" style={{ borderColor: "var(--border-base)" }}><ClipboardCheck size={14} />团队审批 {teamPendingCount}</button>}{publicPendingCount > 0 && <button type="button" onClick={openPublicApprovals} className="inline-flex h-9 items-center gap-1 rounded-md border px-2.5 text-xs font-semibold text-[var(--text-body)]" style={{ borderColor: "var(--border-base)" }}><ClipboardCheck size={14} />公共审批 {publicPendingCount}</button>}</div>
         </div>
         <div className="mt-3 grid gap-2 md:grid-cols-[minmax(220px,1fr)_180px_160px_auto]">
           <label className="relative min-w-0"><Search size={15} className="pointer-events-none absolute left-3 top-3 text-[var(--text-secondary)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索商品名称、品类或来源" className="h-10 w-full rounded-md border pl-9 pr-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }} /></label>
@@ -109,18 +141,35 @@ export default function ProductLibraryClient() {
               product={product}
               role={role}
               onAdjust={() => setScopeProduct(product)}
+              onSubmitTeam={() => applyTransition(product, "submit_team", "已提交入团队审批")}
+              onCancelTeam={() => applyTransition(product, "cancel_team", "已取消团队审批")}
+              onReviewTeam={() => setReviewProduct({ product, type: "team" })}
+              onSubmitPublic={() => applyTransition(product, "submit_public", "已提交公共商品审核")}
+              onCancelPublic={() => applyTransition(product, "cancel_public", "已取消公共商品申请")}
+              onReviewPublic={() => setReviewProduct({ product, type: "public" })}
               onDelete={() => setDeleteProduct(product)}
               onArchive={() => applyTransition(product, "archive", "商品已归档，历史证据和版本记录继续保留。")}
               onRevise={() => applyTransition(product, "revise", "已创建修订草稿，当前确认版本继续团队可用。")}
             />
           ))}
         </section>
-      ) : <LibraryEmpty filtered={Boolean(query || category !== "all" || status !== "all")} onClear={() => { setQuery(""); setCategory("all"); setStatus("all") }} />}
+      ) : <LibraryEmpty filtered={Boolean(query || category !== "all" || status !== "all" || reviewTab)} onClear={() => { setQuery(""); setCategory("all"); setStatus("all"); setReviewTab("") }} />}
 
-      {scopeProduct && <ScopeDialog product={scopeProduct} onClose={() => setScopeProduct(null)} onSave={(visibleOrgIds) => {
-        updateStoredProduct(scopeProduct.id, (product) => ({ ...product, visibleOrgIds, updatedAt: "2026-09-02 16:10" }))
+      {scopeProduct && <ScopeDialog product={scopeProduct} role={role} onClose={() => setScopeProduct(null)} onSave={(visibleOrgIds) => {
+        updateStoredProduct(scopeProduct.id, (product) => transitionProduct(product, "set_scope", { visibleOrgIds, at: "2026-09-02 16:10" }))
         setScopeProduct(null)
         setToast("团队可见组织已更新。")
+      }} />}
+      {reviewProduct && <ProductReviewDialog product={reviewProduct.product} reviewType={reviewProduct.type} role={role} onClose={() => setReviewProduct(null)} onApprove={(visibleOrgIds) => {
+        const event = reviewProduct.type === "team" ? "approve_team" : "approve_public"
+        updateStoredProduct(reviewProduct.product.id, (product) => transitionProduct(product, event, { visibleOrgIds, at: "2026-09-02 16:20" }))
+        setReviewProduct(null)
+        setToast(reviewProduct.type === "team" ? "商品已发布到团队商品库" : "商品已发布到公共商品库")
+      }} onReject={(reason) => {
+        const event = reviewProduct.type === "team" ? "reject_team" : "reject_public"
+        updateStoredProduct(reviewProduct.product.id, (product) => transitionProduct(product, event, { reason, at: "2026-09-02 16:20" }))
+        setReviewProduct(null)
+        setToast("已驳回，商品保留在原范围并可继续修改")
       }} />}
       {deleteProduct && <DeleteDialog product={deleteProduct} onClose={() => setDeleteProduct(null)} onConfirm={() => {
         deleteStoredProduct(deleteProduct.id)
@@ -132,9 +181,15 @@ export default function ProductLibraryClient() {
   )
 }
 
-function ProductCard({ product, role, onAdjust, onDelete, onArchive, onRevise }) {
+function ProductCard({ product, role, onAdjust, onSubmitTeam, onCancelTeam, onReviewTeam, onSubmitPublic, onCancelPublic, onReviewPublic, onDelete, onArchive, onRevise }) {
   const cover = product.candidates?.find((candidate) => candidate.selected && candidate.src)?.src || product.candidates?.find((candidate) => candidate.status === "success" && candidate.src)?.src || product.images?.[0]?.src
   const continueAllowed = canContinueProduct(product, role)
+  const submitTeamAllowed = canSubmitProductForTeam(product, role)
+  const cancelTeamAllowed = canCancelTeamProductSubmission(product, role)
+  const reviewTeamAllowed = canReviewProduct(product, role)
+  const requestPublicAllowed = canRequestPublicProduct(product, role)
+  const cancelPublicAllowed = canCancelPublicProductSubmission(product, role)
+  const reviewPublicAllowed = canReviewPublicProduct(product, role)
   const reviseAllowed = canReviseProduct(product, role)
   const adjustAllowed = canAdjustProductScope(product, role)
   const archiveAllowed = canArchiveProduct(product, role)
@@ -145,7 +200,7 @@ function ProductCard({ product, role, onAdjust, onDelete, onArchive, onRevise })
     <article className="flex min-w-0 flex-col overflow-hidden rounded-lg border bg-white shadow-[var(--shadow-card)]" style={{ borderColor: "var(--border-base)" }}>
       <Link href={`/products/${product.id}?role=${role}`} className="group relative block aspect-[4/3] overflow-hidden bg-[var(--gray-100)]">
         {cover ? <SafeImage src={cover} alt={product.name} className="h-full w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]" /> : <div className="grid h-full place-items-center text-[var(--text-disabled)]"><Box size={34} /></div>}
-        <span className="absolute left-3 top-3"><ProductStatusBadge status={product.status} /></span>
+        <span className="absolute left-3 top-3"><ProductStatusBadge status={product.status} product={product} /></span>
         {product.taskProgress && <div className="absolute bottom-0 left-0 right-0 h-1 bg-[var(--gray-200)]"><span className="block h-full bg-[var(--brand-primary)]" style={{ width: `${product.taskProgress}%` }} /></div>}
       </Link>
       <div className="flex flex-1 flex-col p-3.5">
@@ -155,9 +210,15 @@ function ProductCard({ product, role, onAdjust, onDelete, onArchive, onRevise })
         <dl className="mt-3 grid grid-cols-[64px_1fr] gap-x-2 gap-y-1.5 text-xs"><dt className="text-[var(--text-secondary)]">归属</dt><dd className="truncate text-[var(--text-body)]">{product.orgName}</dd><dt className="text-[var(--text-secondary)]">更新</dt><dd className="text-[var(--text-body)]">{product.updatedAt}</dd></dl>
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: "var(--border-light)" }}>
           {continueAllowed && <Link href={continueHref} className="inline-flex h-8 items-center gap-1 rounded-md bg-[var(--brand-primary)] px-2.5 text-xs font-semibold text-white">继续处理</Link>}
+          {submitTeamAllowed && <button type="button" onClick={onSubmitTeam} className="inline-flex h-8 items-center gap-1 rounded-md bg-[var(--brand-primary)] px-2 text-xs font-semibold text-white"><Send size={13} />提交入团队</button>}
+          {cancelTeamAllowed && <button type="button" onClick={onCancelTeam} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold text-[var(--text-body)] hover:bg-[var(--bg-hover)]"><XCircle size={13} />取消提交</button>}
+          {reviewTeamAllowed && <button type="button" onClick={onReviewTeam} className="inline-flex h-8 items-center gap-1 rounded-md bg-[var(--brand-primary)] px-2 text-xs font-semibold text-white"><ClipboardCheck size={13} />审核入团队</button>}
           <Link href={`/products/${product.id}?role=${role}`} className="inline-flex h-8 items-center gap-1 rounded-md border px-2.5 text-xs font-semibold text-[var(--text-body)]" style={{ borderColor: "var(--border-base)" }}><Eye size={13} />详情</Link>
           {reviseAllowed && <button type="button" onClick={onRevise} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold text-[var(--text-body)] hover:bg-[var(--bg-hover)]"><FilePenLine size={13} />发起修订</button>}
           {adjustAllowed && <button type="button" onClick={onAdjust} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold text-[var(--text-body)] hover:bg-[var(--bg-hover)]"><Settings2 size={13} />调整范围</button>}
+          {requestPublicAllowed && <button type="button" onClick={onSubmitPublic} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold text-[var(--text-body)] hover:bg-[var(--bg-hover)]"><Globe2 size={13} />申请公共</button>}
+          {cancelPublicAllowed && <button type="button" onClick={onCancelPublic} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold text-[var(--text-body)] hover:bg-[var(--bg-hover)]"><XCircle size={13} />取消公共申请</button>}
+          {reviewPublicAllowed && <button type="button" onClick={onReviewPublic} className="inline-flex h-8 items-center gap-1 rounded-md bg-[var(--brand-primary)] px-2 text-xs font-semibold text-white"><ClipboardCheck size={13} />审核公共</button>}
           {deleteAllowed && <button type="button" onClick={onDelete} className="ml-auto inline-flex size-8 items-center justify-center rounded-md text-[var(--danger)] hover:bg-[var(--danger-bg)]" aria-label={`删除${product.name}`} title="删除"><Trash2 size={14} /></button>}
           {archiveAllowed && <button type="button" onClick={onArchive} className="ml-auto inline-flex size-8 items-center justify-center rounded-md text-[var(--danger)] hover:bg-[var(--danger-bg)]" aria-label={`归档${product.name}`} title="归档"><Archive size={14} /></button>}
         </div>
@@ -166,10 +227,9 @@ function ProductCard({ product, role, onAdjust, onDelete, onArchive, onRevise })
   )
 }
 
-function ScopeDialog({ product, onClose, onSave }) {
+function ScopeDialog({ product, role, onClose, onSave }) {
   const [visibleOrgIds, setVisibleOrgIds] = useState(product.visibleOrgIds || [])
-  const organizations = [{ id: "org-product", label: "商品运营组" }, { id: "org-design", label: "视觉设计组" }, { id: "org-content", label: "内容运营组" }]
-  return <WorkbenchPickerDialog eyebrow="团队商品" title="调整可见组织" description="选择父组织时，实际权限会包含其全部下级组织。" width="560px" onClose={onClose} footer={<><WorkbenchButton variant="ghost" onClick={onClose}>取消</WorkbenchButton><WorkbenchButton disabled={!visibleOrgIds.length} onClick={() => onSave(visibleOrgIds)}>保存范围</WorkbenchButton></>}><div className="grid gap-2">{organizations.map((organization) => <label key={organization.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border px-3" style={{ borderColor: visibleOrgIds.includes(organization.id) ? "var(--brand-primary)" : "var(--border-base)", background: visibleOrgIds.includes(organization.id) ? "var(--brand-primary-soft)" : "var(--white)" }}><input type="checkbox" checked={visibleOrgIds.includes(organization.id)} onChange={() => setVisibleOrgIds((current) => current.includes(organization.id) ? current.filter((id) => id !== organization.id) : [...current, organization.id])} className="size-4 accent-[var(--brand-primary)]" /><span className="text-sm font-semibold text-[var(--text-body)]">{organization.label}</span></label>)}</div></WorkbenchPickerDialog>
+  return <WorkbenchPickerDialog eyebrow="团队商品" title="调整可见组织" description="选择父组织时，实际权限会包含其全部下级组织。" width="560px" onClose={onClose} footer={<><WorkbenchButton variant="ghost" onClick={onClose}>取消</WorkbenchButton><WorkbenchButton disabled={!visibleOrgIds.length} onClick={() => onSave(visibleOrgIds)}>保存范围</WorkbenchButton></>}><OrganizationScopeSelector value={visibleOrgIds} onChange={setVisibleOrgIds} organizations={organizationTree} allowedScopeIds={role === "system_admin" ? null : [product.orgId]} /></WorkbenchPickerDialog>
 }
 
 function DeleteDialog({ product, onClose, onConfirm }) {

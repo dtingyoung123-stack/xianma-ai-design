@@ -470,14 +470,15 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 | `/ai-hub/product-suite` | AI 商品套图 | `src/app/ai-hub/[capability]/page.js` | 已上线 |
 | `/ai-hub/[capability]` | AI 能力中心其他 4 项能力 | `src/app/ai-hub/[capability]/page.js` | 原型中 |
 | `/ai-canvas` | 无限画布 | `src/app/ai-canvas/page.js` | 原型中 |
-| `/products` | AI 商品智库 | `src/app/products/page.js` | 原型中 |
+| `/products` | 商品智库 | `src/app/products/page.js` | 原型中 |
 | `/products/new` | 商品学习 | `src/app/products/new/page.js` | 原型中 |
 | `/products/[id]` | 商品详情与还原确认 | `src/app/products/[id]/page.js` | 原型中 |
 
-### AI 商品智库状态与操作
+### 商品智库状态与操作
 
 - 商品学习完成一轮 AI 输出后进入“待确认”，运营可确认候选、打开圈选纠错或删除。打开/取消圈选纠错只是编辑行为，不改变状态；提交纠错后进入“处理中”，重新输出完成后再次回到“待确认”。
-- 商品库前端只展示合并状态：待完善、处理中、待确认、可用、修订中、已归档；草稿、识别中、还原中、部分成功等底层状态只用于任务处理、权限和异常判断。
+- 商品库前端只展示合并状态：待完善、处理中、待确认、已确认待提交、团队审核中、团队已驳回、可用、公共审核中、公共已驳回、修订中、已归档；草稿、识别中、还原中、部分成功等底层状态只用于任务处理、权限和异常判断。
+- 商品确认仅代表运营确认还原质量，商品保留在个人库；提交团队审批并通过后才进入团队库，团队商品申请公共发布并经系统管理员通过后才进入公共库。审批中不可直接编辑，取消或驳回后回到原范围。
 - 删除仅对创建人的未发布且未被下游使用的个人商品开放；确认版本、团队/公共商品、修订中、已归档、存在下游引用或仍有进行中任务的商品不展示删除操作。存在下游引用时只能归档。
 - 状态徽标、筛选项和卡片操作必须使用同一映射与权限判断，避免前端状态文案和底层状态分叉。
 | `/materials` | 素材库 | `src/app/materials/page.js` | 开发中 |
@@ -509,7 +510,7 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 
 `src/config/component-catalog.js` 是公共组件目录的统一登记表，`/ui-guide?view=components` 按登记表展示组件分布、源码路径、职责、使用页面、成熟度、搜索筛选和真实交互演示。新增、删除、重命名或调整公共组件使用范围时，必须同步登记表；页面局部组件不登记。`/ui-guide` 顶部使用“UI 规范 / 公共组件”两个页签，公共组件视图支持 URL 深链、刷新及浏览器前进后退。
 
-当前公共组件按真实目录分为全局组件、基础 UI、AI 工作台三层，共 22 个组件文件：
+当前公共组件按真实目录分为全局组件、基础 UI、AI 工作台三层，共 23 个组件文件：
 
 | 组件 | 文件 | 类型 | 说明 |
 |------|------|------|------|
@@ -520,6 +521,7 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 | PageShell | `src/components/PageShell.jsx` | 服务端 | 页面标题、面包屑、状态和内容外壳 |
 | PlaceholderState | `src/components/PlaceholderState.jsx` | 服务端 | 原型/规划页面的统一空状态 |
 | SafeImage | `src/components/SafeImage.jsx` | 客户端 | 图片组件，加载失败自动隐藏 |
+| OrganizationScopeSelector | `src/components/OrganizationScopeSelector.jsx` | 客户端 | 组织树搜索、父子组织选择、继承态和授权范围限制，统一资源可见组织设置 |
 | Button | `src/components/ui/button.jsx` | shadcn | 按钮 |
 | Avatar | `src/components/ui/avatar.jsx` | shadcn | 头像 |
 | DropdownMenu | `src/components/ui/dropdown-menu.jsx` | shadcn | 下拉菜单 |
@@ -530,7 +532,7 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 | PromptPickerModal | `src/components/workbench/PromptPickerModal.jsx` | 客户端 | 个人/团队/公共/灵感广场四来源提示词模板选择、用途筛选与正文预览 |
 | ImageQueueModule | `src/components/workbench/ImageQueueModule.jsx` | 客户端 | 参考图片选择、上传、排序、预览、替换和删除 |
 | ImagePreviewModal | `src/components/workbench/ImagePreviewModal.jsx` | 客户端 | 工作台公共图片预览弹窗，统一缩放、拖动、翻转、下载、吸色及色值复制交互 |
-| RegionMaskEditor | `src/components/workbench/RegionMaskEditor.jsx` | 客户端 | 图片区域编辑、遮罩、擦除、撤销、重做和文本标注；支持按业务配置标题、说明、操作和标注文案，复用于 AI 商品智库圈选纠错 |
+| RegionMaskEditor | `src/components/workbench/RegionMaskEditor.jsx` | 客户端 | 图片区域编辑、遮罩、擦除、撤销、重做和文本标注；支持按业务配置标题、说明、操作和标注文案，复用于商品智库圈选纠错 |
 | ColorSamplerButton / ColorConstraintChips | `src/components/workbench/ColorConstraintPicker.jsx` | 客户端 | 工作台公共吸色入口与颜色记录，包含色块、HEX、复制和删除；按页面需求接入 |
 | WorkbenchTextEditor | `src/components/workbench/WorkbenchTextEditor.jsx` | 客户端 | 通用工作台文本输入、字数、清空、工具栏和业务扩展区 |
 | WorkbenchPromptEditor | `src/components/workbench/WorkbenchPromptEditor.jsx` | 客户端 | 基于通用文本编辑器组合提示词模板和 AI 润色 |

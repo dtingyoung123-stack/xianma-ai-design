@@ -28,6 +28,13 @@ export const materialCategoryFilterOptions = [
   { id: "uncategorized", label: "未分类" },
 ]
 
+// Personal groups are user-owned organization aids; they do not replace the platform category.
+export const personalGroupOptions = [
+  "主图参考",
+  "细节参考",
+  "场景参考",
+]
+
 export const initialMaterials = [
   {
     id: "material-personal-1",
@@ -40,6 +47,7 @@ export const initialMaterials = [
     dimensions: "1024 x 1024",
     source: "手动上传",
     category: "护具类",
+    personalGroupByUser: { U0001: "主图参考" },
     tags: ["护腰", "主图"],
     remark: "用于商品主图和主体替换。",
     scope: "personal",
@@ -62,6 +70,7 @@ export const initialMaterials = [
     dimensions: "1024 x 1024",
     source: "手动上传",
     category: "护具类",
+    personalGroupByUser: { U0001: "细节参考" },
     tags: ["细节", "结构"],
     remark: "护具产品细节参考。",
     scope: "personal",
@@ -84,6 +93,7 @@ export const initialMaterials = [
     dimensions: "1024 x 1024",
     source: "AI 生成",
     category: "护具类",
+    personalGroupByUser: { U0001: "场景参考" },
     tags: ["场景", "生活方式"],
     remark: "已提交给所属团队审核。",
     scope: "personal",

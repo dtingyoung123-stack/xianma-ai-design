@@ -3,7 +3,10 @@ import { readFile } from "node:fs/promises"
 import test from "node:test"
 import {
   canAdjustProductScope,
+  canCancelTeamProductSubmission,
   canArchiveProduct,
+  canReviewProduct,
+  canSubmitProductForTeam,
   canConfirmProduct,
   canDeleteProduct,
   canViewProduct,
@@ -33,6 +36,7 @@ test("member can only access owned personal products", () => {
   assert.equal(canViewProduct(baseProduct, "member"), true)
   assert.equal(canViewProduct({ ...baseProduct, ownerId: "another-user" }, "member"), false)
   assert.equal(canViewProduct({ ...baseProduct, ownerId: "another-user", scope: "public", status: "confirmed" }, "member"), true)
+  assert.equal(canViewProduct({ ...baseProduct, ownerId: "another-user", scope: "team", visibleOrgIds: ["org-other"], publicReviewStatus: "approved", status: "confirmed" }, "member"), true)
 })
 
 test("product management permissions remain separate from visibility", () => {
@@ -44,15 +48,24 @@ test("product management permissions remain separate from visibility", () => {
   assert.equal(canArchiveProduct({ ...teamProduct, scope: "public" }, "system_admin"), true)
 })
 
-test("confirming a candidate publishes the same product to the owner team", () => {
+test("confirming a candidate keeps the product personal until team approval", () => {
   assert.equal(canConfirmProduct(baseProduct, "member"), true)
   const confirmed = transitionProduct(baseProduct, "confirm", { candidateId: "b", at: "2026-09-02 16:42" })
   assert.equal(confirmed.id, baseProduct.id)
   assert.equal(confirmed.status, "confirmed")
-  assert.equal(confirmed.scope, "team")
-  assert.deepEqual(confirmed.visibleOrgIds, ["org-product"])
+  assert.equal(confirmed.scope, "mine")
+  assert.deepEqual(confirmed.visibleOrgIds, [])
   assert.equal(confirmed.candidates.find((candidate) => candidate.id === "b").selected, true)
   assert.equal(confirmed.versions.length, 1)
+  assert.equal(canSubmitProductForTeam(confirmed, "member"), true)
+  const pending = transitionProduct(confirmed, "submit_team", { at: "2026-09-02 16:44" })
+  assert.equal(pending.teamReviewStatus, "pending")
+  assert.equal(canCancelTeamProductSubmission(pending, "member"), true)
+  assert.equal(canReviewProduct(pending, "department_admin"), true)
+  const approved = transitionProduct(pending, "approve_team", { visibleOrgIds: ["org-product"], at: "2026-09-02 16:45" })
+  assert.equal(approved.scope, "team")
+  assert.equal(approved.teamReviewStatus, "approved")
+  assert.deepEqual(approved.visibleOrgIds, ["org-product"])
 })
 
 test("correction preserves the record and returns the product to restoration", () => {
@@ -73,6 +86,9 @@ test("generated output remains pending confirmation until an operator confirms",
   assert.equal(getProductDisplayStatusKey("partial_success"), "pending_confirmation")
   assert.equal(getProductDisplayStatusKey("restoring"), "processing")
   assert.equal(getProductDisplayStatusKey("confirmed"), "available")
+  assert.equal(getProductDisplayStatusKey("confirmed", "", "", "mine"), "confirmed_personal")
+  assert.equal(getProductDisplayStatusKey("confirmed", "pending", "", "mine"), "team_pending")
+  assert.equal(getProductDisplayStatusKey("confirmed", "approved", "pending", "team"), "public_pending")
   assert.equal(getProductDisplayStatusKey("revising"), "revising")
   assert.equal(getProductDisplayStatusKey("archived"), "archived")
 })
@@ -107,14 +123,28 @@ test("library filtering respects scope, query, category, and status", () => {
 test("navigation and all three product routes are registered", async () => {
   const navigation = await readFile(new URL("../src/config/navigation.js", import.meta.url), "utf8")
   const listPage = await readFile(new URL("../src/app/products/page.js", import.meta.url), "utf8")
+  const productPrdRoute = await readFile(new URL("../src/app/api/products-prd/route.js", import.meta.url), "utf8")
   const learningPage = await readFile(new URL("../src/app/products/new/page.js", import.meta.url), "utf8")
   const detailPage = await readFile(new URL("../src/app/products/[id]/page.js", import.meta.url), "utf8")
-  assert.match(navigation, /AI 商品智库/)
+  assert.match(navigation, /商品智库/)
+  assert.doesNotMatch(navigation, /AI 商品智库/)
   assert.match(navigation, /\/products\/new/)
   assert.match(navigation, /\/products\/\[id\]/)
   assert.match(listPage, /ProductLibraryClient/)
+  assert.match(listPage, /\/api\/products-prd/)
+  assert.match(listPage, /导出 PRD/)
+  assert.match(productPrdRoute, /商品智库MVP_PRD_260904\.md/)
+  assert.match(productPrdRoute, /text\/markdown; charset=utf-8/)
   assert.match(learningPage, /ProductLearningClient/)
   assert.match(detailPage, /ProductDetailClient/)
+})
+
+test("product role switch and PRD export remain prototype-only boundaries", async () => {
+  const prd = await readFile(new URL("../docs/商品智库MVP_PRD_260904.md", import.meta.url), "utf8")
+  const libraryPage = await readFile(new URL("../src/app/products/ProductLibraryClient.jsx", import.meta.url), "utf8")
+  assert.match(libraryPage, /ProductRoleSwitch/)
+  assert.match(prd, /原型中的角色切换控件和 URL `\?role=` 参数仅用于模拟不同角色视角/)
+  assert.match(prd, /原型标题区“导出 PRD”仅为开发和评审下载当前 Markdown 的辅助入口/)
 })
 
 test("product learning keeps optional description and multi-angle guidance in the MVP flow", async () => {

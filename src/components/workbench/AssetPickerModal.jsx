@@ -39,10 +39,12 @@ export default function AssetPickerModal({
   const [saveToMine, setSaveToMine] = useState(false)
   const [visibleCategory, setVisibleCategory] = useState("全部类目")
   const [visibleTag, setVisibleTag] = useState("全部标签")
+  const [visiblePersonalGroup, setVisiblePersonalGroup] = useState("全部个人分组")
 
   const activePool = getSourcePool(source, personalAssets, teamAssets, publicAssets)
   const categoryOptions = useMemo(() => ["全部类目", ...categories, "未分类"], [categories])
   const tagOptions = useMemo(() => tags?.length ? tags : deriveTagOptions(activePool), [activePool, tags])
+  const personalGroupOptions = useMemo(() => derivePersonalGroupOptions(activePool), [activePool])
 
   const libraryAssets = useMemo(() => activePool
     .map((asset, index) => normalizeAsset(asset, `${source}-${index}`, source))
@@ -51,8 +53,10 @@ export default function AssetPickerModal({
       const queryOk = !query || haystack.includes(query.toLowerCase())
       const categoryOk = visibleCategory === "全部类目" || asset.category === visibleCategory
       const tagOk = visibleTag === "全部标签" || asset.tags.includes(visibleTag)
-      return queryOk && categoryOk && tagOk
-    }), [activePool, query, source, visibleCategory, visibleTag])
+      const personalGroupOk = visiblePersonalGroup === "全部个人分组"
+        || (visiblePersonalGroup === "未分组" ? !asset.personalGroup : asset.personalGroup === visiblePersonalGroup)
+      return queryOk && categoryOk && tagOk && personalGroupOk
+    }), [activePool, query, source, visibleCategory, visiblePersonalGroup, visibleTag])
 
   const visibleAssets = source === "local" ? localAssets : libraryAssets
   const selectedAssets = selectedKeys.map((key) => selectedAssetsByKey[key]).filter(Boolean)
@@ -79,6 +83,7 @@ export default function AssetPickerModal({
     setSource(nextSource)
     setVisibleCategory("全部类目")
     setVisibleTag("全部标签")
+    setVisiblePersonalGroup("全部个人分组")
     setSelectedKeys([])
     setSelectedAssetsByKey({})
     setQuery("")
@@ -159,13 +164,14 @@ export default function AssetPickerModal({
         />
       ) : (
         <>
-          <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(240px,1fr)_190px_190px]">
+          <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(220px,1fr)_170px_170px_170px]">
             <label className="flex h-10 items-center gap-2 rounded-lg border px-3 text-[var(--text-secondary)]" style={{ borderColor: "var(--border-base)" }}>
               <Search size={15} />
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、文件名或标签" aria-label="搜索素材" className="min-w-0 flex-1 bg-transparent text-sm text-[var(--text-body)] outline-none" />
             </label>
             <PickerSelect value={visibleCategory} onChange={setVisibleCategory} options={categoryOptions} ariaLabel="按素材类目筛选" />
             <PickerSelect value={visibleTag} onChange={setVisibleTag} options={tagOptions} ariaLabel="按素材标签筛选" />
+            <PickerSelect value={visiblePersonalGroup} onChange={setVisiblePersonalGroup} options={personalGroupOptions} ariaLabel="按个人分组筛选" />
           </div>
           <SourceContentState
             status={currentState}
@@ -243,6 +249,7 @@ function AssetGrid({ assets, selectedKeys, onToggle, emptyText }) {
             <div className="p-2">
               <strong className="block truncate text-xs text-[var(--text-title)]">{asset.title}</strong>
               <span className="mt-1 block truncate text-[11px] text-[var(--text-secondary)]">{asset.category}</span>
+              {asset.personalGroup && <span className="mt-1 block truncate text-[11px] text-[var(--text-secondary)]">{asset.personalGroup}</span>}
               <span className="mt-1 block truncate text-[11px] text-[var(--text-disabled)]">{asset.source}</span>
             </div>
           </button>
@@ -271,6 +278,11 @@ function deriveTagOptions(assets) {
   return ["全部标签", ...derived]
 }
 
+function derivePersonalGroupOptions(assets) {
+  const derived = Array.from(new Set(assets.map((asset) => asset.personalGroup).filter(Boolean)))
+  return ["全部个人分组", ...derived, "未分组"]
+}
+
 function normalizeAsset(asset, fallbackKey, sourceType) {
   const src = asset.src || asset.img || asset.url
   return {
@@ -286,6 +298,7 @@ function normalizeAsset(asset, fallbackKey, sourceType) {
     source: asset.source || (sourceType === "public" ? "公共素材库" : sourceType === "team" ? "团体素材库" : "个人素材库"),
     sourceType,
     category: asset.category || "未分类",
+    personalGroup: asset.personalGroup || "",
     tags: Array.isArray(asset.tags) ? asset.tags : [],
   }
 }

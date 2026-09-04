@@ -30,10 +30,16 @@ import {
 import { getServerProductState, readProductState, subscribeProductState, updateStoredProduct } from "@/lib/product-demo-store"
 import {
   canArchiveProduct,
+  canCancelPublicProductSubmission,
+  canCancelTeamProductSubmission,
   canConfirmProduct,
   canContinueProduct,
+  canRequestPublicProduct,
+  canReviewPublicProduct,
+  canReviewProduct,
   canReviseProduct,
   canViewProduct,
+  canSubmitProductForTeam,
   transitionProduct,
 } from "@/lib/product-prototype.mjs"
 import {
@@ -41,6 +47,7 @@ import {
   CoveragePanel,
   CoverageSummary,
   ProductCorrectionDialog,
+  ProductReviewDialog,
   ProductRoleSwitch,
   ProductStatusBadge,
 } from "@/app/products/_components/ProductPrototypeUi"
@@ -48,15 +55,16 @@ import {
 export default function ProductDetailClient({ productId }) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const initialRole = ["member", "department_admin", "system_admin"].includes(searchParams.get("role")) ? searchParams.get("role") : "member"
+  const initialRole = ["member", "department_admin", "approval_admin", "system_admin"].includes(searchParams.get("role")) ? searchParams.get("role") : "member"
   const [role, setRole] = useState(initialRole)
   const products = useSyncExternalStore(subscribeProductState, readProductState, getServerProductState)
   const product = useMemo(() => products.find((item) => item.id === productId), [productId, products])
   const [selectedCandidateId, setSelectedCandidateId] = useState("")
   const [previewIndex, setPreviewIndex] = useState(null)
   const [correctionCandidate, setCorrectionCandidate] = useState(null)
-  const [toast, setToast] = useState(searchParams.get("confirmed") ? "商品已确认并进入所属团队。" : "")
+  const [toast, setToast] = useState(searchParams.get("confirmed") ? "商品已确认，保留在个人库，可提交团队审批。" : "")
   const [regenerating, setRegenerating] = useState(() => product?.status === "restoring" && product?.taskKind === "correction")
+  const [reviewDialog, setReviewDialog] = useState(null)
 
   const previewImages = useMemo(() => [...(product?.images || []), ...(product?.candidates || []).filter((candidate) => candidate.src)], [product])
 
@@ -98,7 +106,7 @@ export default function ProductDetailClient({ productId }) {
 
   function confirmProduct() {
     if (!activeCandidateId) return setToast("请先选择一张还原候选图。")
-    updateProduct("confirm", { candidateId: activeCandidateId, at: "2026-09-02 16:42" }, "商品已确认并进入所属团队。")
+    updateProduct("confirm", { candidateId: activeCandidateId, at: "2026-09-02 16:42" }, "商品已确认，保留在个人库，可提交团队审批。")
   }
 
   function submitCorrection(correction) {
@@ -111,6 +119,12 @@ export default function ProductDetailClient({ productId }) {
 
   const canContinue = canContinueProduct(product, role)
   const canConfirm = canConfirmProduct(product, role)
+  const canSubmitTeam = canSubmitProductForTeam(product, role)
+  const canCancelTeam = canCancelTeamProductSubmission(product, role)
+  const canReviewTeam = canReviewProduct(product, role)
+  const canSubmitPublic = canRequestPublicProduct(product, role)
+  const canCancelPublic = canCancelPublicProductSubmission(product, role)
+  const canReviewPublic = canReviewPublicProduct(product, role)
   const canRevise = canReviseProduct(product, role)
   const canArchive = canArchiveProduct(product, role)
   const defaultCandidateId = product.candidates?.find((candidate) => candidate.selected)?.id || product.candidates?.find((candidate) => candidate.status === "success")?.id || ""
@@ -119,7 +133,7 @@ export default function ProductDetailClient({ productId }) {
 
   return (
     <WorkbenchShell
-      crumbs={[{ label: "AI 商品智库" }, { label: "商品详情" }]}
+      crumbs={[{ label: "商品智库" }, { label: "商品详情" }]}
       status="原型验证中"
       title={product.name}
       description="商品档案、证据、还原候选与修订记录"
@@ -127,7 +141,7 @@ export default function ProductDetailClient({ productId }) {
       actions={<ProductRoleSwitch role={role} onChange={changeRole} compact />}
     >
       <WorkbenchPanel>
-        <WorkbenchPanelHead title="商品档案" description={`${product.category} · ${product.source}`} meta={<ProductStatusBadge status={product.status} />} />
+        <WorkbenchPanelHead title="商品档案" description={`${product.category} · ${product.source}`} meta={<ProductStatusBadge status={product.status} product={product} />} />
         <WorkbenchScroll>
           <section className="overflow-hidden rounded-lg border bg-[var(--gray-50)]" style={{ borderColor: "var(--border-base)" }}>
             <div className="aspect-[4/3] bg-[var(--gray-100)]">
@@ -145,6 +159,12 @@ export default function ProductDetailClient({ productId }) {
           </section>
           <div className="flex flex-wrap gap-2">
             {canContinue && <Link href={`/products/new?resume=${product.id}`} className="inline-flex h-10 items-center gap-2 rounded-md bg-[var(--brand-primary)] px-4 text-sm font-semibold text-white"><Sparkles size={15} />继续处理</Link>}
+            {canSubmitTeam && <WorkbenchButton onClick={() => updateProduct("submit_team", { at: "2026-09-02 16:46" }, "已提交入团队审批。") }><Check size={15} />提交入团队</WorkbenchButton>}
+            {canCancelTeam && <WorkbenchButton variant="ghost" onClick={() => updateProduct("cancel_team", { at: "2026-09-02 16:46" }, "已取消团队审批。") }><RotateCcw size={15} />取消提交</WorkbenchButton>}
+            {canReviewTeam && <WorkbenchButton onClick={() => setReviewDialog({ type: "team" })}><CheckCircle2 size={15} />审核入团队</WorkbenchButton>}
+            {canSubmitPublic && <WorkbenchButton variant="ghost" onClick={() => updateProduct("submit_public", { submitterId: product.ownerId, at: "2026-09-02 16:46" }, "已提交公共商品审核。") }><Sparkles size={15} />申请公共发布</WorkbenchButton>}
+            {canCancelPublic && <WorkbenchButton variant="ghost" onClick={() => updateProduct("cancel_public", { at: "2026-09-02 16:46" }, "已取消公共商品申请。") }><RotateCcw size={15} />取消公共申请</WorkbenchButton>}
+            {canReviewPublic && <WorkbenchButton onClick={() => setReviewDialog({ type: "public" })}><CheckCircle2 size={15} />审核公共发布</WorkbenchButton>}
             {canRevise && <WorkbenchButton variant="ghost" onClick={() => updateProduct("revise", { at: "2026-09-02 16:44" }, "已发起修订，当前确认版本继续有效。") }><FilePenLine size={15} />发起修订</WorkbenchButton>}
             {canArchive && <WorkbenchButton variant="ghost" onClick={() => updateProduct("archive", { at: "2026-09-02 16:44" }, "商品已归档，证据与审计记录继续保留。") }><Archive size={15} />归档</WorkbenchButton>}
           </div>
@@ -166,6 +186,7 @@ export default function ProductDetailClient({ productId }) {
 
       {previewIndex !== null && <ImagePreviewModal images={previewImages} index={previewIndex} setIndex={setPreviewIndex} getSrc={(image) => image.src} getName={(image) => image.title || image.label || image.name} onClose={() => setPreviewIndex(null)} />}
       {correctionCandidate && <ProductCorrectionDialog product={product} candidate={correctionCandidate} onClose={() => setCorrectionCandidate(null)} onSubmit={submitCorrection} />}
+      {reviewDialog && <ProductReviewDialog product={product} reviewType={reviewDialog.type} role={role} onClose={() => setReviewDialog(null)} onApprove={(visibleOrgIds) => { updateProduct(reviewDialog.type === "team" ? "approve_team" : "approve_public", { visibleOrgIds, at: "2026-09-02 16:48" }, reviewDialog.type === "team" ? "商品已发布到团队商品库。" : "商品已发布到公共商品库。"); setReviewDialog(null) }} onReject={(reason) => { updateProduct(reviewDialog.type === "team" ? "reject_team" : "reject_public", { reason, at: "2026-09-02 16:48" }, "已驳回，商品保留在原范围并可继续修改。"); setReviewDialog(null) }} />}
       {toast && <div className="fixed bottom-6 left-1/2 z-[1400] max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-md bg-[var(--gray-900)] px-4 py-3 text-sm text-white shadow-xl" role="status">{toast}</div>}
     </WorkbenchShell>
   )
@@ -189,7 +210,6 @@ function RegeneratingState() {
 }
 
 function DetailMissing() {
-  return <div className="grid min-h-[calc(100vh-112px)] place-items-center rounded-lg border bg-white p-8 text-center shadow-[var(--shadow-card)]" style={{ borderColor: "var(--border-base)" }}><div><CircleAlert size={34} className="mx-auto text-[var(--danger)]" /><h1 className="mt-3 text-lg font-semibold text-[var(--text-title)]">未找到商品档案</h1><p className="mt-1 text-sm text-[var(--text-secondary)]">该商品可能已被移除或链接无效。</p><Link href="/products" className="mt-4 inline-flex h-10 items-center gap-2 rounded-md bg-[var(--brand-primary)] px-4 text-sm font-semibold text-white"><ArrowLeft size={15} />返回商品智库</Link></div></div>
 }
 
 function DetailForbidden({ role, onRoleChange }) {

@@ -18,6 +18,7 @@ import {
   Globe2,
   Image as ImageIcon,
   Pencil,
+  Plus,
   Search,
   Send,
   ShieldCheck,
@@ -28,9 +29,9 @@ import {
   XCircle,
 } from "lucide-react"
 import SafeImage from "@/components/SafeImage"
+import OrganizationScopeSelector from "@/components/OrganizationScopeSelector"
 import { Button } from "@/components/ui/button"
 import {
-  permissionOrganizationName,
   permissionOrganizationTree,
 } from "@/data/demo/admin"
 import {
@@ -38,6 +39,7 @@ import {
   initialMaterials,
   materialCategoryFilterOptions,
   materialCategoryOptions,
+  personalGroupOptions,
 } from "@/data/demo/materials"
 import { downloadImage } from "@/lib/image-download"
 
@@ -135,6 +137,11 @@ function isSystemAdmin(user) {
   return user.roleIds.includes("system_admin")
 }
 
+function getPersonalGroup(material, assignments = {}) {
+  if (Object.prototype.hasOwnProperty.call(assignments, material.id)) return assignments[material.id]
+  return material.personalGroupByUser?.[demoCurrentUser.id] || ""
+}
+
 function canReviewTeamMaterials(user) {
   return isSystemAdmin(user)
     || user.roleIds.includes("department_admin")
@@ -200,6 +207,11 @@ export default function MaterialsClient() {
   const [query, setQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
+  const [personalGroupFilter, setPersonalGroupFilter] = useState("all")
+  const [personalGroups, setPersonalGroups] = useState(personalGroupOptions)
+  const [personalGroupAssignments, setPersonalGroupAssignments] = useState(() => Object.fromEntries(
+    initialMaterials.map((material) => [material.id, material.personalGroupByUser?.[demoCurrentUser.id] || ""]),
+  ))
   const [statusFilter, setStatusFilter] = useState("all")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(8)
@@ -232,6 +244,9 @@ export default function MaterialsClient() {
       const typeMatch = typeFilter === "all" || material.type === typeFilter
       const categoryMatch = categoryFilter === "all"
         || (categoryFilter === "uncategorized" ? !material.category : material.category === categoryFilter)
+      const personalGroup = getPersonalGroup(material, personalGroupAssignments)
+      const personalGroupMatch = personalGroupFilter === "all"
+        || (personalGroupFilter === "uncategorized" ? !personalGroup : personalGroup === personalGroupFilter)
       const statusMatch = statusFilter === "all" || getMaterialStatus(material).id === statusFilter
       const queryMatch = !normalizedQuery || [
         material.title,
@@ -239,11 +254,12 @@ export default function MaterialsClient() {
         material.source,
         material.ownerDepartment,
         material.category || "未分类",
+        personalGroup || "未分组",
         ...material.tags,
       ].join(" ").toLowerCase().includes(normalizedQuery)
-      return scopeMatch && typeMatch && categoryMatch && statusMatch && queryMatch
+      return scopeMatch && typeMatch && categoryMatch && personalGroupMatch && statusMatch && queryMatch
     })
-  }, [categoryFilter, materials, query, scope, statusFilter, teamView, typeFilter])
+  }, [categoryFilter, materials, personalGroupAssignments, personalGroupFilter, query, scope, statusFilter, teamView, typeFilter])
 
   const statusOptions = scope === "personal" ? personalStatusOptions : teamStatusOptions
   const showStatusFilter = teamView === "all" && scope !== "public"
@@ -264,6 +280,7 @@ export default function MaterialsClient() {
     setQuery("")
     setTypeFilter("all")
     setCategoryFilter("all")
+    setPersonalGroupFilter("all")
     setStatusFilter("all")
     setPage(1)
   }
@@ -274,6 +291,7 @@ export default function MaterialsClient() {
     setQuery("")
     setTypeFilter("all")
     setCategoryFilter("all")
+    setPersonalGroupFilter("all")
     setStatusFilter("all")
     setPage(1)
   }
@@ -282,6 +300,19 @@ export default function MaterialsClient() {
     setMaterials((current) => current.map((material) => (
       material.id === materialId ? updater(material) : material
     )))
+  }
+
+  function createPersonalGroup(name) {
+    const nextName = name.trim()
+    if (!nextName || ["未分组", "全部个人分组"].includes(nextName)) return ""
+    setPersonalGroups((current) => current.includes(nextName) ? current : [...current, nextName])
+    return nextName
+  }
+
+  function setMaterialPersonalGroup(materialId, group) {
+    setPersonalGroupAssignments((current) => ({ ...current, [materialId]: group }))
+    setDialog(null)
+    setToast(group ? `已归入“${group}”` : "已移出个人分组")
   }
 
   function submitToTeam(material, note) {
@@ -369,11 +400,13 @@ export default function MaterialsClient() {
   }
 
   function saveMaterial(materialId, values) {
+    const { personalGroup, ...materialValues } = values
     updateMaterial(materialId, (current) => ({
       ...current,
-      ...values,
-      visibleOrgIds: values.scope === "team" ? compactOrganizationIds(values.visibleOrgIds) : [],
+      ...materialValues,
+      visibleOrgIds: materialValues.scope === "team" ? compactOrganizationIds(materialValues.visibleOrgIds) : [],
     }))
+    setPersonalGroupAssignments((current) => ({ ...current, [materialId]: personalGroup || "" }))
     setDialog(null)
     setToast("素材信息已保存")
   }
@@ -392,6 +425,7 @@ export default function MaterialsClient() {
         dimensions: "待识别",
         source: "手动上传",
         category: values.category,
+        personalGroupByUser: values.personalGroup ? { [demoCurrentUser.id]: values.personalGroup } : {},
         tags: values.tags,
         remark: values.remark,
         scope: values.scope,
@@ -404,6 +438,10 @@ export default function MaterialsClient() {
         createdAt: "刚刚",
       }
     })
+    setPersonalGroupAssignments((current) => ({
+      ...current,
+      ...Object.fromEntries(nextMaterials.map((material) => [material.id, values.personalGroup || ""])),
+    }))
     setMaterials((current) => [...nextMaterials, ...current])
     setScope(values.scope)
     setTeamView("all")
@@ -485,7 +523,7 @@ export default function MaterialsClient() {
         </div>
       )}
 
-      <div className={`grid gap-2 sm:grid-cols-2 ${showStatusFilter ? "xl:grid-cols-[minmax(240px,1fr)_150px_170px_170px_auto]" : "xl:grid-cols-[minmax(260px,1fr)_170px_180px_auto]"}`}>
+      <div className={`grid gap-2 sm:grid-cols-2 ${showStatusFilter ? "xl:grid-cols-[minmax(220px,1fr)_140px_160px_160px_160px_auto]" : "xl:grid-cols-[minmax(220px,1fr)_150px_160px_160px_auto]"}`}>
         <label className="relative block">
           <Search size={16} className="absolute left-3 top-3 text-[var(--text-secondary)]" />
           <input
@@ -499,6 +537,7 @@ export default function MaterialsClient() {
         </label>
         <FilterSelect value={typeFilter} onChange={(value) => { setTypeFilter(value); setPage(1) }} options={typeOptions} ariaLabel="按素材类型筛选" />
         <FilterSelect value={categoryFilter} onChange={(value) => { setCategoryFilter(value); setPage(1) }} options={materialCategoryFilterOptions} ariaLabel="按素材类目筛选" />
+        <FilterSelect value={personalGroupFilter} onChange={(value) => { setPersonalGroupFilter(value); setPage(1) }} options={[{ id: "all", label: "全部个人分组" }, ...personalGroups.map((group) => ({ id: group, label: group })), { id: "uncategorized", label: "未分组" }]} ariaLabel="按个人分组筛选" />
         {showStatusFilter && <FilterSelect value={statusFilter} onChange={(value) => { setStatusFilter(value); setPage(1) }} options={statusOptions} ariaLabel="按素材状态筛选" />}
         <div className="flex h-10 items-center justify-end text-xs text-[var(--text-secondary)]">
           找到 {filteredMaterials.length} 个
@@ -513,10 +552,12 @@ export default function MaterialsClient() {
               material={material}
               activeScope={scope}
               currentUser={demoCurrentUser}
+              personalGroup={getPersonalGroup(material, personalGroupAssignments)}
               canCancelPublic={canCancelPublicMaterial(demoCurrentUser, material)}
               reviewMode={scope === "team" && teamView === "pending" ? "team" : scope === "team" && teamView === "public-pending" ? "public" : null}
               onView={() => setDialog({ type: "detail", material, viewScope: scope })}
               onEdit={() => setDialog({ type: "edit", material })}
+              onSetPersonalGroup={() => setDialog({ type: "group", material, personalGroup: getPersonalGroup(material, personalGroupAssignments) })}
               onDownload={() => downloadMaterial(material)}
               onDelete={() => setDialog({ type: "delete", material })}
               onSubmit={() => setDialog({ type: "submit", material })}
@@ -551,9 +592,10 @@ export default function MaterialsClient() {
         </div>
       </div>
 
-      {dialog?.type === "upload" && <UploadMaterialDialog defaultScope={dialog.defaultScope} currentUser={demoCurrentUser} onClose={() => setDialog(null)} onSubmit={addMaterials} />}
-      {dialog?.type === "detail" && <MaterialDetailDialog material={dialog.material} viewScope={dialog.viewScope} onClose={() => setDialog(null)} onDownload={() => downloadMaterial(dialog.material)} />}
-      {dialog?.type === "edit" && <EditMaterialDialog material={dialog.material} currentUser={demoCurrentUser} onClose={() => setDialog(null)} onSave={(values) => saveMaterial(dialog.material.id, values)} />}
+      {dialog?.type === "upload" && <UploadMaterialDialog defaultScope={dialog.defaultScope} currentUser={demoCurrentUser} personalGroups={personalGroups} onCreateGroup={createPersonalGroup} onClose={() => setDialog(null)} onSubmit={addMaterials} />}
+      {dialog?.type === "detail" && <MaterialDetailDialog material={dialog.material} personalGroup={getPersonalGroup(dialog.material, personalGroupAssignments)} viewScope={dialog.viewScope} onClose={() => setDialog(null)} onDownload={() => downloadMaterial(dialog.material)} />}
+      {dialog?.type === "edit" && <EditMaterialDialog material={dialog.material} currentUser={demoCurrentUser} personalGroup={getPersonalGroup(dialog.material, personalGroupAssignments)} personalGroups={personalGroups} onCreateGroup={createPersonalGroup} onClose={() => setDialog(null)} onSave={(values) => saveMaterial(dialog.material.id, values)} />}
+      {dialog?.type === "group" && <PersonalGroupDialog material={dialog.material} personalGroup={dialog.personalGroup} personalGroups={personalGroups} onCreateGroup={createPersonalGroup} onClose={() => setDialog(null)} onSave={(group) => setMaterialPersonalGroup(dialog.material.id, group)} />}
       {dialog?.type === "submit" && <SubmitMaterialDialog material={dialog.material} currentUser={demoCurrentUser} onClose={() => setDialog(null)} onSubmit={(note) => submitToTeam(dialog.material, note)} />}
       {dialog?.type === "review" && <ReviewMaterialDialog material={dialog.material} currentUser={demoCurrentUser} onClose={() => setDialog(null)} onApprove={(organizationIds) => approveMaterial(dialog.material, organizationIds)} onReject={(reason) => rejectMaterial(dialog.material, reason)} />}
       {dialog?.type === "submit-public" && <SubmitPublicMaterialDialog material={dialog.material} onClose={() => setDialog(null)} onConfirm={() => submitToPublic(dialog.material)} />}
@@ -576,7 +618,7 @@ function FilterSelect({ value, onChange, options, ariaLabel }) {
   )
 }
 
-function MaterialCard({ material, activeScope, currentUser, canCancelPublic, reviewMode, onView, onEdit, onDownload, onDelete, onSubmit, onCancelSubmission, onReview, onSubmitPublic, onCancelPublic, onReviewPublic }) {
+function MaterialCard({ material, activeScope, currentUser, personalGroup, canCancelPublic, reviewMode, onView, onEdit, onSetPersonalGroup, onDownload, onDelete, onSubmit, onCancelSubmission, onReview, onSubmitPublic, onCancelPublic, onReviewPublic }) {
   const TypeIcon = typeMeta[material.type]?.icon || FileText
   const materialStatus = getMaterialStatus(material, activeScope)
   const displayScope = activeScope === "public" ? "public" : material.scope
@@ -602,6 +644,7 @@ function MaterialCard({ material, activeScope, currentUser, canCancelPublic, rev
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[var(--text-secondary)]">
           <span className="truncate" title={formatScope(material, activeScope)}>{formatScope(material, activeScope)}</span>
           <span className="rounded-md bg-[var(--brand-primary-soft)] px-1.5 py-0.5 text-[11px] text-[var(--brand-primary)]">{material.category || "未分类"}</span>
+          {personalGroup && <span className="rounded-md bg-[var(--gray-100)] px-1.5 py-0.5 text-[11px] text-[var(--text-secondary)]">{personalGroup}</span>}
         </div>
         <div className="mt-2 flex min-h-6 flex-wrap gap-1">
           {material.tags.length ? material.tags.slice(0, 3).map((tag) => <span key={tag} className="rounded-md bg-[var(--gray-100)] px-1.5 py-1 text-[11px] text-[var(--text-secondary)]">{tag}</span>) : <span className="text-xs text-[var(--text-disabled)]">无标签</span>}
@@ -631,6 +674,7 @@ function MaterialCard({ material, activeScope, currentUser, canCancelPublic, rev
             {!reviewMode && !isOwnPersonal && <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-secondary)]">{material.createdAt}</span>}
             <IconAction label="查看" icon={Eye} onClick={onView} />
             <IconAction label="下载" icon={Download} onClick={onDownload} />
+            <IconAction label="设置个人分组" icon={FolderOpen} onClick={onSetPersonalGroup} />
             {canManage && material.status !== "pending" && material.publicReviewStatus !== "pending" && <IconAction label="编辑" icon={Pencil} onClick={onEdit} />}
             {canManage && material.status !== "pending" && material.publicReviewStatus !== "pending" && <IconAction label="删除" icon={Trash2} tone="danger" onClick={onDelete} />}
           </div>
@@ -672,13 +716,14 @@ function Modal({ title, description, onClose, children, footer, width = "760px" 
   return createPortal(content, document.body)
 }
 
-function UploadMaterialDialog({ defaultScope, currentUser, onClose, onSubmit }) {
+function UploadMaterialDialog({ defaultScope, currentUser, personalGroups, onCreateGroup, onClose, onSubmit }) {
   const allowedDefault = defaultScope !== "personal" && !isSystemAdmin(currentUser) ? "personal" : defaultScope
   const [files, setFiles] = useState([])
   const [scope, setScope] = useState(allowedDefault)
   const [category, setCategory] = useState("通用")
   const [tags, setTags] = useState("")
   const [remark, setRemark] = useState("")
+  const [personalGroup, setPersonalGroup] = useState("")
   const [visibleOrgIds, setVisibleOrgIds] = useState(scope === "team" ? [currentUser.departmentId] : [])
   const canSubmit = files.length > 0 && (scope !== "team" || visibleOrgIds.length > 0)
 
@@ -693,7 +738,7 @@ function UploadMaterialDialog({ defaultScope, currentUser, onClose, onSubmit }) 
       description="批量文件使用同一素材范围、类目和标签，上传后仍可逐个编辑。"
       onClose={onClose}
       width="820px"
-      footer={<><Button variant="outline" onClick={onClose}>取消</Button><Button className="text-white" disabled={!canSubmit} onClick={() => onSubmit(files, { scope, category, tags: tags.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean), remark, visibleOrgIds })}>上传 {files.length || ""}</Button></>}
+      footer={<><Button variant="outline" onClick={onClose}>取消</Button><Button className="text-white" disabled={!canSubmit} onClick={() => onSubmit(files, { scope, category, personalGroup, tags: tags.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean), remark, visibleOrgIds })}>上传 {files.length || ""}</Button></>}
     >
       <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed bg-[var(--gray-50)] px-4 text-center hover:bg-[var(--bg-hover)]" style={{ borderColor: "var(--border-base)" }}>
         <Upload size={24} className="text-[var(--brand-primary)]" />
@@ -724,6 +769,7 @@ function UploadMaterialDialog({ defaultScope, currentUser, onClose, onSubmit }) 
         <label><FieldLabel inline>统一标签</FieldLabel><input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="多个标签用逗号分隔" className="h-9 w-full rounded-lg border px-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }} /></label>
         <label><FieldLabel inline>统一备注</FieldLabel><input value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="选填" className="h-9 w-full rounded-lg border px-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }} /></label>
       </div>
+      <PersonalGroupField value={personalGroup} onChange={setPersonalGroup} options={personalGroups} onCreateGroup={onCreateGroup} />
     </Modal>
   )
 }
@@ -768,6 +814,46 @@ function MaterialReviewSummary({ material }) {
   return <div className="flex gap-3 rounded-lg bg-[var(--gray-50)] p-3">{material.src ? <SafeImage src={material.src} alt={material.title} className="size-16 shrink-0 rounded-md object-cover" /> : <span className="grid size-16 shrink-0 place-items-center rounded-md bg-white"><FileText size={24} /></span>}<div className="min-w-0"><strong className="block truncate text-sm text-[var(--text-title)]">{material.title}</strong><span className="mt-1 block text-xs text-[var(--brand-primary)]">{material.category || "未分类"}</span><span className="mt-1 block text-xs text-[var(--text-secondary)]">{material.tags.join("、") || "无标签"}</span><span className="mt-1 line-clamp-2 text-xs text-[var(--text-secondary)]">{material.remark || "未填写推荐说明"}</span></div></div>
 }
 
+function PersonalGroupField({ value, onChange, options, onCreateGroup }) {
+  const [draft, setDraft] = useState("")
+  function handleCreate() {
+    const nextGroup = onCreateGroup?.(draft)
+    if (nextGroup) {
+      onChange(nextGroup)
+      setDraft("")
+    }
+  }
+  return (
+    <div className="mt-3 rounded-lg border bg-[var(--gray-50)] p-3" style={{ borderColor: "var(--border-base)" }}>
+      <FieldLabel inline>我的分组</FieldLabel>
+      <p className="mb-2 text-xs text-[var(--text-secondary)]">仅影响当前员工的查找，不改变平台统一类目。</p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <select value={value} onChange={(event) => onChange(event.target.value)} className="h-9 min-w-0 flex-1 rounded-lg border bg-white px-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }}>
+          <option value="">未分组</option>
+          {options.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+        <div className="flex min-w-0 flex-1 gap-2">
+          <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="新建个人分组" className="h-9 min-w-0 flex-1 rounded-lg border bg-white px-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }} />
+          <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1" disabled={!draft.trim()} onClick={handleCreate}><Plus size={14} />新建</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PersonalGroupDialog({ material, personalGroup, personalGroups, onCreateGroup, onClose, onSave }) {
+  const [value, setValue] = useState(personalGroup || "")
+  return (
+    <Modal title="设置个人分组" description="仅影响当前员工的素材查找，不改变统一类目和共享范围。" onClose={onClose} width="480px" footer={<><Button variant="outline" onClick={onClose}>取消</Button><Button className="text-white" onClick={() => onSave(value)}>保存</Button></>}>
+      <div className="rounded-lg bg-[var(--gray-50)] px-4 py-3">
+        <strong className="block text-sm text-[var(--text-title)]">{material.title}</strong>
+        <span className="mt-1 block text-xs text-[var(--text-secondary)]">统一类目：{material.category || "未分类"}</span>
+      </div>
+      <PersonalGroupField value={value} onChange={setValue} options={personalGroups} onCreateGroup={onCreateGroup} />
+    </Modal>
+  )
+}
+
 function SubmitPublicMaterialDialog({ material, onClose, onConfirm }) {
   return (
     <Modal title="申请公共发布" description="提交后由系统管理员审核，审核期间团体素材继续可用。" onClose={onClose} width="540px" footer={<><Button variant="outline" onClick={onClose}>取消</Button><Button className="gap-2 text-white" onClick={onConfirm}><Globe2 size={15} />确认申请</Button></>}>
@@ -792,29 +878,31 @@ function ReviewPublicMaterialDialog({ material, onClose, onApprove, onReject }) 
   )
 }
 
-function EditMaterialDialog({ material, currentUser, onClose, onSave }) {
+function EditMaterialDialog({ material, currentUser, personalGroup, personalGroups, onCreateGroup, onClose, onSave }) {
   const [title, setTitle] = useState(material.title)
   const [category, setCategory] = useState(material.category || "通用")
   const [tags, setTags] = useState(material.tags.join("，"))
   const [remark, setRemark] = useState(material.remark || "")
+  const [selectedPersonalGroup, setSelectedPersonalGroup] = useState(personalGroup || "")
   const [scope, setScope] = useState(material.scope)
   const [visibleOrgIds, setVisibleOrgIds] = useState(material.visibleOrgIds)
   const canSave = title.trim() && (scope !== "team" || visibleOrgIds.length > 0)
   return (
-    <Modal title="编辑素材" onClose={onClose} width="720px" footer={<><Button variant="outline" onClick={onClose}>取消</Button><Button className="text-white" disabled={!canSave} onClick={() => onSave({ title: title.trim(), category, tags: tags.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean), remark, scope, visibleOrgIds })}>保存</Button></>}>
+    <Modal title="编辑素材" onClose={onClose} width="720px" footer={<><Button variant="outline" onClick={onClose}>取消</Button><Button className="text-white" disabled={!canSave} onClick={() => onSave({ title: title.trim(), category, personalGroup: selectedPersonalGroup, tags: tags.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean), remark, scope, visibleOrgIds })}>保存</Button></>}>
       <div className="grid gap-3 sm:grid-cols-3">
         <label><FieldLabel inline>标题</FieldLabel><input value={title} onChange={(event) => setTitle(event.target.value)} className="h-9 w-full rounded-lg border px-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }} /></label>
         <label><FieldLabel inline>类目</FieldLabel><select value={category} onChange={(event) => setCategory(event.target.value)} className="h-9 w-full rounded-lg border bg-white px-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }}>{materialCategoryOptions.map((option) => <option key={option}>{option}</option>)}</select></label>
         <label><FieldLabel inline>标签</FieldLabel><input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="多个标签用逗号分隔" className="h-9 w-full rounded-lg border px-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }} /></label>
       </div>
+      <PersonalGroupField value={selectedPersonalGroup} onChange={setSelectedPersonalGroup} options={personalGroups} onCreateGroup={onCreateGroup} />
       <label className="mt-3 block"><FieldLabel inline>备注</FieldLabel><textarea value={remark} onChange={(event) => setRemark(event.target.value)} rows={3} className="w-full resize-none rounded-lg border px-3 py-2 text-sm outline-none" style={{ borderColor: "var(--border-base)" }} /></label>
       {isSystemAdmin(currentUser) && <><FieldLabel>素材范围</FieldLabel><div className="grid gap-2 sm:grid-cols-3">{scopeOptions.map((option) => <button key={option.id} type="button" onClick={() => setScope(option.id)} className="rounded-lg border p-3 text-left" style={scope === option.id ? { borderColor: "var(--brand-primary)", background: "var(--brand-primary-soft)" } : { borderColor: "var(--border-base)" }}><strong className="block text-sm text-[var(--text-title)]">{option.label}</strong><span className="mt-1 block text-xs text-[var(--text-secondary)]">{option.description}</span></button>)}</div></>}
-      {scope === "team" && <OrganizationScopeSelector value={visibleOrgIds} onChange={setVisibleOrgIds} allowedScopeIds={isSystemAdmin(currentUser) ? null : currentUser.organizationScopeIds} />}
+      {scope === "team" && canManageMaterial(currentUser, material) && <OrganizationScopeSelector value={visibleOrgIds} onChange={setVisibleOrgIds} allowedScopeIds={isSystemAdmin(currentUser) ? null : currentUser.organizationScopeIds} />}
     </Modal>
   )
 }
 
-function MaterialDetailDialog({ material, viewScope, onClose, onDownload }) {
+function MaterialDetailDialog({ material, personalGroup, viewScope, onClose, onDownload }) {
   const TypeIcon = typeMeta[material.type]?.icon || FileText
   const materialStatus = getMaterialStatus(material, viewScope)
   return (
@@ -826,6 +914,7 @@ function MaterialDetailDialog({ material, viewScope, onClose, onDownload }) {
           <DetailTerm>类型</DetailTerm><DetailValue>{typeMeta[material.type]?.label}</DetailValue>
           <DetailTerm>类目</DetailTerm><DetailValue>{material.category || "未分类"}</DetailValue>
           <DetailTerm>素材范围</DetailTerm><DetailValue>{formatScope(material, viewScope)}</DetailValue>
+          <DetailTerm>我的分组</DetailTerm><DetailValue>{personalGroup || "未分组"}</DetailValue>
           <DetailTerm>当前状态</DetailTerm><DetailValue>{materialStatus.label}</DetailValue>
           <DetailTerm>上传人</DetailTerm><DetailValue>{material.ownerName}</DetailValue>
           <DetailTerm>所属部门</DetailTerm><DetailValue>{material.ownerDepartment}</DetailValue>
@@ -849,68 +938,6 @@ function ConfirmDeleteDialog({ material, onClose, onConfirm }) {
       ? "删除后可见团队将无法继续查看或选择，已有作品不受影响。"
       : "删除后将从个人素材及所有选择入口中移除。"
   return <Modal title="删除素材" description={description} onClose={onClose} width="460px" footer={<><Button variant="outline" onClick={onClose}>取消</Button><Button variant="destructive" onClick={onConfirm}>确认删除</Button></>}><strong className="block text-sm text-[var(--text-title)]">{material.title}</strong><span className="mt-1 block text-xs text-[var(--text-secondary)]">{formatScope(material, isPublicAsset ? "public" : material.scope)}</span></Modal>
-}
-
-function OrganizationScopeSelector({ value, onChange, allowedScopeIds = null }) {
-  const [query, setQuery] = useState("")
-  const [expandedIds, setExpandedIds] = useState(() => compactOrganizationIds(value).flatMap((organizationId) => organizationMap[organizationId]?.ancestorIds || []))
-  const normalizedQuery = query.trim().toLowerCase()
-  const visibleIds = useMemo(() => {
-    if (!normalizedQuery) return null
-    const ids = new Set()
-    organizationRows.forEach((organization) => {
-      if (`${organization.name} ${organization.path}`.toLowerCase().includes(normalizedQuery)) {
-        ids.add(organization.id)
-        organization.ancestorIds.forEach((id) => ids.add(id))
-      }
-    })
-    return ids
-  }, [normalizedQuery])
-  const rows = organizationRows.filter((organization) => {
-    const isAllowed = !allowedScopeIds || isOrganizationInScope(organization.id, allowedScopeIds)
-    const isAllowedAncestor = allowedScopeIds?.some((scopeId) => organizationMap[scopeId]?.ancestorIds.includes(organization.id))
-    if (!isAllowed && !isAllowedAncestor) return false
-    if (visibleIds) return visibleIds.has(organization.id)
-    return organization.ancestorIds.every((ancestorId) => expandedIds.includes(ancestorId))
-  })
-
-  function toggleOrganization(organizationId) {
-    if (allowedScopeIds && !isOrganizationInScope(organizationId, allowedScopeIds)) return
-    const selected = new Set(value)
-    if (selected.has(organizationId)) selected.delete(organizationId)
-    else selected.add(organizationId)
-    onChange(compactOrganizationIds([...selected]))
-  }
-
-  return (
-    <div className="mt-4 overflow-hidden rounded-lg border" style={{ borderColor: "var(--border-base)" }}>
-      <div className="border-b p-3" style={{ borderColor: "var(--border-base)" }}>
-        <FieldLabel inline>可见组织</FieldLabel>
-        <label className="relative block"><Search size={15} className="absolute left-3 top-2.5 text-[var(--text-secondary)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索组织名称" className="h-9 w-full rounded-lg border pl-9 pr-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }} /></label>
-      </div>
-      <div className="flex items-center justify-between gap-2 border-b bg-[var(--gray-50)] px-3 py-2" style={{ borderColor: "var(--border-base)" }}><strong className="truncate text-sm text-[var(--text-title)]">{permissionOrganizationName}</strong><span className="shrink-0 text-xs text-[var(--text-secondary)]">选择父组织自动包含下级</span></div>
-      <div className="max-h-56 overflow-y-auto">
-        {rows.map((organization) => {
-          const selected = value.includes(organization.id)
-          const inherited = organization.ancestorIds.some((ancestorId) => value.includes(ancestorId))
-          const disabled = inherited || Boolean(allowedScopeIds && !isOrganizationInScope(organization.id, allowedScopeIds))
-          const hasChildren = organization.children.length > 0
-          const expanded = Boolean(normalizedQuery) || expandedIds.includes(organization.id)
-          return (
-            <div key={organization.id} className="flex min-h-10 items-center gap-1 border-b pr-3 last:border-b-0" style={{ borderColor: "var(--border-light)", paddingLeft: `${8 + organization.depth * 20}px` }}>
-              {hasChildren ? <button type="button" aria-label={`${expanded ? "收起" : "展开"}${organization.name}`} title={expanded ? "收起" : "展开"} disabled={Boolean(normalizedQuery)} onClick={() => setExpandedIds((current) => current.includes(organization.id) ? current.filter((id) => id !== organization.id) : [...current, organization.id])} className="grid size-7 shrink-0 place-items-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"><ChevronRight size={14} className={expanded ? "rotate-90" : ""} /></button> : <span className="size-7 shrink-0" />}
-              <label className={`flex min-w-0 flex-1 items-center gap-2 py-2 text-sm ${disabled ? "cursor-not-allowed text-[var(--text-secondary)]" : "cursor-pointer text-[var(--text-body)]"}`}>
-                <input type="checkbox" checked={selected || inherited} disabled={disabled} onChange={() => toggleOrganization(organization.id)} className="size-4 accent-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-50" />
-                <span className="truncate" title={organization.path}>{organization.name}</span>
-                {inherited && <span className="ml-auto shrink-0 text-xs text-[var(--text-secondary)]">随父组织包含</span>}
-              </label>
-            </div>
-          )
-        })}
-        {!rows.length && <div className="flex min-h-24 items-center justify-center text-sm text-[var(--text-secondary)]">没有匹配的组织</div>}
-      </div>
-    </div>
-  )
 }
 
 function FieldLabel({ children, inline = false }) {

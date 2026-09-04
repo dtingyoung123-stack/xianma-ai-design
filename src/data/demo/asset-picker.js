@@ -1,7 +1,7 @@
 export const buyerShowPersonalAssets = [
-  { id: "buyer-local-1", title: "护腰带主图", filename: "buyer.webp", src: "/assets/buyer.webp", size: "116KB", source: "个人素材库", category: "护具类", tags: ["主图", "康复"] },
-  { id: "buyer-local-2", title: "护腰带细节", filename: "expert.webp", src: "/assets/expert.webp", size: "48KB", source: "个人素材库", category: "护具类", tags: ["细节", "佩戴"] },
-  { id: "buyer-local-3", title: "护腰带场景", filename: "prompt.webp", src: "/assets/prompt.webp", size: "111KB", source: "个人素材库", category: "护具类", tags: ["场景", "生活化"] },
+  { id: "buyer-local-1", title: "护腰带主图", filename: "buyer.webp", src: "/assets/buyer.webp", size: "116KB", source: "个人素材库", category: "护具类", personalGroup: "主图参考", tags: ["主图", "康复"] },
+  { id: "buyer-local-2", title: "护腰带细节", filename: "expert.webp", src: "/assets/expert.webp", size: "48KB", source: "个人素材库", category: "护具类", personalGroup: "细节参考", tags: ["细节", "佩戴"] },
+  { id: "buyer-local-3", title: "护腰带场景", filename: "prompt.webp", src: "/assets/prompt.webp", size: "111KB", source: "个人素材库", category: "护具类", personalGroup: "场景参考", tags: ["场景", "生活化"] },
   { id: "buyer-local-4", title: "护腰带返修", filename: "repaint.webp", src: "/assets/repaint.webp", size: "40KB", source: "个人素材库", category: "护具类", tags: ["返修", "细节"] },
 ]
 

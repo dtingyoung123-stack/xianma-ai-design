@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   Check,
   ChevronDown,
-  ChevronRight,
   Clipboard,
   ClipboardCheck,
   FilePlus2,
@@ -26,8 +25,8 @@ import {
   XCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import OrganizationScopeSelector from "@/components/OrganizationScopeSelector"
 import {
-  permissionOrganizationName,
   permissionOrganizationTree,
 } from "@/data/demo/admin"
 import {
@@ -281,6 +280,7 @@ export default function PromptsClient() {
         ...values,
         sceneLabel: promptSceneOptions.find((option) => option.id === values.sceneId)?.label || current.sceneLabel,
         tags: values.tags,
+        visibleOrgIds: current.library === "team" ? compactOrganizationIds(values.visibleOrgIds || current.visibleOrgIds || []) : current.visibleOrgIds || [],
       }))
       setToast("提示词已保存")
     } else {
@@ -699,9 +699,11 @@ function EditPromptDialog({ prompt, currentUser, defaultLibrary, onClose, onSave
   const [needsReference, setNeedsReference] = useState(prompt?.needsReference ?? true)
   const [tags, setTags] = useState((prompt?.tags || []).join("、"))
   const [library, setLibrary] = useState(prompt?.library || defaultLibrary)
+  const [visibleOrgIds, setVisibleOrgIds] = useState(prompt?.visibleOrgIds || [])
   const valid = title.trim() && content.trim()
+  const canEditScope = Boolean(prompt?.library === "team" && canManageTeamPrompt(currentUser, prompt))
   return (
-    <Modal title={prompt ? "编辑提示词" : "新建提示词"} description={library === "public" ? "保存后立即作为公司内部已验证提示词对全公司可见。" : prompt?.library === "team" ? "修改后继续保留当前团队可见范围。" : "先保存到个人库，验证后再提交团队。"} onClose={onClose} width="760px" footer={<><Button variant="outline" size="lg" onClick={onClose}>取消</Button><Button size="lg" className="gap-2 text-white" disabled={!valid} onClick={() => onSave({ title: title.trim(), summary: summary.trim(), content: content.trim(), sceneId, needsReference, tags: tags.split(/[、,，]/).map((tag) => tag.trim()).filter(Boolean), library })}><Check size={15} />{!prompt && library === "public" ? "直接发布" : "保存提示词"}</Button></>}>
+    <Modal title={prompt ? "编辑提示词" : "新建提示词"} description={library === "public" ? "保存后立即作为公司内部已验证提示词对全公司可见。" : prompt?.library === "team" ? "可同步修改团队可见组织，保存后立即生效。" : "先保存到个人库，验证后再提交团队。"} onClose={onClose} width="760px" footer={<><Button variant="outline" size="lg" onClick={onClose}>取消</Button><Button size="lg" className="gap-2 text-white" disabled={!valid || (canEditScope && !visibleOrgIds.length)} onClick={() => onSave({ title: title.trim(), summary: summary.trim(), content: content.trim(), sceneId, needsReference, tags: tags.split(/[、,，]/).map((tag) => tag.trim()).filter(Boolean), library, visibleOrgIds })}><Check size={15} />{!prompt && library === "public" ? "直接发布" : "保存提示词"}</Button></>}>
       {!prompt && isSystemAdmin(currentUser) && (
         <div className="mt-4">
           <FieldLabel>保存位置</FieldLabel>
@@ -720,6 +722,7 @@ function EditPromptDialog({ prompt, currentUser, defaultLibrary, onClose, onSave
       <Field label="用途说明"><input value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="一句话说明适用商品或使用场景" className="h-10 w-full rounded-lg border px-3 text-sm outline-none focus:border-[var(--brand-primary)]" style={{ borderColor: "var(--border-base)" }} /></Field>
       <Field label="提示词内容"><textarea value={content} onChange={(event) => setContent(event.target.value)} rows={9} placeholder="请输入完整提示词" className="w-full resize-none rounded-lg border px-3 py-2.5 text-sm leading-6 outline-none focus:border-[var(--brand-primary)]" style={{ borderColor: "var(--border-base)" }} /></Field>
       <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm text-[var(--text-body)]"><input type="checkbox" checked={needsReference} onChange={(event) => setNeedsReference(event.target.checked)} className="size-4 accent-[var(--brand-primary)]" />使用时需要上传商品或场景参考图</label>
+      {canEditScope && <OrganizationScopeSelector value={visibleOrgIds} onChange={setVisibleOrgIds} allowedScopeIds={isSystemAdmin(currentUser) ? null : currentUser.organizationScopeIds} />}
     </Modal>
   )
 }
@@ -839,63 +842,6 @@ function SourceManagementDialog({ sources, onClose, onToggle, onRefresh, onAdd, 
         ))}
       </div>
     </Modal>
-  )
-}
-
-function OrganizationScopeSelector({ value, onChange, allowedScopeIds = null }) {
-  const [query, setQuery] = useState("")
-  const [expandedIds, setExpandedIds] = useState(() => compactOrganizationIds(value).flatMap((organizationId) => organizationMap[organizationId]?.ancestorIds || []))
-  const normalizedQuery = query.trim().toLowerCase()
-  const visibleIds = useMemo(() => {
-    if (!normalizedQuery) return null
-    const ids = new Set()
-    organizationRows.forEach((organization) => {
-      if (`${organization.name} ${organization.path}`.toLowerCase().includes(normalizedQuery)) {
-        ids.add(organization.id)
-        organization.ancestorIds.forEach((id) => ids.add(id))
-      }
-    })
-    return ids
-  }, [normalizedQuery])
-  const rows = organizationRows.filter((organization) => {
-    const isAllowed = !allowedScopeIds || isOrganizationInScope(organization.id, allowedScopeIds)
-    const isAllowedAncestor = allowedScopeIds?.some((scopeId) => organizationMap[scopeId]?.ancestorIds.includes(organization.id))
-    if (!isAllowed && !isAllowedAncestor) return false
-    if (visibleIds) return visibleIds.has(organization.id)
-    return organization.ancestorIds.every((ancestorId) => expandedIds.includes(ancestorId))
-  })
-
-  function toggleOrganization(organizationId) {
-    if (allowedScopeIds && !isOrganizationInScope(organizationId, allowedScopeIds)) return
-    const selected = new Set(value)
-    if (selected.has(organizationId)) selected.delete(organizationId)
-    else selected.add(organizationId)
-    onChange(compactOrganizationIds([...selected]))
-  }
-
-  return (
-    <div className="mt-4 overflow-hidden rounded-lg border" style={{ borderColor: "var(--border-base)" }}>
-      <div className="border-b p-3" style={{ borderColor: "var(--border-base)" }}>
-        <FieldLabel>可见组织</FieldLabel>
-        <label className="relative block"><Search size={15} className="absolute left-3 top-2.5 text-[var(--text-secondary)]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索组织名称" className="h-9 w-full rounded-lg border pl-9 pr-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }} /></label>
-      </div>
-      <div className="flex items-center justify-between gap-2 border-b bg-[var(--gray-50)] px-3 py-2" style={{ borderColor: "var(--border-base)" }}><strong className="truncate text-sm text-[var(--text-title)]">{permissionOrganizationName}</strong><span className="shrink-0 text-[11px] text-[var(--text-secondary)]">父组织包含全部下级</span></div>
-      <div className="max-h-56 overflow-y-auto">
-        {rows.map((organization) => {
-          const selected = value.includes(organization.id)
-          const inherited = organization.ancestorIds.some((ancestorId) => value.includes(ancestorId))
-          const disabled = inherited || Boolean(allowedScopeIds && !isOrganizationInScope(organization.id, allowedScopeIds))
-          const hasChildren = organization.children.length > 0
-          const expanded = Boolean(normalizedQuery) || expandedIds.includes(organization.id)
-          return (
-            <div key={organization.id} className="flex min-h-10 items-center gap-1 border-b pr-3 last:border-b-0" style={{ borderColor: "var(--border-light)", paddingLeft: `${8 + organization.depth * 18}px` }}>
-              {hasChildren ? <button type="button" aria-label={`${expanded ? "收起" : "展开"}${organization.name}`} disabled={Boolean(normalizedQuery)} onClick={() => setExpandedIds((current) => current.includes(organization.id) ? current.filter((id) => id !== organization.id) : [...current, organization.id])} className="grid size-7 shrink-0 place-items-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"><ChevronRight size={14} className={expanded ? "rotate-90" : ""} /></button> : <span className="size-7 shrink-0" />}
-              <label className={`flex min-w-0 flex-1 items-center gap-2 py-2 text-xs ${disabled ? "cursor-not-allowed text-[var(--text-secondary)]" : "cursor-pointer text-[var(--text-body)]"}`}><input type="checkbox" checked={selected || inherited} disabled={disabled} onChange={() => toggleOrganization(organization.id)} className="size-4 accent-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-50" /><span className="truncate" title={organization.path}>{organization.name}</span>{inherited && <span className="ml-auto shrink-0 text-[11px]">随父组织</span>}</label>
-            </div>
-          )
-        })}
-      </div>
-    </div>
   )
 }
 

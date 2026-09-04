@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import { Boxes, ChevronDown, Copy, Eye, FolderTree, Image as ImageIcon, Layers3, Search, Sparkles, Trash2, Wrench } from "lucide-react"
 import SafeImage from "@/components/SafeImage"
+import OrganizationScopeSelector from "@/components/OrganizationScopeSelector"
 import { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -47,6 +48,7 @@ export default function PublicComponentsCatalog() {
   const [colors, setColors] = useState([{ hex: "#D9353F" }, { hex: "#344054" }])
   const [model, setModel] = useState(expertModels[0].name)
   const [resolution, setResolution] = useState("2K")
+  const [organizationIds, setOrganizationIds] = useState(["org-zhongchuang-product"])
   const [modal, setModal] = useState("")
   const [previewIndex, setPreviewIndex] = useState(0)
 
@@ -141,6 +143,7 @@ export default function PublicComponentsCatalog() {
                     colors={colors} setColors={setColors}
                     model={model} setModel={setModel}
                     resolution={resolution} setResolution={setResolution}
+                    organizationIds={organizationIds} setOrganizationIds={setOrganizationIds}
                     setModal={setModal}
                   />
                 </div>
@@ -171,7 +174,7 @@ export default function PublicComponentsCatalog() {
   )
 }
 
-function ComponentPreview({ item, textDemo, setTextDemo, promptDemo, setPromptDemo, colors, setColors, model, setModel, resolution, setResolution, setModal }) {
+function ComponentPreview({ item, textDemo, setTextDemo, promptDemo, setPromptDemo, colors, setColors, model, setModel, resolution, setResolution, organizationIds, setOrganizationIds, setModal }) {
   if (isStructuralPreview(item.preview)) return <StructuralPreview type={item.preview} />
 
   if (item.preview === "safe-image") {
@@ -243,6 +246,7 @@ function ComponentPreview({ item, textDemo, setTextDemo, promptDemo, setPromptDe
   }
 
   if (item.preview === "asset-picker") return <Button variant="outline" onClick={() => setModal("asset")}><ImageIcon />打开素材选择器</Button>
+  if (item.preview === "organization-scope-selector") return <OrganizationScopeSelector value={organizationIds} onChange={setOrganizationIds} />
   if (item.preview === "prompt-picker") return <Button variant="outline" onClick={() => setModal("prompt")}><Sparkles />打开提示词选择器</Button>
   if (item.preview === "image-preview") return <Button variant="outline" onClick={() => setModal("preview")}><ImageIcon />打开图片预览</Button>
 

@@ -260,7 +260,7 @@ function ProductLearningSession({ resumeId, initialProduct }) {
 
   return (
     <WorkbenchShell
-      crumbs={[{ label: "AI 商品智库" }, { label: "商品学习" }]}
+      crumbs={[{ label: "商品智库" }, { label: "商品学习" }]}
       status="原型验证中"
       title={name.trim() || "学习新商品"}
       description="通过图片证据建立可核验的商品视觉档案"
@@ -360,7 +360,7 @@ function RestoreSettings({ images, coverage }) {
 }
 
 function ConfirmationSummary({ productName, coverage }) {
-  return <><WorkbenchModule title="待确认商品"><strong className="block text-sm text-[var(--text-title)]">{productName}</strong><div className="mt-3"><CoverageSummary coverage={coverage} /></div></WorkbenchModule><WorkbenchModule title="确认后"><p className="text-sm leading-6 text-[var(--text-body)]">选中图将成为商品确认图，商品直接进入创建人所属团队。当前“我创建的”记录继续保留。</p></WorkbenchModule></>
+  return <><WorkbenchModule title="待确认商品"><strong className="block text-sm text-[var(--text-title)]">{productName}</strong><div className="mt-3"><CoverageSummary coverage={coverage} /></div></WorkbenchModule><WorkbenchModule title="确认后"><p className="text-sm leading-6 text-[var(--text-body)]">选中图将成为商品确认图并保留在个人库；确认后可提交入团队审批，审批通过后再按组织范围开放。</p></WorkbenchModule></>
 }
 
 function EvidencePreview({ images, onPreview }) {

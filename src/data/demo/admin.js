@@ -149,14 +149,15 @@ export const platformRoles = [
 export const approvalTypes = [
   { id: "material_publish", name: "素材入库审批" },
   { id: "prompt_publish", name: "提示词入库审批" },
+  { id: "product_publish", name: "商品入库审批" },
   { id: "points_request", name: "积分申请审批", systemAdminOnly: true },
 ]
 
 export const adminUsers = [
   { id: "U0001", account: "demo.admin", name: "演示管理员", departmentId: "org-ai-lab", department: "数智中心~星河界 / AI实验室", isSupervisor: false, supervisorApprovalEnabled: false, manualRoleIds: ["system_admin"], approvalTypeIds: [], extraOrgIds: [], status: "active" },
-  { id: "U0002", account: "demo.design", name: "演示主管A", departmentId: "org-zhongchuang-product", department: "众创事业群 / 众创事业群~商品部", isSupervisor: true, supervisorApprovalEnabled: true, manualRoleIds: [], approvalTypeIds: ["material_publish", "prompt_publish"], extraOrgIds: [], status: "active" },
-  { id: "U0003", account: "demo.digital", name: "演示主管B", departmentId: "org-zhongchuang-huaguoshan", department: "众创事业群 / 花果山", isSupervisor: true, supervisorApprovalEnabled: true, manualRoleIds: ["system_admin"], approvalTypeIds: ["material_publish", "prompt_publish"], extraOrgIds: [], status: "active" },
-  { id: "U0004", account: "demo.bp", name: "演示BP", departmentId: "org-zhongchuang-bp", department: "众创事业群 / 承晖阁 / BP组", isSupervisor: false, supervisorApprovalEnabled: false, manualRoleIds: ["approval_admin"], approvalTypeIds: ["material_publish", "prompt_publish"], extraOrgIds: ["org-zhongchuang-product", "org-zhongchuang-huaguoshan"], status: "active" },
+  { id: "U0002", account: "demo.design", name: "演示主管A", departmentId: "org-zhongchuang-product", department: "众创事业群 / 众创事业群~商品部", isSupervisor: true, supervisorApprovalEnabled: true, manualRoleIds: [], approvalTypeIds: ["material_publish", "prompt_publish", "product_publish"], extraOrgIds: [], status: "active" },
+  { id: "U0003", account: "demo.digital", name: "演示主管B", departmentId: "org-zhongchuang-huaguoshan", department: "众创事业群 / 花果山", isSupervisor: true, supervisorApprovalEnabled: true, manualRoleIds: ["system_admin"], approvalTypeIds: ["material_publish", "prompt_publish", "product_publish"], extraOrgIds: [], status: "active" },
+  { id: "U0004", account: "demo.bp", name: "演示BP", departmentId: "org-zhongchuang-bp", department: "众创事业群 / 承晖阁 / BP组", isSupervisor: false, supervisorApprovalEnabled: false, manualRoleIds: ["approval_admin"], approvalTypeIds: ["material_publish", "prompt_publish", "product_publish"], extraOrgIds: ["org-zhongchuang-product", "org-zhongchuang-huaguoshan"], status: "active" },
   { id: "U0005", account: "demo.product", name: "演示主管C", departmentId: "org-zhongchuang-chenghuige", department: "众创事业群 / 承晖阁", isSupervisor: true, supervisorApprovalEnabled: false, manualRoleIds: [], approvalTypeIds: [], extraOrgIds: [], status: "active" },
   { id: "U0006", account: "demo.procurement", name: "演示用户D", departmentId: "org-zhongchuang-jingdong", department: "众创事业群 / 众创事业群~商品部 / 京东", isSupervisor: false, supervisorApprovalEnabled: false, manualRoleIds: [], approvalTypeIds: [], extraOrgIds: [], status: "active" },
   { id: "U0007", account: "demo.disabled", name: "演示停用账号", departmentId: "org-zhongchuang-administration", department: "众创事业群 / 承晖阁 / 行政部", isSupervisor: false, supervisorApprovalEnabled: false, manualRoleIds: [], approvalTypeIds: [], extraOrgIds: [], status: "disabled" },

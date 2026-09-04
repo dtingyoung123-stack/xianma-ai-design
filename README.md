@@ -1,6 +1,6 @@
 # 先马AI内容与视觉平台
 
-这是一个基于 Next.js App Router 的前端原型与开发工作台，用来验证 AI 买家秀、AI 商品套图、AI 商品智库、素材库弹窗、图片队列和统一导航框架。
+这是一个基于 Next.js App Router 的前端原型与开发工作台，用来验证 AI 买家秀、AI 商品套图、商品智库、素材库弹窗、图片队列和统一导航框架。
 
 ## 快速开始
 
@@ -18,9 +18,9 @@ npm run dev
 - `src/components/workbench/`：公共工作台组件
 - `src/app/ai-hub/BuyerShowPage.jsx`：AI 买家秀
 - `src/app/ai-hub/SuitePage.jsx`：AI 商品套图
-- `src/app/products/`：AI 商品智库的商品库、商品学习与详情确认原型
+- `src/app/products/`：商品智库的商品库、商品学习与详情确认原型
 - `src/app/ui-guide/page.js`：UI 样式与设计规范演示页
-- `docs/商品学习与商品库MVP原型交接方案_260902.md`：AI 商品智库业务与前端原型交接基线
+- `docs/商品学习与商品库MVP原型交接方案_260902.md`：商品智库业务与前端原型交接基线
 - `docs/前端UI规范与需求说明-V1.md`：给开发的 UI 规范与需求说明
 - `UI_SPEC.md`：完整视觉与布局规范
 
