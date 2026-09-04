@@ -23,6 +23,7 @@ export default function ImageQueueModule({
   getName = (image) => image?.name || image?.title || image?.filename || "商品图",
   getSize = (image) => image?.size,
   getKey = (image, index) => image?.id || image?.src || image?.img || image?.filename || index,
+  readOnly = false,
   onOpenAssetPicker,
   onLocalImages,
   onRemove,
@@ -54,17 +55,17 @@ export default function ImageQueueModule({
           icon={<FolderOpen size={18} />}
           title={assetTitle}
           sub={full ? `已达 ${max} 张上限` : assetSub}
-          disabled={full}
+          disabled={full || readOnly}
           onClick={onOpenAssetPicker}
         />
         <label
           className="flex h-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed transition-colors hover:border-[var(--brand-primary)]"
-          style={{ borderColor: "var(--border-base)", opacity: full ? 0.6 : 1, pointerEvents: full ? "none" : "auto" }}
+          style={{ borderColor: "var(--border-base)", opacity: full || readOnly ? 0.6 : 1, pointerEvents: full || readOnly ? "none" : "auto" }}
         >
           <Upload size={18} style={{ color: "var(--brand-primary)" }} />
           <strong className="text-xs" style={{ color: "var(--text-title)" }}>{uploadTitle}</strong>
           <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>{full ? `已达 ${max} 张上限` : uploadSub}</span>
-          <input type="file" accept={accept} multiple className="sr-only" onChange={onLocalImages} disabled={full} />
+          <input type="file" accept={accept} multiple className="sr-only" onChange={onLocalImages} disabled={full || readOnly} />
         </label>
       </div>
 
@@ -73,12 +74,12 @@ export default function ImageQueueModule({
           {images.map((image, index) => (
             <div
               key={getKey(image, index)}
-              draggable={Boolean(onReorder)}
+              draggable={Boolean(onReorder && !readOnly)}
               onDragStart={() => setDragIndex(index)}
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 event.preventDefault()
-                moveImage(dragIndex, index)
+                if (!readOnly) moveImage(dragIndex, index)
                 setDragIndex(null)
               }}
               onDragEnd={() => setDragIndex(null)}
@@ -87,7 +88,7 @@ export default function ImageQueueModule({
                 borderColor: dragIndex === index ? "var(--brand-primary)" : "var(--border-light)",
                 background: dragIndex === index ? "var(--brand-primary-soft)" : "var(--gray-50)",
               }}
-              title={onReorder ? "按住拖拽可调整顺序" : undefined}
+              title={onReorder && !readOnly ? "按住拖拽可调整顺序" : undefined}
             >
               <SafeImage src={getSrc(image)} alt={getName(image)} className="h-12 w-12 shrink-0 rounded-lg object-cover" />
               <div className="min-w-0 flex-1">
@@ -105,22 +106,24 @@ export default function ImageQueueModule({
                 <IconButton title="查看大图" onClick={() => setPreviewIndex(index)}>
                   <Eye size={14} />
                 </IconButton>
-                <IconButton title="替换图片" onClick={() => onRefresh ? onRefresh(index) : onOpenAssetPicker?.()}>
-                  <RefreshCw size={14} />
-                </IconButton>
-                {onEditRegion && (
-                  <IconButton title="区域编辑" active={Boolean(image.regionEdit)} onClick={() => setEditorIndex(index)}>
-                    <PenLine size={14} />
+                {!readOnly && <>
+                  <IconButton title="替换图片" onClick={() => onRefresh ? onRefresh(index) : onOpenAssetPicker?.()}>
+                    <RefreshCw size={14} />
                   </IconButton>
-                )}
-                <IconButton title="删除" danger onClick={() => onRemove?.(index)}>
-                  <Trash2 size={14} />
-                </IconButton>
+                  {onEditRegion && (
+                    <IconButton title="区域编辑" active={Boolean(image.regionEdit)} onClick={() => setEditorIndex(index)}>
+                      <PenLine size={14} />
+                    </IconButton>
+                  )}
+                  <IconButton title="删除" danger onClick={() => onRemove?.(index)}>
+                    <Trash2 size={14} />
+                  </IconButton>
+                </>}
               </div>
             </div>
           ))}
           <div className="text-[11px]" style={{ color: "var(--text-disabled)" }}>
-            按住图片行可拖拽调整顺序。
+            {readOnly ? "当前步骤仅支持查看图片。" : "按住图片行可拖拽调整顺序。"}
           </div>
         </div>
       ) : (

@@ -181,7 +181,7 @@ export const componentCatalog = [
     category: "workbench",
     path: "src/components/workbench/RegionMaskEditor.jsx",
     description: "图片区域编辑、遮罩、擦除、撤销、重做与文本标注。",
-    usage: ["专家模式", "AI 买家秀"],
+    usage: ["专家模式", "AI 买家秀", "AI 商品智库"],
     status: "业务特化",
     preview: "region-editor",
   },

@@ -9,7 +9,21 @@ import {
 import SafeImage from "@/components/SafeImage"
 
 const EMPTY_DOCUMENT = { maskActions: [], annotations: [] }
-export default function RegionMaskEditor({ image, value, onApply, onClose, onUnavailable }) {
+export default function RegionMaskEditor({
+  image,
+  value,
+  eyebrow = "区域编辑",
+  helpText = "智能选区、局部移除和局部替换将在接入 API 后启用。",
+  applyLabel = "应用选区",
+  coverageLabel = "Mask 覆盖",
+  annotationLabel = "条文本标注",
+  annotationPlaceholder = "输入区域说明",
+  showOperations = true,
+  showUnavailableTools = true,
+  onApply,
+  onClose,
+  onUnavailable,
+}) {
   const viewportRef = useRef(null)
   const canvasRef = useRef(null)
   const pointerRef = useRef(null)
@@ -262,26 +276,28 @@ export default function RegionMaskEditor({ image, value, onApply, onClose, onUna
     { key: "eraser", label: "橡皮", icon: Eraser },
     { key: "rect", label: "矩形", icon: Square },
     { key: "text", label: "文本标注", icon: Type },
-  ], [])
+  ].filter((item) => showUnavailableTools || !item.unavailable), [showUnavailableTools])
 
   const content = (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6" style={{ background: "var(--overlay-scrim)" }}>
       <section className="flex h-[min(88vh,760px)] w-[min(1100px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
         <header className="flex h-[66px] shrink-0 items-center justify-between px-4" style={{ background: "var(--gray-900)" }}>
           <div className="min-w-0">
-            <span className="block text-[11px] font-bold" style={{ color: "var(--info)" }}>区域编辑</span>
+            <span className="block text-[11px] font-bold" style={{ color: "var(--info)" }}>{eyebrow}</span>
             <strong className="mt-1 block truncate text-sm text-white">{imageName}</strong>
           </div>
           <button type="button" onClick={onClose} aria-label="关闭编辑器" className="grid h-8 w-8 place-items-center rounded-md border text-white" style={{ borderColor: "var(--gray-700)" }}><X size={16} /></button>
         </header>
 
         <div className="flex min-h-0 flex-1">
-          <aside className="flex w-[148px] shrink-0 flex-col gap-2 p-3" style={{ background: "var(--gray-900)" }}>
-            <div className="grid grid-cols-2 gap-1.5">
-              {[{ key: "remove", label: "局部移除" }, { key: "replace", label: "局部替换" }].map((item) => (
-                <button key={item.key} type="button" onClick={() => { setOperation(item.key); onUnavailable?.(`${item.label}需接入图像处理 API`) }} className="h-8 rounded-md border text-[11px] font-bold" style={operation === item.key ? { borderColor: "var(--brand-primary)", color: "var(--brand-primary)", background: "var(--brand-primary-soft)" } : { borderColor: "var(--gray-700)", color: "var(--gray-200)" }}>{item.label}</button>
-              ))}
-            </div>
+          <aside className="flex w-[112px] shrink-0 flex-col gap-2 p-2 sm:w-[148px] sm:p-3" style={{ background: "var(--gray-900)" }}>
+            {showOperations && (
+              <div className="grid grid-cols-2 gap-1.5">
+                {[{ key: "remove", label: "局部移除" }, { key: "replace", label: "局部替换" }].map((item) => (
+                  <button key={item.key} type="button" onClick={() => { setOperation(item.key); onUnavailable?.(`${item.label}需接入图像处理 API`) }} className="h-8 rounded-md border text-[11px] font-bold" style={operation === item.key ? { borderColor: "var(--brand-primary)", color: "var(--brand-primary)", background: "var(--brand-primary-soft)" } : { borderColor: "var(--gray-700)", color: "var(--gray-200)" }}>{item.label}</button>
+                ))}
+              </div>
+            )}
 
             {toolItems.map(({ key, label, icon: Icon, unavailable }) => (
               <button key={key} type="button" onClick={() => unavailable ? onUnavailable?.("智能选区需接入主体分割 API") : setTool(key)} className="flex h-9 items-center gap-2 rounded-md border px-2.5 text-xs font-medium" style={tool === key ? { borderColor: "var(--brand-primary)", color: "var(--white)", background: "var(--brand-primary)" } : { borderColor: "var(--gray-700)", color: "var(--gray-200)", background: "var(--gray-800)" }}>
@@ -299,22 +315,20 @@ export default function RegionMaskEditor({ image, value, onApply, onClose, onUna
               <SmallButton label="适配" icon={Frame} onClick={fitStage} />
             </div>
 
-            <div className="mt-auto rounded-md border p-2 text-[10px] leading-relaxed" style={{ borderColor: "var(--gray-700)", color: "var(--gray-400)" }}>
-              智能选区、局部移除和局部替换将在接入 API 后启用。
-            </div>
+            {helpText && <div className="mt-auto rounded-md border p-2 text-[10px] leading-relaxed" style={{ borderColor: "var(--gray-700)", color: "var(--gray-400)" }}>{helpText}</div>}
           </aside>
 
           <main className="flex min-w-0 flex-1 flex-col bg-white">
             <div className="flex h-[52px] shrink-0 items-center justify-between border-b px-3" style={{ borderColor: "var(--border-base)", background: "var(--gray-50)" }}>
               <div className="min-w-0">
                 <strong className="block truncate text-sm" style={{ color: "var(--text-title)" }}>{imageName}</strong>
-                <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>{imageSize.width} × {imageSize.height} / mask {calculateActionCoverage(editorDoc.maskActions, imageSize)}% / 羽化 4px</span>
+                <span className="block truncate text-[11px]" style={{ color: "var(--text-secondary)" }}>{imageSize.width} × {imageSize.height} / mask {calculateActionCoverage(editorDoc.maskActions, imageSize)}% / 羽化 4px</span>
               </div>
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={() => setAnnotationsVisible((visible) => !visible)} className="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-medium" style={{ borderColor: "var(--border-base)", color: "var(--text-body)", background: "var(--white)" }}>
-                  {annotationsVisible ? <Eye size={13} /> : <EyeOff size={13} />}{annotationsVisible ? "隐藏标注" : "显示标注"}
+              <div className="flex shrink-0 items-center gap-2">
+                <button type="button" onClick={() => setAnnotationsVisible((visible) => !visible)} aria-label={annotationsVisible ? "隐藏标注" : "显示标注"} title={annotationsVisible ? "隐藏标注" : "显示标注"} className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-[11px] font-medium sm:w-auto sm:gap-1.5 sm:px-2.5" style={{ borderColor: "var(--border-base)", color: "var(--text-body)", background: "var(--white)" }}>
+                  {annotationsVisible ? <Eye size={13} /> : <EyeOff size={13} />}<span className="hidden sm:inline">{annotationsVisible ? "隐藏标注" : "显示标注"}</span>
                 </button>
-                <span className="flex items-center gap-1.5 text-[11px]" style={{ color: "var(--text-secondary)" }}><MousePointer2 size={13} /> 当前：{toolItems.find((item) => item.key === tool)?.label}</span>
+                <span className="hidden items-center gap-1.5 text-[11px] md:flex" style={{ color: "var(--text-secondary)" }}><MousePointer2 size={13} /> 当前：{toolItems.find((item) => item.key === tool)?.label}</span>
               </div>
             </div>
 
@@ -329,15 +343,15 @@ export default function RegionMaskEditor({ image, value, onApply, onClose, onUna
         </div>
 
         <footer className="flex h-[60px] shrink-0 items-center justify-between px-4" style={{ background: "var(--gray-900)" }}>
-          <div><span className="block text-[10px] font-bold uppercase" style={{ color: "var(--info)" }}>Mask 覆盖</span><strong className="text-sm text-white">{calculateActionCoverage(editorDoc.maskActions, imageSize)}%</strong><span className="ml-3 text-xs" style={{ color: "var(--gray-400)" }}>{editorDoc.annotations.length} 条文本标注</span></div>
+          <div><span className="block text-[10px] font-bold uppercase" style={{ color: "var(--info)" }}>{coverageLabel}</span><strong className="text-sm text-white">{calculateActionCoverage(editorDoc.maskActions, imageSize)}%</strong><span className="ml-3 text-xs" style={{ color: "var(--gray-400)" }}>{editorDoc.annotations.length} {annotationLabel}</span></div>
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="h-9 rounded-md border px-4 text-sm font-medium text-white" style={{ borderColor: "var(--gray-700)" }}>取消</button>
-            <button type="button" onClick={applyDocument} className="h-9 rounded-md px-4 text-sm font-bold text-white" style={{ background: "var(--brand-primary)" }}>应用选区</button>
+            <button type="button" onClick={applyDocument} className="h-9 rounded-md px-4 text-sm font-bold text-white" style={{ background: "var(--brand-primary)" }}>{applyLabel}</button>
           </div>
         </footer>
       </section>
 
-      {textDialog && <TextDialog value={textDialog.text} editing={Boolean(textDialog.id)} onChange={(text) => setTextDialog((current) => ({ ...current, text }))} onSave={saveText} onDelete={deleteText} onClose={() => setTextDialog(null)} />}
+      {textDialog && <TextDialog value={textDialog.text} editing={Boolean(textDialog.id)} placeholder={annotationPlaceholder} onChange={(text) => setTextDialog((current) => ({ ...current, text }))} onSave={saveText} onDelete={deleteText} onClose={() => setTextDialog(null)} />}
     </div>
   )
 
@@ -352,8 +366,8 @@ function SmallButton({ label, icon: Icon, disabled, onClick }) {
   return <button type="button" disabled={disabled} onClick={onClick} className="flex h-8 items-center justify-center gap-1 rounded-md border text-[10px] text-white disabled:opacity-40" style={{ borderColor: "var(--gray-700)", background: "var(--gray-800)" }}><Icon size={11} />{label}</button>
 }
 
-function TextDialog({ value, editing, onChange, onSave, onDelete, onClose }) {
-  return <div className="fixed inset-0 z-[120] grid place-items-center p-4" style={{ background: "var(--black-alpha-30)" }}><div className="w-[min(420px,calc(100vw-32px))] rounded-lg border bg-white p-4 shadow-2xl" style={{ borderColor: "var(--border-base)" }}><div className="mb-3 flex items-center justify-between"><strong style={{ color: "var(--text-title)" }}>{editing ? "编辑文本标注" : "添加文本标注"}</strong><button type="button" onClick={onClose} aria-label="关闭" className="grid h-7 w-7 place-items-center rounded-md hover:bg-[var(--bg-hover)]"><X size={15} /></button></div><input autoFocus value={value} maxLength={80} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && value.trim()) onSave() }} placeholder="输入区域说明" className="h-10 w-full rounded-md border px-3 text-sm outline-none" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }} /><div className="mt-4 flex justify-between"><div>{editing && <button type="button" onClick={onDelete} className="h-9 rounded-md px-3 text-sm" style={{ color: "var(--danger)", background: "var(--danger-bg)" }}>删除标注</button>}</div><div className="flex gap-2"><button type="button" onClick={onClose} className="h-9 rounded-md border px-3 text-sm" style={{ borderColor: "var(--border-base)" }}>取消</button><button type="button" disabled={!value.trim()} onClick={onSave} className="h-9 rounded-md px-4 text-sm font-bold text-white disabled:opacity-40" style={{ background: "var(--brand-primary)" }}>确定</button></div></div></div></div>
+function TextDialog({ value, editing, placeholder, onChange, onSave, onDelete, onClose }) {
+  return <div className="fixed inset-0 z-[120] grid place-items-center p-4" style={{ background: "var(--black-alpha-30)" }}><div className="w-[min(420px,calc(100vw-32px))] rounded-lg border bg-white p-4 shadow-2xl" style={{ borderColor: "var(--border-base)" }}><div className="mb-3 flex items-center justify-between"><strong style={{ color: "var(--text-title)" }}>{editing ? "编辑文本标注" : "添加文本标注"}</strong><button type="button" onClick={onClose} aria-label="关闭" className="grid h-7 w-7 place-items-center rounded-md hover:bg-[var(--bg-hover)]"><X size={15} /></button></div><input autoFocus value={value} maxLength={80} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && value.trim()) onSave() }} placeholder={placeholder} className="h-10 w-full rounded-md border px-3 text-sm outline-none" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }} /><div className="mt-4 flex justify-between"><div>{editing && <button type="button" onClick={onDelete} className="h-9 rounded-md px-3 text-sm" style={{ color: "var(--danger)", background: "var(--danger-bg)" }}>删除标注</button>}</div><div className="flex gap-2"><button type="button" onClick={onClose} className="h-9 rounded-md border px-3 text-sm" style={{ borderColor: "var(--border-base)" }}>取消</button><button type="button" disabled={!value.trim()} onClick={onSave} className="h-9 rounded-md px-4 text-sm font-bold text-white disabled:opacity-40" style={{ background: "var(--brand-primary)" }}>确定</button></div></div></div></div>
 }
 
 function normalizeDocument(value) {

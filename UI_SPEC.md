@@ -1,31 +1,31 @@
 # 先马AI内容与视觉平台 · 前端 UI 规范
 
-> 面向个人持续开发。本文档 + `src/app/globals.css` + `src/components/ui/` + 已调好的 `prototype/buyer-show-scene-page.html`、`prototype/cross-border-suite-page.html` = 当前 UI 规范与参考实现。新增模块必须遵守本文档和 `ARCHITECTURE.md`。
+> 面向个人持续开发。本文档 + `src/app/globals.css` + `src/components/ui/` + 知识库 `D:\HermesVault\10_先马电商\03_项目\01_先马AI设计平台\02_产品输出\prototype\` 下已调好的 `buyer-show-scene-page.html`、`cross-border-suite-page.html` = 当前 UI 规范与参考实现。新增模块必须遵守本文档和 `ARCHITECTURE.md`。
 
 > 主题规则（2026-08-14）：已确认将全站交互主色切换为山茶红。本次不改变背景、中性色、成功/警告/危险/信息等语义状态色或视觉资产；该状态不代表已部署或已上线。
 
 ## 0. 规范使用原则
 
-本规范从 `prototype` 中已经确认满意的两个页面反向沉淀，优先级高于早期通用后台式规范。后续新页面不要重新发明视觉语言，应先判断页面属于哪类工作流，再复用对应骨架和组件。
+本规范从知识库 `02_产品输出/prototype` 中已经确认满意的两个页面反向沉淀，优先级高于早期通用后台式规范。后续新页面不要重新发明视觉语言，应先判断页面属于哪类工作流，再复用对应骨架和组件。
 
 ### 视觉基准
 
 | 基准页面 | 用途 |
 |----------|------|
-| `prototype/buyer-show-scene-page.html` | AI 买家秀、场景化生成、左侧参数 + 右侧结果/任务流的工作台页面 |
-| `prototype/cross-border-suite-page.html` | 商品套图、批量结果、素材选择、模板/版式/语言等复杂参数页面 |
-| `prototype/app.css` | 全局导航、侧栏、首页卡片、模型卡片、公共按钮和面板样式 |
+| 知识库 `02_产品输出/prototype/buyer-show-scene-page.html` | AI 买家秀、场景化生成、左侧参数 + 右侧结果/任务流的工作台页面 |
+| 知识库 `02_产品输出/prototype/cross-border-suite-page.html` | 商品套图、批量结果、素材选择、模板/版式/语言等复杂参数页面 |
+| 知识库 `02_产品输出/prototype/app.css` | 全局导航、侧栏、首页卡片、模型卡片、公共按钮和面板样式 |
 
 ### 后续页面生产流程
 
-1. 先选母版：工作流生成页默认参考两个 `prototype/*page.html`，首页/工具入口默认参考 `prototype/app.css`。
+1. 先选母版：工作流生成页默认参考知识库 `02_产品输出/prototype/*page.html`，首页/工具入口默认参考知识库 `02_产品输出/prototype/app.css`。
 2. 再抽结构：只换业务内容和数据，不改变顶部栏、侧栏、双栏比例、面板头尾、按钮风格、卡片圆角和阴影。
 3. 再补组件：如果连续两个页面出现同类控件，应沉淀为共享组件或明确写入本规范。
 4. 最后验收：新页面必须和对应原型截图同屏对照，检查布局密度、圆角、阴影、按钮、标题层级、滚动区域和弹窗位置。
 
 ### 冲突处理
 
-- 如果本文档和 `prototype` 冲突，以 `prototype` 为准，并更新本文档。
+- 如果本文档和知识库 `02_产品输出/prototype` 冲突，以知识库参考页面为准，并更新本文档。
 - 如果 `UI_SPEC.md` 和 `src/app/globals.css` 冲突，以 `src/app/globals.css` 的 token 为运行时事实，但必须同步修正文档。
 - 如果 shadcn 默认样式和先马原型风格冲突，优先覆盖为先马风格。
 - 不把未上线能力写成已上线能力；原型页面只代表 UI 和交互验证。
@@ -470,6 +470,16 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 | `/ai-hub/product-suite` | AI 商品套图 | `src/app/ai-hub/[capability]/page.js` | 已上线 |
 | `/ai-hub/[capability]` | AI 能力中心其他 4 项能力 | `src/app/ai-hub/[capability]/page.js` | 原型中 |
 | `/ai-canvas` | 无限画布 | `src/app/ai-canvas/page.js` | 原型中 |
+| `/products` | AI 商品智库 | `src/app/products/page.js` | 原型中 |
+| `/products/new` | 商品学习 | `src/app/products/new/page.js` | 原型中 |
+| `/products/[id]` | 商品详情与还原确认 | `src/app/products/[id]/page.js` | 原型中 |
+
+### AI 商品智库状态与操作
+
+- 商品学习完成一轮 AI 输出后进入“待确认”，运营可确认候选、打开圈选纠错或删除。打开/取消圈选纠错只是编辑行为，不改变状态；提交纠错后进入“处理中”，重新输出完成后再次回到“待确认”。
+- 商品库前端只展示合并状态：待完善、处理中、待确认、可用、修订中、已归档；草稿、识别中、还原中、部分成功等底层状态只用于任务处理、权限和异常判断。
+- 删除仅对创建人的未发布且未被下游使用的个人商品开放；确认版本、团队/公共商品、修订中、已归档、存在下游引用或仍有进行中任务的商品不展示删除操作。存在下游引用时只能归档。
+- 状态徽标、筛选项和卡片操作必须使用同一映射与权限判断，避免前端状态文案和底层状态分叉。
 | `/materials` | 素材库 | `src/app/materials/page.js` | 开发中 |
 | `/prompts` | 提示词库 | `src/app/prompts/page.js` | 开发中 |
 | `/history` | 历史记录 | `src/app/history/page.js` | 原型中 |
@@ -520,7 +530,7 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 | PromptPickerModal | `src/components/workbench/PromptPickerModal.jsx` | 客户端 | 个人/团队/公共/灵感广场四来源提示词模板选择、用途筛选与正文预览 |
 | ImageQueueModule | `src/components/workbench/ImageQueueModule.jsx` | 客户端 | 参考图片选择、上传、排序、预览、替换和删除 |
 | ImagePreviewModal | `src/components/workbench/ImagePreviewModal.jsx` | 客户端 | 工作台公共图片预览弹窗，统一缩放、拖动、翻转、下载、吸色及色值复制交互 |
-| RegionMaskEditor | `src/components/workbench/RegionMaskEditor.jsx` | 客户端 | 图片区域编辑、遮罩、擦除、撤销、重做和文本标注 |
+| RegionMaskEditor | `src/components/workbench/RegionMaskEditor.jsx` | 客户端 | 图片区域编辑、遮罩、擦除、撤销、重做和文本标注；支持按业务配置标题、说明、操作和标注文案，复用于 AI 商品智库圈选纠错 |
 | ColorSamplerButton / ColorConstraintChips | `src/components/workbench/ColorConstraintPicker.jsx` | 客户端 | 工作台公共吸色入口与颜色记录，包含色块、HEX、复制和删除；按页面需求接入 |
 | WorkbenchTextEditor | `src/components/workbench/WorkbenchTextEditor.jsx` | 客户端 | 通用工作台文本输入、字数、清空、工具栏和业务扩展区 |
 | WorkbenchPromptEditor | `src/components/workbench/WorkbenchPromptEditor.jsx` | 客户端 | 基于通用文本编辑器组合提示词模板和 AI 润色 |

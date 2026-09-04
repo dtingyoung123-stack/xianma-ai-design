@@ -4,6 +4,7 @@ import PlaceholderState from "@/components/PlaceholderState"
 import { capabilityNames } from "@/config/navigation"
 import SuitePage from "../SuitePage"
 import BuyerShowPage from "../BuyerShowPage"
+import MultiAnglePage from "../MultiAnglePage"
 
 export default async function CapabilityPage({ params }) {
   const { capability } = await params
@@ -12,6 +13,7 @@ export default async function CapabilityPage({ params }) {
 
   if (capability === "product-suite") return <SuitePage />
   if (capability === "buyer-show") return <BuyerShowPage />
+  if (capability === "multi-angle") return <MultiAnglePage />
 
   return (
     <PageShell pathname={`/ai-hub/${capability}`}>
