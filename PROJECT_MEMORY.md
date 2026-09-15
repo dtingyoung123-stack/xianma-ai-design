@@ -1101,5 +1101,6 @@
 - 状态：已确认并固化为项目协作规则；该门禁只约束后续 Git 提交与同步，不改变产品功能或上线状态。
 - 提交规则：标题固定为 `type: 具体中文摘要`，必须写明实际模块和动作；涉及 5 个及以上文件时，正文至少使用两条清单映射功能、文档和测试，禁止“本期修改”“全部修改”“相关优化”“更新内容”等依赖上下文的标题。
 - 执行门禁：提交后、推送前必须执行 `npm run check:commit` 并复核完整提交说明；校验不通过不得推送。已推送提交只有在用户明确确认后，才能基于已核实远端 SHA 使用 `--force-with-lease` 改写。
-- 故障处理：推送失败只做一次原因分类和一次同路径重试，随后切换单一已验证备用路径，避免无止损地并行排查 HTTPS、SSH 和 API。
+- 固定推送顺序：先执行 `git push origin <branch>`；遇到连接重置或超时，只用 HTTP/1.1 重试一次；仍失败且 `api.github.com` 可达时，立即切换已验证的 GitHub Git Database API 快进路径，不再追加 SSH 或重复网络探测。
+- API 备用路径：Blob 必须通过 `git cat-file` 从已提交 Git 对象读取并以 Base64 上传，禁止从工作区文本重建；逐级核对 Blob、Tree、本地提交和远端父提交 SHA，只允许非强制快进更新。若 API 仅改变提交消息末尾字节，只做一次本地对象对齐，不再尝试时区、日期或多轮 amend；结束时必须确认远端 `main`、本地 `HEAD` 与 `origin/main` 完全一致，且不得输出凭据。
 - 关联文件：`AGENTS.md`、`scripts/validate-commit-message.mjs`、`tests/commit-message-validation.test.mjs`、`package.json`。
