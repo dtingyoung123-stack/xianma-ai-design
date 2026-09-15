@@ -8,7 +8,7 @@ import {
   suitePersonalAssets,
   suitePublicAssets,
   suiteTeamAssets,
-} from "@/data/demo/asset-picker"
+} from "./asset-picker.js"
 
 export const multiAnglePersonalAssets = [...buyerShowPersonalAssets, ...suitePersonalAssets]
 export const multiAngleTeamAssets = [...buyerShowTeamAssets, ...suiteTeamAssets]
@@ -24,16 +24,73 @@ export const multiAngleModels = [
 export const multiAngleThinkingModes = ["自动", "快速", "深度"]
 export const multiAngleQualityLevels = ["快速", "均衡", "高质量"]
 
+export const MULTI_ANGLE_DEFAULT_VALUE = 45
+
+export const multiAngleDefaultValues = {
+  "front-left": MULTI_ANGLE_DEFAULT_VALUE,
+  "front-right": MULTI_ANGLE_DEFAULT_VALUE,
+  "back-left": MULTI_ANGLE_DEFAULT_VALUE,
+  "back-right": MULTI_ANGLE_DEFAULT_VALUE,
+}
+
 export const multiAngleDefinitions = [
-  { id: "front", label: "正面", instruction: "生成主体正面视角，保持主体居中，正面结构、比例、颜色和关键标识清晰可见。" },
-  { id: "back", label: "背面", instruction: "生成主体背面视角，合理推测未展示的背面结构，延续颜色、材质、比例和设计语言。" },
-  { id: "left", label: "左侧", instruction: "生成主体左侧视角，保持侧面结构、厚度、轮廓和连接关系可信。" },
-  { id: "right", label: "右侧", instruction: "生成主体右侧视角，保持侧面结构、厚度、轮廓和连接关系可信。" },
-  { id: "front-left", label: "左前45°", instruction: "生成主体左前方 45 度视角，同时展示正面和左侧的关键结构。" },
-  { id: "front-right", label: "右前45°", instruction: "生成主体右前方 45 度视角，同时展示正面和右侧的关键结构。" },
-  { id: "back-left", label: "左后45°", instruction: "生成主体左后方 45 度视角，合理补全背面与左侧结构。" },
-  { id: "back-right", label: "右后45°", instruction: "生成主体右后方 45 度视角，合理补全背面与右侧结构。" },
+  { id: "front", label: "正面", anglePrompt: "front view", actualAzimuth: 0, instruction: "生成主体正面视角，保持主体居中，正面结构、比例、颜色和关键标识清晰可见。" },
+  { id: "back", label: "背面", anglePrompt: "back view", actualAzimuth: 180, instruction: "生成主体背面视角，合理推测未展示的背面结构，延续颜色、材质、比例和设计语言。" },
+  { id: "left", label: "左侧", anglePrompt: "left side view", actualAzimuth: 270, instruction: "生成主体左侧视角，保持侧面结构、厚度、轮廓和连接关系可信。" },
+  { id: "right", label: "右侧", anglePrompt: "right side view", actualAzimuth: 90, instruction: "生成主体右侧视角，保持侧面结构、厚度、轮廓和连接关系可信。" },
+  { id: "front-left", label: "左前 45°", direction: "左前", promptDirection: "left-front", editable: true },
+  { id: "front-right", label: "右前 45°", direction: "右前", promptDirection: "right-front", editable: true },
+  { id: "back-left", label: "左后 45°", direction: "左后", promptDirection: "left-back", editable: true },
+  { id: "back-right", label: "右后 45°", direction: "右后", promptDirection: "right-back", editable: true },
 ]
+
+export function createDefaultMultiAngleValues() {
+  return { ...multiAngleDefaultValues }
+}
+
+export function clampMultiAngleValue(value, fallback = MULTI_ANGLE_DEFAULT_VALUE) {
+  if (typeof value === "string" && value.trim() === "") return fallback
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return fallback
+  return Math.min(90, Math.max(0, numericValue))
+}
+
+export function normalizeMultiAngleValue(value, fallback = MULTI_ANGLE_DEFAULT_VALUE) {
+  return Math.round(clampMultiAngleValue(value, fallback) / 5) * 5
+}
+
+export function resolveMultiAngleDefinition(angleId, angleValues = multiAngleDefaultValues) {
+  const definition = multiAngleDefinitions.find((item) => item.id === angleId)
+  if (!definition) return null
+  if (!definition.editable) return { ...definition, angleValue: null }
+
+  const angleValue = normalizeMultiAngleValue(angleValues[angleId])
+  const actualAzimuth = {
+    "front-right": angleValue,
+    "back-right": 180 - angleValue,
+    "back-left": 180 + angleValue,
+    "front-left": angleValue === 0 ? 0 : 360 - angleValue,
+  }[angleId]
+
+  return {
+    ...definition,
+    angleValue,
+    actualAzimuth,
+    label: `${definition.direction} ${angleValue}°`,
+    anglePrompt: `${angleValue} degrees ${definition.promptDirection} view`,
+    instruction: `生成主体${definition.direction}方 ${angleValue} 度视角，保持商品身份、结构比例、颜色、材质、文字、Logo 和包装细节一致。`,
+  }
+}
+
+export function buildMultiAnglePrompt(anglePrompt, supplementalPrompt = "") {
+  const promptParts = [
+    `product photography, ${anglePrompt}, eye-level camera angle, medium shot, 50mm lens, even soft lighting, clean background`,
+    "keep product identity, structure proportion, color, material, text, logo and packaging details consistent with the reference image",
+  ]
+  const supplement = supplementalPrompt.trim()
+  if (supplement) promptParts.push(supplement)
+  return promptParts.join(". ")
+}
 
 export const multiAngleDefaultPrompt = "保持商品主体身份、结构比例、颜色、材质、文字、Logo 和装饰细节一致，使用干净的浅色摄影棚背景。"
 
@@ -50,13 +107,17 @@ export const multiAngleResultImages = [
 
 function buildResults(angleIds, startIndex = 0, status = "completed") {
   return angleIds.map((angleId, index) => {
-    const angle = multiAngleDefinitions.find((item) => item.id === angleId)
+    const angle = resolveMultiAngleDefinition(angleId)
     return {
       id: `multi-angle-${angleId}-${startIndex}-${index}`,
       angleId,
       angle: angle?.label || angleId,
       name: `${angle?.label || angleId}视角结果`,
       instruction: angle?.instruction || "",
+      angleValue: angle?.angleValue ?? null,
+      actualAzimuth: angle?.actualAzimuth ?? null,
+      anglePrompt: angle?.anglePrompt || "",
+      fullPrompt: buildMultiAnglePrompt(angle?.anglePrompt || "front view"),
       src: status === "completed" ? multiAngleResultImages[(startIndex + index) % multiAngleResultImages.length] : "",
       status,
       feedback: "",

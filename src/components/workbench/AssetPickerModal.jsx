@@ -5,7 +5,7 @@ import { AlertCircle, Check, FolderOpen, LoaderCircle, Search, Upload } from "lu
 import SafeImage from "@/components/SafeImage"
 import { Button } from "@/components/ui/button"
 import WorkbenchPickerDialog from "@/components/workbench/WorkbenchPickerDialog"
-import { materialCategoryOptions } from "@/data/demo/materials"
+import { materialCategoryOptions, prepareDemoAutoNamedMaterialDrafts } from "@/data/demo/materials"
 
 const sources = [
   { key: "mine", title: "个人素材", desc: "仅查看自己的素材" },
@@ -61,6 +61,9 @@ export default function AssetPickerModal({
   const visibleAssets = source === "local" ? localAssets : libraryAssets
   const selectedAssets = selectedKeys.map((key) => selectedAssetsByKey[key]).filter(Boolean)
   const currentState = sourceStatus[source]?.status || "ready"
+  const existingMaterialTitles = useMemo(() => [...personalAssets, ...teamAssets, ...publicAssets]
+    .map((asset) => asset.title)
+    .filter(Boolean), [personalAssets, publicAssets, teamAssets])
 
   function toggleAsset(asset) {
     setSelectedKeys((currentKeys) => {
@@ -115,6 +118,13 @@ export default function AssetPickerModal({
     event.target.value = ""
   }
 
+  function confirmSelection() {
+    const confirmedAssets = selectedAssets.map((asset) => ({ ...asset, saveToMine }))
+    onConfirm(source === "local" && saveToMine
+      ? prepareDemoAutoNamedMaterialDrafts(confirmedAssets, existingMaterialTitles)
+      : confirmedAssets)
+  }
+
   return (
     <WorkbenchPickerDialog
       eyebrow="素材选择"
@@ -125,7 +135,7 @@ export default function AssetPickerModal({
       footer={(
         <>
           <Button type="button" variant="outline" onClick={onClose}>取消</Button>
-          <Button type="button" className="text-white" disabled={!selectedKeys.length} onClick={() => onConfirm(selectedAssets.map((asset) => ({ ...asset, saveToMine })))}>
+          <Button type="button" className="text-white" disabled={!selectedKeys.length} onClick={confirmSelection}>
             确认选择{selectedKeys.length ? `（${selectedKeys.length}）` : ""}
           </Button>
         </>
@@ -200,10 +210,13 @@ function LocalUploadArea({ localAssets, selectedKeys, saveToMine, setSaveToMine,
         <span className="mt-1 text-xs text-[var(--text-secondary)]">支持 JPG、PNG，可一次选择多张</span>
         <input type="file" accept="image/jpeg,image/png" multiple onChange={onFiles} className="sr-only" />
       </label>
-      <label className="my-3 inline-flex items-center gap-2 text-sm text-[var(--text-body)]">
-        <input type="checkbox" checked={saveToMine} onChange={(event) => setSaveToMine(event.target.checked)} className="size-4 accent-[var(--brand-primary)]" />
-        同时加入个人素材
-      </label>
+      <div className="my-3">
+        <label className="inline-flex items-center gap-2 text-sm text-[var(--text-body)]">
+          <input type="checkbox" checked={saveToMine} onChange={(event) => setSaveToMine(event.target.checked)} aria-describedby={saveToMine ? "quick-save-auto-naming" : undefined} className="size-4 accent-[var(--brand-primary)]" />
+          同时加入个人素材
+        </label>
+        {saveToMine && <p id="quick-save-auto-naming" className="mt-1 pl-6 text-xs leading-5 text-[var(--text-secondary)]">确认选择后自动识别名称、类目和标签，不影响当前任务。</p>}
+      </div>
       <AssetGrid assets={localAssets} selectedKeys={selectedKeys} onToggle={onToggle} emptyText="尚未选择本地图片。" />
     </div>
   )

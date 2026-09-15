@@ -21,6 +21,10 @@
 # production
 /build
 
+# local prototype generation and temporary work files
+/output/
+/tmp/
+
 # misc
 .DS_Store
 *.pem

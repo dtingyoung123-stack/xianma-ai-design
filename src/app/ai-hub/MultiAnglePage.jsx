@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import {
   AlertCircle,
   Ban,
@@ -14,6 +15,7 @@ import {
   Images,
   LoaderCircle,
   PackagePlus,
+  Pencil,
   RefreshCw,
   RotateCcw,
   ThumbsDown,
@@ -38,6 +40,9 @@ import {
   WorkbenchShell,
 } from "@/components/workbench/Workbench"
 import {
+  buildMultiAnglePrompt,
+  clampMultiAngleValue,
+  createDefaultMultiAngleValues,
   multiAngleDefaultPrompt,
   multiAngleDefinitions,
   multiAngleHistory,
@@ -48,6 +53,8 @@ import {
   multiAngleResultImages,
   multiAngleTeamAssets,
   multiAngleThinkingModes,
+  normalizeMultiAngleValue,
+  resolveMultiAngleDefinition,
 } from "@/data/demo/multi-angle"
 import { initialPrompts } from "@/data/demo/prompts"
 import { downloadImage, downloadImageZip } from "@/lib/image-download"
@@ -63,6 +70,8 @@ export default function MultiAnglePage() {
   const [thinking, setThinking] = useState("自动")
   const [quality, setQuality] = useState("均衡")
   const [selectedAngles, setSelectedAngles] = useState(DEFAULT_ANGLES)
+  const [angleValues, setAngleValues] = useState(createDefaultMultiAngleValues)
+  const [angleEditor, setAngleEditor] = useState(null)
   const [prompt, setPrompt] = useState(multiAngleDefaultPrompt)
   const [assetPickerOpen, setAssetPickerOpen] = useState(false)
   const [promptPickerOpen, setPromptPickerOpen] = useState(false)
@@ -79,6 +88,10 @@ export default function MultiAnglePage() {
   const runRef = useRef(0)
   const taskSequenceRef = useRef(multiAngleHistory.length)
 
+  const resolvedAngleDefinitions = useMemo(
+    () => multiAngleDefinitions.map((angle) => resolveMultiAngleDefinition(angle.id, angleValues)),
+    [angleValues],
+  )
   const canSubmit = Boolean(sourceImage && selectedAngles.length >= 2 && currentTask?.status !== "processing")
   const detailTask = getTask(detailTaskId, currentTask, taskHistory)
   const previewTask = getTask(previewTaskId, currentTask, taskHistory)
@@ -159,13 +172,18 @@ export default function MultiAnglePage() {
       prompt: prompt.trim() || "未填写补充提示词",
       sourceImage: { ...sourceImage },
       results: selectedAngles.map((angleId, index) => {
-        const angle = multiAngleDefinitions.find((item) => item.id === angleId)
+        const angle = resolvedAngleDefinitions.find((item) => item.id === angleId)
+        const fullPrompt = buildMultiAnglePrompt(angle.anglePrompt, prompt)
         return {
           id: `multi-angle-result-${taskSuffix}-${index}`,
           angleId,
           angle: angle.label,
           name: `${sourceImage.title || "主体"}-${angle.label}`,
           instruction: angle.instruction,
+          angleValue: angle.angleValue,
+          actualAzimuth: angle.actualAzimuth,
+          anglePrompt: angle.anglePrompt,
+          fullPrompt,
           src: multiAngleResultImages[index % multiAngleResultImages.length],
           status: "pending",
           feedback: "",
@@ -236,7 +254,23 @@ export default function MultiAnglePage() {
     setThinking("自动")
     setQuality("均衡")
     setSelectedAngles(DEFAULT_ANGLES)
+    setAngleValues(createDefaultMultiAngleValues())
+    setAngleEditor(null)
     setPrompt(multiAngleDefaultPrompt)
+  }
+
+  function updateAngleValue(angleId, angleValue) {
+    setAngleValues((current) => ({ ...current, [angleId]: angleValue }))
+    setAngleEditor(null)
+    resetCurrentTask()
+    notify(`角度已更新为 ${resolveMultiAngleDefinition(angleId, { [angleId]: angleValue }).label}`)
+  }
+
+  function restoreDefaultAngles() {
+    setAngleValues(createDefaultMultiAngleValues())
+    setAngleEditor(null)
+    resetCurrentTask()
+    notify("4 个斜方向已恢复为 45°")
   }
 
   function updateTaskResult(taskId, resultId, updater) {
@@ -299,6 +333,11 @@ export default function MultiAnglePage() {
     setQuality(task.quality)
     setPrompt(task.prompt === "未填写补充提示词" ? "" : task.prompt)
     setSelectedAngles(task.results.map((result) => result.angleId))
+    setAngleValues(task.results.reduce((values, result) => {
+      if (result.angleValue !== null && result.angleValue !== undefined) values[result.angleId] = result.angleValue
+      return values
+    }, createDefaultMultiAngleValues()))
+    setAngleEditor(null)
     setDetailTaskId(null)
     setCurrentTask(null)
     notify("历史任务参数已回填")
@@ -333,17 +372,24 @@ export default function MultiAnglePage() {
               </div>
             </WorkbenchModule>
 
-            <WorkbenchModule title="角度选择" hint={`${selectedAngles.length}/8，至少选择 2 个`}>
+            <WorkbenchModule
+              title="角度选择"
+              hint={`${selectedAngles.length}/8`}
+              action={(
+                <button type="button" onClick={restoreDefaultAngles} className="inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 text-xs font-semibold text-[var(--brand-primary)] transition-colors hover:bg-[var(--brand-primary-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
+                  <RotateCcw size={12} />恢复默认角度
+                </button>
+              )}
+            >
               <div className="grid grid-cols-2 gap-2" role="group" aria-label="多角度选择">
-                {multiAngleDefinitions.map((angle) => {
+                {resolvedAngleDefinitions.map((angle) => {
                   const selected = selectedAngles.includes(angle.id)
-                  return (
+                  const selectionButton = (
                     <button
-                      key={angle.id}
                       type="button"
                       aria-pressed={selected}
                       onClick={() => toggleAngle(angle.id)}
-                      className="min-h-9 rounded-lg border px-2 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+                      className={cn("min-h-11 w-full rounded-lg border px-2 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]", angle.editable && "pr-9")}
                       style={selected
                         ? { borderColor: "var(--brand-primary)", background: "var(--brand-primary-soft)", color: "var(--brand-primary)" }
                         : { borderColor: "var(--border-base)", background: "var(--white)", color: "var(--text-body)" }}
@@ -351,7 +397,28 @@ export default function MultiAnglePage() {
                       {angle.label}
                     </button>
                   )
+                  if (!angle.editable) return <div key={angle.id}>{selectionButton}</div>
+                  return (
+                    <div key={angle.id} className="relative">
+                      {selectionButton}
+                      <button
+                        type="button"
+                        title={`编辑${angle.direction}角度`}
+                        aria-label={`编辑${angle.direction}角度，当前 ${angle.angleValue} 度`}
+                        aria-haspopup="dialog"
+                        aria-expanded={angleEditor?.angleId === angle.id}
+                        onClick={(event) => setAngleEditor({ angleId: angle.id, anchor: event.currentTarget })}
+                        className="absolute right-1.5 top-1.5 grid size-8 place-items-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[var(--white)] hover:text-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    </div>
+                  )
                 })}
+              </div>
+              <div className="mt-2 space-y-1 text-xs leading-5 text-[var(--text-secondary)]">
+                <p className="m-0">至少选择 2 个角度。</p>
+                <p className="m-0">自定义角度为近似值，模型会尽量按指定角度生成，实际效果可能存在 ±15° 偏差，极端角度效果可能不理想。</p>
               </div>
             </WorkbenchModule>
 
@@ -364,7 +431,7 @@ export default function MultiAnglePage() {
               placeholder="例如：保持红色包装、金色 Logo、磨砂材质和干净白底"
               ariaLabel="AI 多角度补充提示词"
               toolbar={<WorkbenchTextEditorAction icon={Clipboard} label="提示词模板" onClick={() => setPromptPickerOpen(true)} />}
-              helperText="生成顺序固定按正面、背面、左侧、右侧、四个 45° 角依次执行。"
+              helperText="生成顺序固定按正面、背面、左侧、右侧及四个斜方向的当前角度依次执行。"
             />
           </WorkbenchScroll>
           <div className="grid shrink-0 grid-cols-1 gap-2 border-t bg-[var(--white)] p-3 sm:grid-cols-[1fr_auto]" style={{ borderColor: "var(--border-light)" }}>
@@ -383,6 +450,7 @@ export default function MultiAnglePage() {
             <ResultWorkspace
               task={currentTask}
               selectedAngles={selectedAngles}
+              angleDefinitions={resolvedAngleDefinitions}
               onPreview={openPreview}
               onRetry={retryResult}
               onFeedback={setFeedback}
@@ -414,6 +482,17 @@ export default function MultiAnglePage() {
           onConfirm={useAsset}
         />
       )}
+      {angleEditor && (() => {
+        const angle = resolvedAngleDefinitions.find((item) => item.id === angleEditor.angleId)
+        return angle ? (
+          <AngleEditorPopover
+            angle={angle}
+            anchor={angleEditor.anchor}
+            onClose={() => setAngleEditor(null)}
+            onConfirm={(value) => updateAngleValue(angle.id, value)}
+          />
+        ) : null
+      })()}
       {promptPickerOpen && (
         <PromptPickerModal
           prompts={initialPrompts}
@@ -462,6 +541,143 @@ export default function MultiAnglePage() {
       )}
       <WorkbenchToast message={toast} />
     </>
+  )
+}
+
+function AngleEditorPopover({ angle, anchor, onClose, onConfirm }) {
+  const titleId = useId()
+  const directionId = useId()
+  const inputId = useId()
+  const inputRef = useRef(null)
+  const panelRef = useRef(null)
+  const [draftValue, setDraftValue] = useState(String(angle.angleValue))
+  const [position, setPosition] = useState({ left: 12, top: 12, width: 300 })
+  const previewValue = clampMultiAngleValue(draftValue, angle.angleValue)
+
+  useLayoutEffect(() => {
+    function updatePosition() {
+      const rect = anchor?.getBoundingClientRect()
+      if (!rect) return
+      const safeMargin = 12
+      const gap = 8
+      const width = Math.min(300, window.innerWidth - safeMargin * 2)
+      const panelHeight = panelRef.current?.offsetHeight || 424
+      const left = Math.min(Math.max(safeMargin, rect.left), window.innerWidth - width - safeMargin)
+      const spaceBelow = window.innerHeight - rect.bottom - safeMargin
+      const preferredTop = spaceBelow >= panelHeight
+        ? rect.bottom + gap
+        : rect.top - panelHeight - gap
+      const top = Math.min(
+        Math.max(safeMargin, preferredTop),
+        Math.max(safeMargin, window.innerHeight - panelHeight - safeMargin),
+      )
+      setPosition({ left, top, width })
+    }
+
+    updatePosition()
+    window.addEventListener("resize", updatePosition)
+    window.addEventListener("scroll", updatePosition, true)
+    return () => {
+      window.removeEventListener("resize", updatePosition)
+      window.removeEventListener("scroll", updatePosition, true)
+    }
+  }, [anchor])
+
+  useEffect(() => {
+    const previousActiveElement = document.activeElement
+    inputRef.current?.focus()
+    inputRef.current?.select()
+
+    function handleKeyDown(event) {
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      onClose()
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+      previousActiveElement?.focus?.()
+    }
+  }, [onClose])
+
+  if (typeof document === "undefined") return null
+
+  return createPortal(
+    <div className="fixed inset-0 z-[1250]" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+      <section
+        ref={panelRef}
+        role="dialog"
+        aria-labelledby={titleId}
+        className="fixed max-h-[calc(100dvh-24px)] overflow-y-auto rounded-lg border bg-[var(--white)] p-4 shadow-[var(--shadow-card-hover)]"
+        style={{ ...position, borderColor: "var(--border-base)" }}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 id={titleId} className="m-0 text-sm font-bold text-[var(--text-title)]">编辑角度</h3>
+            <p className="mb-0 mt-1 text-xs text-[var(--text-secondary)]">只调整角度数值，方位保持不变。</p>
+          </div>
+          <span className="rounded-md bg-[var(--gray-100)] px-2 py-1 text-[11px] font-semibold text-[var(--text-secondary)]">5° 步进</span>
+        </div>
+
+        <div className="mt-4 grid gap-3">
+          <div>
+            <span id={directionId} className="mb-1.5 block text-xs font-semibold text-[var(--text-secondary)]">方位</span>
+            <div className="flex min-h-10 items-center justify-between rounded-md border bg-[var(--gray-50)] px-3" style={{ borderColor: "var(--border-base)" }} aria-labelledby={directionId}>
+              <strong className="text-sm text-[var(--text-body)]">{angle.direction}</strong>
+              <span className="text-[11px] text-[var(--text-secondary)]">方位锁定</span>
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor={inputId} className="mb-1.5 block text-xs font-semibold text-[var(--text-secondary)]">角度</label>
+            <div className="relative">
+              <input
+                ref={inputRef}
+                id={inputId}
+                type="number"
+                min="0"
+                max="90"
+                step="5"
+                inputMode="numeric"
+                value={draftValue}
+                onChange={(event) => setDraftValue(event.target.value)}
+                onBlur={() => setDraftValue(String(normalizeMultiAngleValue(draftValue, angle.angleValue)))}
+                className="min-h-11 w-full rounded-md border bg-[var(--white)] px-3 pr-9 text-sm font-semibold text-[var(--text-title)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+                style={{ borderColor: "var(--border-base)" }}
+              />
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-[var(--text-secondary)]">°</span>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-1.5 flex items-center justify-between text-xs text-[var(--text-secondary)]"><span>0°</span><span>90°</span></div>
+            <input
+              type="range"
+              min="0"
+              max="90"
+              step="5"
+              value={previewValue}
+              aria-label={`${angle.direction}角度滑块`}
+              onChange={(event) => setDraftValue(event.target.value)}
+              className="h-6 w-full cursor-pointer accent-[var(--brand-primary)]"
+            />
+          </div>
+
+          <div className="rounded-md bg-[var(--brand-primary-soft)] px-3 py-2.5">
+            <span className="block text-[11px] text-[var(--text-secondary)]">预览描述</span>
+            <strong className="mt-0.5 block text-sm text-[var(--brand-primary)]">{angle.direction} {previewValue}°</strong>
+          </div>
+        </div>
+
+        <div className="mt-4 flex justify-end gap-2 border-t pt-3" style={{ borderColor: "var(--border-light)" }}>
+          <WorkbenchButton type="button" variant="ghost" className="min-h-8 px-3 text-xs" onClick={onClose}>取消</WorkbenchButton>
+          <WorkbenchButton type="button" className="min-h-8 px-3 text-xs" onClick={() => onConfirm(normalizeMultiAngleValue(draftValue, angle.angleValue))}>确认</WorkbenchButton>
+        </div>
+      </section>
+    </div>,
+    document.body,
   )
 }
 
@@ -520,9 +736,9 @@ function SegmentedField({ label, value, options, onChange }) {
   )
 }
 
-function ResultWorkspace({ task, selectedAngles, onPreview, onRetry, onFeedback, onDownload, onDownloadTask, onNotify }) {
+function ResultWorkspace({ task, selectedAngles, angleDefinitions, onPreview, onRetry, onFeedback, onDownload, onDownloadTask, onNotify }) {
   const angles = task?.results || selectedAngles.map((angleId, index) => {
-    const angle = multiAngleDefinitions.find((item) => item.id === angleId)
+    const angle = angleDefinitions.find((item) => item.id === angleId)
     return { id: `waiting-${angleId}-${index}`, angleId, angle: angle.label, name: `${angle.label}视角`, status: "idle" }
   })
   const stats = task ? summarizeTask(task) : { total: angles.length, completed: 0 }

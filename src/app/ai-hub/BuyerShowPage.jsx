@@ -2,13 +2,14 @@
 
 import { useState, useMemo, useRef, useEffect } from "react"
 import { createPortal } from "react-dom"
-import { X, Settings, Sparkles, Search, ChevronDown, RefreshCw, Download, ThumbsUp, ThumbsDown, Pencil, Plus, Trash2, Send, ArrowLeft, Copy } from "lucide-react"
+import { X, Settings, Sparkles, Search, ChevronDown, RefreshCw, Download, ThumbsUp, ThumbsDown, Pencil, Plus, Trash2, Send, ArrowLeft, Copy, CheckCircle2 } from "lucide-react"
 import SafeImage from "@/components/SafeImage"
 import ImageQueueModule from "@/components/workbench/ImageQueueModule"
 import AssetPickerModal from "@/components/workbench/AssetPickerModal"
 import PromptPickerModal from "@/components/workbench/PromptPickerModal"
 import ResultLocalEditDialog from "@/components/workbench/ResultLocalEditDialog"
 import WorkbenchPromptEditor from "@/components/workbench/WorkbenchPromptEditor"
+import ProductPickerModal, { getProductReferenceImage } from "@/components/workbench/ProductPickerModal"
 import { ColorConstraintChips } from "@/components/workbench/ColorConstraintPicker"
 import {
   WorkbenchModelSelect,
@@ -35,6 +36,7 @@ import {
 } from "@/data/demo/buyer-show"
 import { buyerShowPersonalAssets, buyerShowPublicAssets, buyerShowTeamAssets } from "@/data/demo/asset-picker"
 import { initialPrompts } from "@/data/demo/prompts"
+import { productCategoryOptions } from "@/data/demo/products"
 
 const labelStyles = {
   认可: { bg: "var(--success-bg)", color: "var(--success)" },
@@ -100,10 +102,49 @@ function buildRuleSummary(cat, scene) {
 
 const emptyDims = () => RULE_DIMENSIONS.reduce((o, d) => ({ ...o, [d.key]: "" }), {})
 
+const legacyCategoryMap = {
+  护腰带: "护具类",
+  护膝: "护具类",
+  双拉带护膝: "护具类",
+  电加热护膝: "护具类",
+}
+
+function canonicalCategoryName(name) {
+  return productCategoryOptions.includes(name) ? name : legacyCategoryMap[name] || name
+}
+
+function mergeText(left, right) {
+  return Array.from(new Set([left, right].filter(Boolean))).join("\n")
+}
+
+function categoryKey(name) {
+  return `category-${String(name).replace(/[^\u4e00-\u9fa5a-zA-Z0-9]+/g, "-")}`
+}
+
+// The old scene library used free-text categories. Keep those records, but expose one master category set in the UI.
+function normalizeSceneLibrary(source) {
+  return Object.fromEntries(Object.entries(source).map(([libraryName, categories]) => {
+    const grouped = new Map()
+    categories.forEach((category) => {
+      const name = canonicalCategoryName(category.name)
+      const current = grouped.get(name) || { id: categoryKey(name), categoryId: name, name, sellingPoints: "", baseRules: "", scenes: [], legacyNames: [] }
+      current.sellingPoints = mergeText(current.sellingPoints, category.sellingPoints)
+      current.baseRules = mergeText(current.baseRules, category.baseRules)
+      if (category.name !== name && !current.legacyNames.includes(category.name)) current.legacyNames.push(category.name)
+      current.scenes.push(...(category.scenes || []).map((scene) => ({ ...scene, legacyCategoryName: category.name })))
+      grouped.set(name, current)
+    })
+    productCategoryOptions.forEach((name) => {
+      if (!grouped.has(name)) grouped.set(name, { id: categoryKey(name), categoryId: name, name, sellingPoints: "", baseRules: "", scenes: [], legacyNames: [] })
+    })
+    return [libraryName, Array.from(grouped.values())]
+  }))
+}
+
 export default function BuyerShowPage() {
   const crumbs = getBreadcrumbs(["AI 能力中心", "AI 买家秀"])
 
-  const [library, setLibrary] = useState(() => clone(defaultLibrary))
+  const [library, setLibrary] = useState(() => normalizeSceneLibrary(clone(defaultLibrary)))
   const [activeLib, setActiveLib] = useState("public")
   const [categoryName, setCategoryName] = useState(null)
   const [sceneId, setSceneId] = useState(null)
@@ -116,6 +157,8 @@ export default function BuyerShowPage() {
   const [quality, setQuality] = useState("高画质")
   const [count, setCount] = useState("4")
   const [productImages, setProductImages] = useState([])
+  const [selectedProduct, setSelectedProduct] = useState(null)
+  const [productPickerOpen, setProductPickerOpen] = useState(false)
   const [assetPickerOpen, setAssetPickerOpen] = useState(false)
   const [assetReplaceIndex, setAssetReplaceIndex] = useState(null)
   const [promptPickerOpen, setPromptPickerOpen] = useState(false)
@@ -164,6 +207,23 @@ export default function BuyerShowPage() {
   }
   function pickScene(id) { setSceneId(id); showToast(`已带出「${category.scenes.find((s) => s.id === id)?.name}」的场景规则`) }
 
+  function selectProduct(product) {
+    const image = getProductReferenceImage(product)
+    const nextCategoryName = canonicalCategoryName(product.category)
+    setSelectedProduct(product)
+    if (categoryName !== nextCategoryName) setSceneId(null)
+    setCategoryName(nextCategoryName)
+    if (image) setProductImages((current) => [image, ...current.filter((item) => item.sourceType !== "product-library")].slice(0, 16))
+    setProductPickerOpen(false)
+    showToast(`已选择商品「${product.name}」，已带出「${nextCategoryName}」品类，可继续选择场景`)
+  }
+
+  function clearProduct() {
+    setSelectedProduct(null)
+    setProductImages((current) => current.filter((item) => item.sourceType !== "product-library"))
+    showToast("已清除商品选择")
+  }
+
   function addColorConstraint(hex, meta = {}) {
     const copySuffix = meta.copied ? "，色值已复制" : ""
     if (colorConstraints.some((item) => item.hex === hex)) {
@@ -185,7 +245,7 @@ export default function BuyerShowPage() {
   function handleSubmit() {
     if (!hasValidImageSize(ratio, customSize)) { showToast("请输入大于 0 的整数宽度"); return }
     if (!productImages.length) { showToast("请先添加商品图片"); return }
-    if (!category || !scene) { showToast("请先选择产品品类和场景"); return }
+    if (!category || !scene) { showToast("请先选择平台品类和场景"); return }
     if (generating) { showToast("正在生成中，请等待完成"); return }
     const n = parseInt(count, 10) || 4
     const now = new Date()
@@ -208,6 +268,15 @@ export default function BuyerShowPage() {
     const task = {
       id: newId("demo"), title: `${n} 张买家秀 · ${hh}:${mm}`, time: "刚刚", status: "生成中", progress: 0, doneText: `0/${n}`,
       scene: scene.name, productType: category.name, model, resolution, ratio: imageSize, quality, count: `${n} 张`,
+      productRef: selectedProduct ? {
+        id: selectedProduct.id,
+        versionId: selectedProduct.versions?.at(-1)?.id || "confirmed",
+        name: selectedProduct.name,
+        category: selectedProduct.category,
+        source: selectedProduct.source || "商品智库",
+      } : null,
+      categoryId: category.categoryId || category.name,
+      sceneId,
       prompt: prompt || "未填写补充提示词", sellingPoints: category.sellingPoints || "", rules: buildRuleSummary(category, scene),
       storyboard: storyboard.slice(0, n), results, reviews: [],
     }
@@ -312,7 +381,7 @@ export default function BuyerShowPage() {
       onOk: () => {
         clearInterval(timerRef.current)
         setGenerating(false); setGenLabel("")
-        setProductImages([]); setCategoryName(null); setSceneId(null); setPrompt(""); setColorConstraints([])
+        setProductImages([]); setSelectedProduct(null); setCategoryName(null); setSceneId(null); setPrompt(""); setColorConstraints([])
         setModel("Nano Banana 2"); setResolution("2K"); setRatio("4:3"); setCustomSize({ width: "800", height: "800" }); setQuality("高画质"); setCount("4")
         setConfirm(null)
         showToast("已清空当前配置和选择")
@@ -340,6 +409,7 @@ export default function BuyerShowPage() {
       prompt={prompt} setPrompt={setPrompt} onPolish={() => setPolishOpen(true)} onOpenPromptPicker={() => setPromptPickerOpen(true)}
       colorConstraints={colorConstraints} onPickColor={addColorConstraint} onRemoveColor={removeColorConstraint}
       productImages={productImages} setProductImages={setProductImages} onLocalImages={addLocalImages}
+      selectedProduct={selectedProduct} onOpenProductPicker={() => setProductPickerOpen(true)} onClearProduct={clearProduct}
       onEditRegion={(index, regionEdit) => {
         setProductImages((prev) => prev.map((image, imageIndex) => imageIndex === index ? { ...image, regionEdit } : image))
         showToast("区域和文本标注已保存")
@@ -359,6 +429,9 @@ export default function BuyerShowPage() {
       editContext={editContext} editResult={editResult} closeEdit={() => setEditTarget(null)}
       confirm={confirm} setConfirm={setConfirm} toast={toast}
       assetPickerOpen={assetPickerOpen}
+      productPickerOpen={productPickerOpen}
+      closeProductPicker={() => setProductPickerOpen(false)}
+      onSelectProduct={selectProduct}
       assetReplaceIndex={assetReplaceIndex}
       closeAssetPicker={() => { setAssetPickerOpen(false); setAssetReplaceIndex(null) }}
       openAssetPicker={() => { setAssetReplaceIndex(null); setAssetPickerOpen(true) }}
@@ -378,6 +451,7 @@ function BuyerShowView(p) {
       description="选商品、选场景，自动带出规则后直接生成一组买家秀图。"
       actions={<WorkbenchHistoryAction source="buyer-show" sourceLabel="AI 买家秀" params={{ model: p.model, resolution: p.resolution, ratio: p.imageSize, quality: p.quality, count: p.count, category: p.categoryName || "", scene: p.scene?.name || "" }} />}
       columns="minmax(360px, 3fr) minmax(0, 7fr)"
+      contentClassName="xm-expert-grid"
     >
         <ConfigPanel {...p} />
         <ResultsPanel {...p} />
@@ -386,6 +460,7 @@ function BuyerShowView(p) {
         onApprove={p.onApprove} onReject={p.onReject} onEditResult={p.onEditResult}
         updateTask={p.updateTask} showToast={p.showToast} setConfirm={p.setConfirm} onRetryTask={p.onRetryTask} />}
       {p.manageOpen && <ManageModal library={p.library} setLibrary={p.setLibrary} onClose={p.closeManage} showToast={p.showToast} setConfirm={p.setConfirm} />}
+      {p.productPickerOpen && <ProductPickerModal onClose={p.closeProductPicker} onSelect={p.onSelectProduct} description="选择已确认且当前账号可见的商品。选择商品后可继续选择任意买家秀场景。" />}
       {p.assetPickerOpen && (
         <AssetPickerModal
           title={p.assetReplaceIndex !== null ? `替换图${p.assetReplaceIndex + 1}` : "选择图片"}
@@ -456,8 +531,8 @@ function ConfigPanel(p) {
   const paramSummary = `${p.resolution} · ${p.imageSize} · ${p.quality} · ${p.count} 张`
 
   return (
-    <WorkbenchPanel>
-      <WorkbenchScroll gap={10}>
+    <WorkbenchPanel className="min-w-0">
+      <WorkbenchScroll gap={10} className="min-w-0 overflow-x-hidden">
         <ImageQueueModule
           title="图片队列"
           images={p.productImages}
@@ -472,11 +547,12 @@ function ConfigPanel(p) {
           onPreviewNotify={p.showToast}
         />
 
-        <Module title="场景" action={<button onClick={p.onManage} className="inline-flex items-center gap-1 text-xs px-2.5 h-7 rounded-md border transition-colors hover:border-[var(--brand-primary)]" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }}><Settings size={13} /> 管理</button>}>
-          <SubLabel text="产品品类" hint={p.category ? "已选品类 · 已带出场景" : "选品类 · 带出该品类场景"} />
+        <Module title="商品与场景" action={<button onClick={p.onManage} className="inline-flex items-center gap-1 text-xs px-2.5 h-7 rounded-md border transition-colors hover:border-[var(--brand-primary)]" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }}><Settings size={13} /> 管理场景</button>}>
+          <ProductSource product={p.selectedProduct} onOpen={p.onOpenProductPicker} onClear={p.onClearProduct} />
+          <SubLabel text="平台品类" hint={p.category ? "已选品类 · 可继续选场景" : "按商品智库统一品类选择场景"} className="mt-4" />
           <div className="relative">
             <button onClick={() => setCatOpen((v) => !v)} className="w-full flex items-center justify-between h-11 px-3 rounded-lg border text-sm" style={{ borderColor: catOpen ? "var(--brand-primary)" : "var(--border-base)" }}>
-              <span style={{ color: "var(--text-secondary)" }}>品类</span>
+                <span style={{ color: "var(--text-secondary)" }}>平台品类</span>
               <span className="flex items-center gap-1 font-semibold" style={{ color: p.category ? "var(--text-title)" : "var(--text-disabled)" }}>
                 {p.category ? p.category.name : "未选择"} <ChevronDown size={14} />
               </span>
@@ -500,7 +576,6 @@ function ConfigPanel(p) {
                             <strong className="text-sm truncate" style={{ color: "var(--text-title)" }}>{c.name}</strong>
                             <span className="text-[11px] shrink-0" style={{ color: "var(--text-secondary)" }}>{c.scenes.length} 场景</span>
                           </span>
-                          <span className="block text-[11px] mt-0.5 leading-snug line-clamp-2" style={{ color: "var(--text-secondary)" }}>{c.baseRules}</span>
                         </span>
                       </button>
                     ))}
@@ -594,8 +669,32 @@ function ResultsPanel(p) {
   )
 }
 
+function ProductSource({ product, onOpen, onClear }) {
+  return (
+    <div className="rounded-lg border p-3" style={{ borderColor: product ? "var(--brand-primary-border)" : "var(--border-base)", background: product ? "var(--brand-primary-soft)" : "var(--white)" }}>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div><strong className="text-xs" style={{ color: "var(--text-title)" }}>商品</strong><span className="ml-2 text-[11px]" style={{ color: "var(--text-secondary)" }}>可选 · 可单独选择</span></div>
+        {product && <button type="button" onClick={onClear} title="清除商品选择" aria-label="清除商品选择" className="grid size-7 place-items-center rounded-md border bg-white" style={{ borderColor: "var(--border-base)", color: "var(--text-secondary)" }}><X size={13} /></button>}
+      </div>
+      {product ? (
+        <div className="flex items-start gap-2.5">
+          <SafeImage src={getProductReferenceImage(product)?.src} alt={product.name} className="size-14 shrink-0 rounded-md bg-white object-contain" />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5"><strong className="truncate text-sm" style={{ color: "var(--text-title)" }}>{product.name}</strong><span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: "var(--success-bg)", color: "var(--success)" }}><CheckCircle2 size={12} />已确认</span></div>
+            <p className="mt-1 line-clamp-2 text-xs leading-5" style={{ color: "var(--text-secondary)" }}>{product.category} · {product.factSummary || "商品确认信息将作为生成约束"}</p>
+            <button type="button" onClick={onOpen} className="mt-2 text-xs font-semibold" style={{ color: "var(--brand-primary)" }}>更换商品</button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" onClick={onOpen} className="flex min-h-16 w-full items-center justify-center gap-2 rounded-md border border-dashed text-sm transition-colors hover:border-[var(--brand-primary)]" style={{ borderColor: "var(--border-base)", color: "var(--text-secondary)" }}><Search size={17} style={{ color: "var(--brand-primary)" }} />从商品智库选择商品</button>
+      )}
+      <p className="mt-2 text-[11px]" style={{ color: "var(--text-disabled)" }}>{product ? "可继续选择任意场景，商品与场景不绑定。" : "不选择商品时，可继续使用图片队列和平台品类。"}</p>
+    </div>
+  )
+}
+
 function SceneGrid({ category, categoryName, activeLib, sceneId, pickScene }) {
-  if (!categoryName) return <Empty text="先选一个品类。" />
+  if (!categoryName) return <Empty text="先选一个平台品类。" />
   if (!category) return <Empty text={`「${activeLib === "mine" ? "我的场景库" : "公共场景库"}」暂无「${categoryName}」的场景，切到另一个库或去「管理」新增。`} />
   if (!category.scenes.length) return <Empty text="该品类暂无场景，去右上角「管理」新增。" />
   return (
@@ -644,7 +743,7 @@ function TaskCard({ task, onOpen, onRetry }) {
       </div>
       <div className="text-[11px] mb-2" style={{ color: "var(--text-disabled)" }}>ID {task.id} · {task.storyboard[0]?.title}等 {task.storyboard.length} 镜</div>
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs mb-2" style={{ color: "var(--text-secondary)" }}>
-        <span>{task.productType} · {task.scene}</span><span>{task.model}</span><span>{task.resolution} · {task.ratio}</span>
+        <span>{task.productRef?.name || task.productType} · {task.scene}</span><span>{task.model}</span><span>{task.resolution} · {task.ratio}</span>
       </div>
       <div className="flex items-center gap-2 mb-2">
         <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--gray-200)" }}>
@@ -922,20 +1021,13 @@ function ManageModal({ library, setLibrary, onClose, showToast, setConfirm }) {
   function backToList() { setView("list"); setEditingCat(null); setEditingScene(null) }
 
   function saveCat(form) {
-    if (!form.name.trim()) { showToast("请填写品类名称"); return }
+    if (!editingCat) { showToast("平台品类统一由商品智库维护"); return }
     mutate((next) => {
-      if (editingCat) {
-        const c = next.mine.find((x) => x.id === editingCat.id)
-        if (c) Object.assign(c, { name: form.name.trim(), sellingPoints: form.sellingPoints, baseRules: form.baseRules })
-      } else {
-        next.mine.push({ id: newId("cat"), name: form.name.trim(), sellingPoints: form.sellingPoints, baseRules: form.baseRules, scenes: [] })
-      }
+      const c = next.mine.find((x) => x.id === editingCat.id)
+      if (c) Object.assign(c, { sellingPoints: form.sellingPoints, baseRules: form.baseRules })
     })
-    showToast(editingCat ? "已更新品类" : "已新增品类")
+    showToast("已更新平台品类规则")
     backToList()
-  }
-  function delCat(cat) {
-    setConfirm({ text: `删除品类「${cat.name}」及其所有场景？`, onOk: () => { mutate((next) => { next.mine = next.mine.filter((c) => c.id !== cat.id) }); if (selCatId === cat.id) setSelCatId(null); setConfirm(null); showToast("已删除品类") } })
   }
   function saveScene(catId, form) {
     if (!form.name.trim()) { showToast("请填写场景名称"); return }
@@ -973,7 +1065,7 @@ function ManageModal({ library, setLibrary, onClose, showToast, setConfirm }) {
     })
   }
 
-  const titles = { list: "管理场景库", "cat-form": editingCat ? "编辑品类" : "新增品类", "scene-form": readOnly ? "查看场景" : (editingScene ? "编辑场景" : "新增场景") }
+  const titles = { list: "管理场景库", "cat-form": "编辑平台品类规则", "scene-form": readOnly ? "查看场景" : (editingScene ? "编辑场景" : "新增场景") }
 
   return (
     <Scrim onClose={onClose}>
@@ -991,7 +1083,7 @@ function ManageModal({ library, setLibrary, onClose, showToast, setConfirm }) {
         </div>
         <div className="flex-1 min-h-0 p-5 overflow-y-auto">
           {view === "list" && <ManageList tab={tab} setTab={(t) => { setTab(t); setSelCatId(null); backToList() }} cats={cats} selCat={selCat} setSelCatId={setSelCatId}
-            readOnly={readOnly} onAddCat={() => openCatForm(null)} onEditCat={openCatForm} onDelCat={delCat}
+            readOnly={readOnly} onEditCat={openCatForm}
             onAddScene={(c) => openSceneForm(c, null)} onEditScene={openSceneForm} onDelScene={delScene} onPublish={publishScene} />}
           {view === "cat-form" && <CategoryForm cat={editingCat} onSave={saveCat} onCancel={backToList} />}
           {view === "scene-form" && <SceneForm cat={selCat} scene={editingScene} readOnly={readOnly} onSave={(form) => saveScene(selCat.id, form)} onCancel={backToList} />}
@@ -1001,7 +1093,7 @@ function ManageModal({ library, setLibrary, onClose, showToast, setConfirm }) {
   )
 }
 
-function ManageList({ tab, setTab, cats, selCat, setSelCatId, readOnly, onAddCat, onEditCat, onDelCat, onAddScene, onEditScene, onDelScene, onPublish }) {
+function ManageList({ tab, setTab, cats, selCat, setSelCatId, readOnly, onEditCat, onAddScene, onEditScene, onDelScene, onPublish }) {
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
@@ -1013,23 +1105,17 @@ function ManageList({ tab, setTab, cats, selCat, setSelCatId, readOnly, onAddCat
       <div className="grid grid-cols-1 sm:grid-cols-[280px_minmax(0,1fr)] gap-4 min-w-0">
         <div className="rounded-xl border p-3 min-w-0" style={{ borderColor: "var(--border-light)", background: "var(--gray-25)" }}>
           <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>品类</h4>
-            {!readOnly && <button onClick={onAddCat} className="inline-flex items-center gap-1 text-xs px-2 h-7 rounded-md" style={{ background: "var(--brand-primary-soft)", color: "var(--brand-primary)" }}><Plus size={12} /> 新增品类</button>}
+            <h4 className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>平台品类</h4>
           </div>
           <div className="flex flex-col gap-1.5">
             {cats.map((c) => (
               <div key={c.id} onClick={() => setSelCatId(c.id)} className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg border cursor-pointer"
                 style={selCat?.id === c.id ? { borderColor: "var(--brand-primary)", background: "var(--brand-primary-soft)" } : { borderColor: "var(--border-base)", background: "var(--white)" }}>
                 <span className="text-sm font-medium truncate" style={{ color: "var(--text-title)" }}>{c.name} <em className="not-italic text-[11px]" style={{ color: "var(--text-secondary)" }}>({c.scenes.length})</em></span>
-                {!readOnly && (
-                  <span className="flex gap-1 shrink-0">
-                    <button onClick={(e) => { e.stopPropagation(); onEditCat(c) }} className="p-1 rounded" style={{ color: "var(--text-secondary)" }}><Pencil size={12} /></button>
-                    <button onClick={(e) => { e.stopPropagation(); onDelCat(c) }} className="p-1 rounded" style={{ color: "var(--danger)" }}><Trash2 size={12} /></button>
-                  </span>
-                )}
+                {!readOnly && <button onClick={(e) => { e.stopPropagation(); onEditCat(c) }} className="p-1 rounded" style={{ color: "var(--text-secondary)" }} title="编辑平台品类规则" aria-label={`编辑${c.name}规则`}><Pencil size={12} /></button>}
               </div>
             ))}
-            {cats.length === 0 && <div className="py-4 text-center text-xs" style={{ color: "var(--text-disabled)" }}>暂无品类{!readOnly && "，点上方新增"}</div>}
+            {cats.length === 0 && <div className="py-4 text-center text-xs" style={{ color: "var(--text-disabled)" }}>暂无平台品类</div>}
           </div>
         </div>
         <div className="rounded-xl border p-3 min-w-0" style={{ borderColor: "var(--border-light)" }}>
@@ -1060,16 +1146,15 @@ function ManageList({ tab, setTab, cats, selCat, setSelCatId, readOnly, onAddCat
 }
 
 function CategoryForm({ cat, onSave, onCancel }) {
-  const [name, setName] = useState(cat?.name || "")
   const [sellingPoints, setSellingPoints] = useState(cat?.sellingPoints || "")
   const [baseRules, setBaseRules] = useState(cat?.baseRules || "")
   return (
     <div className="w-full max-w-2xl mx-auto space-y-4">
-      <Field label="品类名称"><input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：护腰带" className="w-full h-10 px-3 rounded-lg border text-sm outline-none" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }} /></Field>
-      <Field label="品类卖点" hint="评价生成时的默认卖点"><input value={sellingPoints} onChange={(e) => setSellingPoints(e.target.value)} placeholder="例如：支撑稳、佩戴贴合" className="w-full h-10 px-3 rounded-lg border text-sm outline-none" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }} /></Field>
-      <Field label="品类基础规则" hint="该品类所有场景都遵守的硬约束"><textarea value={baseRules} onChange={(e) => setBaseRules(e.target.value)} rows={4} className="w-full rounded-lg border p-3 text-sm outline-none resize-y" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }} /></Field>
+      <Field label="平台品类"><input value={cat?.name || ""} readOnly className="w-full h-10 px-3 rounded-lg border bg-[var(--gray-50)] text-sm outline-none" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }} /></Field>
+      <Field label="默认商品卖点" hint="评价生成时的默认卖点"><input value={sellingPoints} onChange={(e) => setSellingPoints(e.target.value)} placeholder="例如：支撑稳、佩戴贴合" className="w-full h-10 px-3 rounded-lg border text-sm outline-none" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }} /></Field>
+      <Field label="商品通用规则" hint="该平台品类所有场景都遵守的硬约束"><textarea value={baseRules} onChange={(e) => setBaseRules(e.target.value)} rows={4} className="w-full rounded-lg border p-3 text-sm outline-none resize-y" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }} /></Field>
       <div className="flex gap-2">
-        <button onClick={() => onSave({ name, sellingPoints, baseRules })} className="h-9 px-5 rounded-lg text-sm font-semibold text-white" style={{ background: "var(--brand-primary)" }}>保存品类</button>
+        <button onClick={() => onSave({ sellingPoints, baseRules })} className="h-9 px-5 rounded-lg text-sm font-semibold text-white" style={{ background: "var(--brand-primary)" }}>保存规则</button>
         <button onClick={onCancel} className="h-9 px-5 rounded-lg text-sm font-medium border" style={{ borderColor: "var(--border-base)", color: "var(--text-body)" }}>返回</button>
       </div>
     </div>

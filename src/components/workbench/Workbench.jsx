@@ -99,7 +99,7 @@ export function WorkbenchScroll({ children, gap = 14, className = "" }) {
   return (
     <div
       className={cn("flex-1 min-h-0 overflow-y-auto p-4", className)}
-      style={{ display: "grid", gap, alignContent: "start" }}
+      style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap, alignContent: "start" }}
     >
       {children}
     </div>

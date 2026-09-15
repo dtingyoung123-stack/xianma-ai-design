@@ -83,7 +83,7 @@ export default function ImageQueueModule({
                 setDragIndex(null)
               }}
               onDragEnd={() => setDragIndex(null)}
-              className="flex cursor-grab items-center gap-3 rounded-lg border p-2.5 active:cursor-grabbing"
+              className="flex min-w-0 cursor-grab items-center gap-3 rounded-lg border p-2.5 active:cursor-grabbing"
               style={{
                 borderColor: dragIndex === index ? "var(--brand-primary)" : "var(--border-light)",
                 background: dragIndex === index ? "var(--brand-primary-soft)" : "var(--gray-50)",

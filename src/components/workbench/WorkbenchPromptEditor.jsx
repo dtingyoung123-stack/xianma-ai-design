@@ -13,6 +13,7 @@ export default function WorkbenchPromptEditor({
   placeholder = "请输入提示词",
   helperText,
   rows = 8,
+  maxLength,
   ariaLabel = title,
   afterInput,
 }) {
@@ -27,6 +28,7 @@ export default function WorkbenchPromptEditor({
       placeholder={placeholder}
       helperText={helperText}
       rows={rows}
+      maxLength={maxLength}
       ariaLabel={ariaLabel}
       afterInput={afterInput}
       toolbar={(

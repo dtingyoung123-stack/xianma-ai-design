@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { AlertCircle, Ban, CheckCircle2, Download, FolderPlus, LoaderCircle, Pencil, RotateCcw, ThumbsDown, ThumbsUp, WandSparkles } from "lucide-react"
+import { AlertCircle, Ban, CheckCircle2, Download, FolderPlus, ImagePlus, LoaderCircle, Pencil, RotateCcw, ThumbsDown, ThumbsUp, WandSparkles, X } from "lucide-react"
 import SafeImage from "@/components/SafeImage"
 import AssetPickerModal from "@/components/workbench/AssetPickerModal"
 import ImagePreviewModal from "@/components/workbench/ImagePreviewModal"
 import ImageQueueModule from "@/components/workbench/ImageQueueModule"
+import ProductPickerModal, { getProductReferenceImage } from "@/components/workbench/ProductPickerModal"
 import PromptPickerModal from "@/components/workbench/PromptPickerModal"
 import ResultLocalEditDialog from "@/components/workbench/ResultLocalEditDialog"
 import WorkbenchPromptEditor from "@/components/workbench/WorkbenchPromptEditor"
@@ -39,6 +40,16 @@ import { downloadImage } from "@/lib/image-download"
 const MAX_IMAGES = 16
 const ratioOptions = ["智能比例", "1:1", "3:2", "2:3", "16:9", "4:3", "3:4", "9:16"]
 
+function productSnapshot(product) {
+  return product ? {
+    id: product.id,
+    versionId: product.versions?.at(-1)?.id || "confirmed",
+    name: product.name,
+    category: product.category,
+    source: product.source || "商品智库",
+  } : null
+}
+
 export default function SubjectReplaceWorkbench() {
   const [images, setImages] = useState([])
   const [prompt, setPrompt] = useState(subjectReplaceDefaultPrompt)
@@ -47,6 +58,8 @@ export default function SubjectReplaceWorkbench() {
   const [ratio, setRatio] = useState("智能比例")
   const [customSize, setCustomSize] = useState({ width: "", height: "" })
   const [count, setCount] = useState("1")
+  const [selectedProduct, setSelectedProduct] = useState(null)
+  const [productPickerOpen, setProductPickerOpen] = useState(false)
   const [assetPickerOpen, setAssetPickerOpen] = useState(false)
   const [promptPickerOpen, setPromptPickerOpen] = useState(false)
   const [replaceIndex, setReplaceIndex] = useState(null)
@@ -56,7 +69,7 @@ export default function SubjectReplaceWorkbench() {
   const [toast, setToast] = useState("")
   const timerRef = useRef(null)
 
-  const canSubmit = images.length >= 2 && prompt.trim() && task.status !== "processing"
+  const canSubmit = images.length >= (selectedProduct ? 1 : 2) && prompt.trim() && task.status !== "processing"
   const imageSize = formatImageSize(ratio, customSize)
 
   useEffect(() => () => window.clearInterval(timerRef.current), [])
@@ -99,6 +112,26 @@ export default function SubjectReplaceWorkbench() {
     event.target.value = ""
   }
 
+  function selectProduct(product) {
+    setSelectedProduct(product)
+    setProductPickerOpen(false)
+    notify(`已选择商品「${product.name}」，将以该商品作为替换主体`)
+  }
+
+  function removeImage(index) {
+    setImages((current) => current.filter((_, imageIndex) => imageIndex !== index))
+  }
+
+  function reorderImages(from, to) {
+    setImages((current) => {
+      if (from === to || from === 0 || to === 0 || current[from]?.sourceType === "product-library" || current[to]?.sourceType === "product-library") return current
+      const next = [...current]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      return next
+    })
+  }
+
   function polishPrompt() {
     const base = prompt.trim() || subjectReplaceDefaultPrompt
     const suffix = "请重点校准主体比例、透视、遮挡边缘、接触关系和光影方向，使替换结果自然可信。"
@@ -109,6 +142,8 @@ export default function SubjectReplaceWorkbench() {
   function clearWorkbench() {
     window.clearInterval(timerRef.current)
     setImages([])
+    setSelectedProduct(null)
+    setProductPickerOpen(false)
     setPrompt(subjectReplaceDefaultPrompt)
     setModel(subjectReplaceModels[0].name)
     setResolution("1K")
@@ -127,7 +162,8 @@ export default function SubjectReplaceWorkbench() {
       return
     }
     window.clearInterval(timerRef.current)
-    setTask({ status: "processing", progress: 12, results: [], error: "" })
+    const productRef = productSnapshot(selectedProduct)
+    setTask({ status: "processing", progress: 12, results: [], error: "", productRef })
     let progress = 12
     timerRef.current = window.setInterval(() => {
       progress = Math.min(progress + 22, 100)
@@ -148,7 +184,7 @@ export default function SubjectReplaceWorkbench() {
             currentVersionId: originalVersion.id,
           }
         })
-        setTask({ status: "completed", progress: 100, results, error: "" })
+        setTask({ status: "completed", progress: 100, results, error: "", productRef })
         notify("主体替换任务已完成")
       } else {
         setTask((current) => ({ ...current, progress }))
@@ -201,24 +237,29 @@ export default function SubjectReplaceWorkbench() {
         columns="minmax(340px, 3fr) minmax(560px, 7fr)"
         contentClassName="xm-expert-grid"
       >
-        <WorkbenchPanel>
-          <WorkbenchPanelHead title="替换输入" description="图一为原图，图二及后续图片为主体参考。" meta={<StatusBadge status={task.status} />} />
-          <WorkbenchScroll>
+        <WorkbenchPanel className="min-w-0">
+          <WorkbenchPanelHead title="替换输入" description={selectedProduct ? "图一为原图，将以所选商品作为替换主体；其余图片可按需补充参考。" : "图一为原图，图二及后续图片为主体参考。"} meta={<StatusBadge status={task.status} />} />
+          <WorkbenchScroll className="min-w-0 overflow-x-hidden">
             <ImageQueueModule
               title="原图与主体参考"
               images={images}
               max={MAX_IMAGES}
-              limitText="至少 2 张 · 可拖拽排序"
-              emptyText="请添加原图和至少一张主体参考图。图一为原图，其余图片作为主体参考。"
+              limitText={selectedProduct ? "至少 1 张原图 · 可按需补充参考" : "至少 2 张 · 可拖拽排序"}
+              emptyText={selectedProduct ? "请添加 1 张原图；已选择商品，将以该商品作为替换主体。" : "请添加原图和至少一张主体参考图。图一为原图，其余图片作为主体参考。"}
               primaryTitle="原图"
               assetSub="个人/团体/公共素材库"
               onOpenAssetPicker={() => { setReplaceIndex(null); setAssetPickerOpen(true) }}
               onLocalImages={handleLocalImages}
-              onRemove={(index) => setImages((current) => current.filter((_, imageIndex) => imageIndex !== index))}
+              onRemove={removeImage}
               onRefresh={(index) => { setReplaceIndex(index); setAssetPickerOpen(true) }}
-              onReorder={setImages}
+              onReorder={reorderImages}
               onPreviewNotify={notify}
             />
+
+            <WorkbenchModule title="商品来源" hint="可选">
+              <SubjectProductSource product={selectedProduct} onOpen={() => setProductPickerOpen(true)} onClear={() => setSelectedProduct(null)} />
+              <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">选择商品后，将以该商品作为替换主体；不选择商品时保持原有图片队列流程。</p>
+            </WorkbenchModule>
 
             <WorkbenchPromptEditor
               title="替换指令"
@@ -257,7 +298,7 @@ export default function SubjectReplaceWorkbench() {
           </div>
         </WorkbenchPanel>
 
-        <WorkbenchPanel>
+        <WorkbenchPanel className="min-w-0">
           <WorkbenchPanelHead title="结果工作台" description="查看替换结果并继续处理最近任务。" meta={<StatusBadge status={task.status} />} />
           <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_280px]">
             <SubjectReplaceResult
@@ -285,7 +326,7 @@ export default function SubjectReplaceWorkbench() {
       {assetPickerOpen && (
         <AssetPickerModal
           title={replaceIndex === null ? "选择原图或主体参考" : "替换当前图片"}
-          description={replaceIndex === null ? "请按顺序选择图片，图一作为原图，其余图片作为主体参考。" : "选择一张图片替换当前位置，队列顺序保持不变。"}
+          description={replaceIndex === null ? (selectedProduct ? "请先选择原图；已选择商品，将以该商品作为替换主体，其余图片可按需添加。" : "请按顺序选择图片，图一作为原图，其余图片作为主体参考。") : "选择一张图片替换当前位置，队列顺序保持不变。"}
           max={replaceIndex === null ? Math.max(1, MAX_IMAGES - images.length) : 1}
           personalAssets={subjectReplacePersonalAssets}
           teamAssets={subjectReplaceTeamAssets}
@@ -304,6 +345,7 @@ export default function SubjectReplaceWorkbench() {
           onConfirm={(selectedPrompt) => { setPrompt(selectedPrompt.content); setPromptPickerOpen(false) }}
         />
       )}
+      {productPickerOpen && <ProductPickerModal title="选择主体商品" description="选择已确认商品；选择后将以该商品作为替换主体，图片队列仍可按需添加参考。" onClose={() => setProductPickerOpen(false)} onSelect={selectProduct} />}
       {previewIndex !== null && task.results[previewIndex] && (
         <ImagePreviewModal
           images={task.results}
@@ -338,6 +380,24 @@ export default function SubjectReplaceWorkbench() {
       )}
       <WorkbenchToast message={toast} />
     </>
+  )
+}
+
+function SubjectProductSource({ product, onOpen, onClear }) {
+  const image = getProductReferenceImage(product)
+  return (
+    <div className="rounded-lg border p-3" style={{ borderColor: product ? "var(--brand-primary-border)" : "var(--border-base)", background: product ? "var(--brand-primary-soft)" : "var(--white)" }}>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div><strong className="text-xs text-[var(--text-title)]">商品智库商品</strong><span className="ml-2 text-[11px] text-[var(--text-secondary)]">可选</span></div>
+        {product && <button type="button" title="清除商品选择" aria-label="清除商品选择" className="grid size-7 place-items-center rounded-md border bg-white text-[var(--text-secondary)]" style={{ borderColor: "var(--border-base)" }} onClick={onClear}><X size={13} /></button>}
+      </div>
+      {product ? (
+        <div className="flex items-start gap-2.5">
+          <SafeImage src={image?.src} alt={product.name} className="size-14 shrink-0 rounded-md bg-white object-contain" />
+          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1.5"><strong className="truncate text-sm text-[var(--text-title)]">{product.name}</strong><span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: "var(--success-bg)", color: "var(--success)" }}><CheckCircle2 size={12} />已确认</span></div><p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--text-secondary)]">{product.category} · {product.factSummary || "将以该商品作为替换主体"}</p><button type="button" onClick={onOpen} className="mt-2 text-xs font-semibold text-[var(--brand-primary)]">更换商品</button></div>
+        </div>
+      ) : <button type="button" onClick={onOpen} className="flex min-h-16 w-full items-center justify-center gap-2 rounded-md border border-dashed text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--brand-primary)]"><ImagePlus size={17} className="text-[var(--brand-primary)]" />从商品智库选择商品</button>}
+    </div>
   )
 }
 

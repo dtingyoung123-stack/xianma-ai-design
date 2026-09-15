@@ -20,6 +20,7 @@ import { ColorConstraintChips } from "@/components/workbench/ColorConstraintPick
 import ImagePreviewModal from "@/components/workbench/ImagePreviewModal"
 import ImageQueueModule from "@/components/workbench/ImageQueueModule"
 import PromptPickerModal from "@/components/workbench/PromptPickerModal"
+import ProductPickerModal from "@/components/workbench/ProductPickerModal"
 import {
   WorkbenchButton,
   WorkbenchEmpty,
@@ -36,6 +37,7 @@ import { componentCatalog, componentCatalogCategories } from "@/config/component
 import { buyerShowPersonalAssets, buyerShowPublicAssets, buyerShowTeamAssets } from "@/data/demo/asset-picker"
 import { expertModels } from "@/data/demo/expert"
 import { initialPrompts } from "@/data/demo/prompts"
+import { initialProducts } from "@/data/demo/products"
 import { subjectReplaceHistory } from "@/data/demo/subject-replace"
 
 const categoryIcons = { global: Layers3, ui: Boxes, workbench: Wrench }
@@ -167,6 +169,9 @@ export default function PublicComponentsCatalog() {
       {modal === "prompt" && (
         <PromptPickerModal prompts={initialPrompts} defaultLibrary="team" initialSelectedId="" onClose={() => setModal("")} onConfirm={(selectedPrompt) => { setPromptDemo(selectedPrompt.content); setModal("") }} />
       )}
+      {modal === "product" && (
+        <ProductPickerModal products={initialProducts} onClose={() => setModal("")} onSelect={() => setModal("")} />
+      )}
       {modal === "preview" && (
         <ImagePreviewModal images={buyerShowPersonalAssets} index={previewIndex} setIndex={setPreviewIndex} getSrc={(image) => image.src} getName={(image) => image.title} onClose={() => setModal("")} />
       )}
@@ -248,6 +253,7 @@ function ComponentPreview({ item, textDemo, setTextDemo, promptDemo, setPromptDe
   if (item.preview === "asset-picker") return <Button variant="outline" onClick={() => setModal("asset")}><ImageIcon />打开素材选择器</Button>
   if (item.preview === "organization-scope-selector") return <OrganizationScopeSelector value={organizationIds} onChange={setOrganizationIds} />
   if (item.preview === "prompt-picker") return <Button variant="outline" onClick={() => setModal("prompt")}><Sparkles />打开提示词选择器</Button>
+  if (item.preview === "product-picker") return <Button variant="outline" onClick={() => setModal("product")}><ImageIcon />打开商品选择器</Button>
   if (item.preview === "image-preview") return <Button variant="outline" onClick={() => setModal("preview")}><ImageIcon />打开图片预览</Button>
 
   if (item.preview === "image-queue") {

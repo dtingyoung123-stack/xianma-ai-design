@@ -16,7 +16,7 @@ export const subjectReplaceTeamAssets = [...buyerShowTeamAssets, ...suiteTeamAss
 export const subjectReplacePublicAssets = [...buyerShowPublicAssets, ...suitePublicAssets]
 export const subjectReplaceModels = expertModels
 
-export const subjectReplaceDefaultPrompt = "保留图一的场景、人物动作、构图、光影和透视关系，将图二及后续参考图中的主体自然替换到图一。确保主体比例、遮挡、边缘和落地阴影真实，保留参考主体的结构、颜色和关键细节，不新增无关文字或元素。"
+export const subjectReplaceDefaultPrompt = "保留图一的场景、人物动作、构图、光影和透视关系，将所选商品或主体参考图自然替换到图一。确保主体比例、遮挡、边缘和落地阴影真实，保留参考主体的结构、颜色和关键细节，不新增无关文字或元素。"
 
 export const subjectReplaceResultImages = [
   "/assets/layout-horizontal-3.png",

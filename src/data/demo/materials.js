@@ -22,6 +22,156 @@ export const materialCategoryOptions = [
   "地毯类",
 ]
 
+export const materialRecognitionStatuses = {
+  PENDING: "PENDING",
+  PROCESSING: "PROCESSING",
+  READY: "READY",
+  FAILED: "FAILED",
+}
+
+export const materialNamingSources = {
+  ORIGINAL: "ORIGINAL",
+  AI_SUGGESTION: "AI_SUGGESTION",
+  AI_AUTO: "AI_AUTO",
+  MANUAL: "MANUAL",
+}
+
+const invalidRecognitionSlots = new Set(["", "无", "无人物", "其他", "未知", "不适用", "none", "null"])
+
+function normalizeRecognitionSlot(value) {
+  const normalized = typeof value === "string" ? value.trim() : ""
+  return invalidRecognitionSlots.has(normalized.toLowerCase()) ? "" : normalized
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+function nextMaterialSequence(baseTitle, existingTitles) {
+  const numberedTitle = new RegExp(`^${escapeRegExp(baseTitle)}(\\d{2,})$`)
+  const highestSequence = existingTitles.reduce((highest, title) => {
+    const normalizedTitle = typeof title === "string" ? title.trim() : ""
+    if (normalizedTitle === baseTitle) return Math.max(highest, 1)
+    const match = normalizedTitle.match(numberedTitle)
+    return match ? Math.max(highest, Number(match[1])) : highest
+  }, 0)
+  return highestSequence + 1
+}
+
+export function buildMaterialSuggestionTags(slots) {
+  const tags = [slots.person, slots.scene, slots.pose]
+    .map(normalizeRecognitionSlot)
+    .filter(Boolean)
+  return [...new Set(tags)].slice(0, 5)
+}
+
+export function resolveMaterialSuggestionCategory(slots) {
+  const declaredCategory = normalizeRecognitionSlot(slots.category)
+  if (materialCategoryOptions.includes(declaredCategory)) return declaredCategory
+
+  const source = `${declaredCategory} ${normalizeRecognitionSlot(slots.product)}`
+  if (/地垫|地毯/.test(source)) return "地毯类"
+  if (/护腰|护膝|护具|支撑带/.test(source)) return "护具类"
+  if (/宠物|猫|犬|狗/.test(source)) return "宠物类"
+  if (/口红|粉底|面膜|美妆/.test(source)) return "美妆类"
+  if (/洗护|个护|护理/.test(source)) return "个护类"
+  if (/保健品|营养品/.test(source)) return "进口保健品类"
+  if (/医疗|器械/.test(source)) return "医疗器械类"
+  if (/健康/.test(source)) return "大健康类"
+  return "通用"
+}
+
+export function buildMaterialNamingSuggestion(slots, existingTitles = [], maxLength = 20) {
+  const normalizedSlots = {
+    product: normalizeRecognitionSlot(slots?.product),
+    person: normalizeRecognitionSlot(slots?.person),
+    scene: normalizeRecognitionSlot(slots?.scene),
+    pose: normalizeRecognitionSlot(slots?.pose),
+    category: normalizeRecognitionSlot(slots?.category),
+  }
+  if (!normalizedSlots.product) return null
+
+  const optionalSlots = [
+    { key: "person", value: normalizedSlots.person },
+    { key: "scene", value: normalizedSlots.scene },
+    { key: "pose", value: normalizedSlots.pose },
+  ].filter((slot) => slot.value)
+  const removalOrder = ["pose", "person", "scene"]
+
+  let activeSlots = optionalSlots
+  let suggestion
+  while (true) {
+    const baseTitle = [normalizedSlots.product, ...activeSlots.map((slot) => slot.value)].join("")
+    const sequence = nextMaterialSequence(baseTitle, existingTitles)
+    const sequenceLabel = String(sequence).padStart(2, "0")
+    suggestion = {
+      title: `${baseTitle}${sequenceLabel}`,
+      category: resolveMaterialSuggestionCategory(normalizedSlots),
+      tags: buildMaterialSuggestionTags(normalizedSlots),
+      sequence,
+      slots: normalizedSlots,
+    }
+    if (Array.from(suggestion.title).length <= maxLength || activeSlots.length === 0) break
+    const keyToRemove = removalOrder.find((key) => activeSlots.some((slot) => slot.key === key))
+    activeSlots = activeSlots.filter((slot) => slot.key !== keyToRemove)
+  }
+  return suggestion
+}
+
+const demoMaterialRecognitionFixtures = [
+  { product: "护腰带", person: "女模", scene: "客厅", pose: "站立", category: "护具类" },
+  { product: "护膝", person: "男模", scene: "户外", pose: "跑步", category: "护具类" },
+  { product: "地垫", person: "无人物", scene: "玄关", pose: "其他", category: "地垫" },
+  { product: "口红", person: "女模", scene: "梳妆台", pose: "手持", category: "美妆类" },
+  { product: "宠物梳", person: "其他", scene: "客厅", pose: "梳毛", category: "宠物类" },
+  { product: "加厚可调节运动防护支撑护腰带", person: "男模", scene: "室内健身房", pose: "侧身拉伸", category: "护具类" },
+]
+
+export function getDemoMaterialRecognitionSlots(filename, index = 0) {
+  const normalizedName = String(filename || "").replace(/\.[^.]+$/, "").toLowerCase()
+  if (/fail|失败|无法识别/.test(normalizedName)) return null
+  const keywordFixture = [
+    [/地垫|地毯/, demoMaterialRecognitionFixtures[2]],
+    [/口红|美妆/, demoMaterialRecognitionFixtures[3]],
+    [/宠物|猫|狗/, demoMaterialRecognitionFixtures[4]],
+    [/长名|加厚|支撑/, demoMaterialRecognitionFixtures[5]],
+    [/护膝/, demoMaterialRecognitionFixtures[1]],
+    [/护腰/, demoMaterialRecognitionFixtures[0]],
+  ].find(([pattern]) => pattern.test(normalizedName))
+  if (keywordFixture) return { ...keywordFixture[1] }
+
+  const hash = Array.from(normalizedName).reduce((total, character) => total + character.codePointAt(0), index)
+  return { ...demoMaterialRecognitionFixtures[Math.abs(hash) % (demoMaterialRecognitionFixtures.length - 1)] }
+}
+
+export async function recognizeDemoMaterialImage(file, { existingTitles = [], index = 0, delay = 360 } = {}) {
+  await new Promise((resolve) => setTimeout(resolve, delay + index * 90))
+  const slots = getDemoMaterialRecognitionSlots(file?.name, index)
+  return slots ? buildMaterialNamingSuggestion(slots, existingTitles) : null
+}
+
+export function prepareDemoAutoNamedMaterialDrafts(assets, existingTitles = []) {
+  const reservedTitles = [...existingTitles]
+  return assets.map((asset, index) => {
+    const filename = asset.filename || asset.name || asset.file?.name || ""
+    const slots = getDemoMaterialRecognitionSlots(filename, index)
+    const suggestion = slots ? buildMaterialNamingSuggestion(slots, reservedTitles) : null
+    if (suggestion) reservedTitles.push(suggestion.title)
+
+    return {
+      ...asset,
+      materialMetadata: {
+        title: suggestion?.title || asset.title || filename.replace(/\.[^.]+$/, "") || filename,
+        category: suggestion?.category || (materialCategoryOptions.includes(asset.category) ? asset.category : "通用"),
+        tags: suggestion?.tags || (Array.isArray(asset.tags) ? asset.tags : []),
+        filename,
+        recognitionStatus: suggestion ? materialRecognitionStatuses.READY : materialRecognitionStatuses.FAILED,
+        namingSource: suggestion ? materialNamingSources.AI_AUTO : materialNamingSources.ORIGINAL,
+      },
+    }
+  })
+}
+
 export const materialCategoryFilterOptions = [
   { id: "all", label: "全部类目" },
   ...materialCategoryOptions.map((category) => ({ id: category, label: category })),

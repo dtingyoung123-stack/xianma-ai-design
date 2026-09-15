@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
   AlertTriangle,
@@ -17,6 +17,7 @@ import {
   FolderOpen,
   Globe2,
   Image as ImageIcon,
+  LoaderCircle,
   Pencil,
   Plus,
   Search,
@@ -25,6 +26,7 @@ import {
   Trash2,
   Upload,
   Users,
+  WandSparkles,
   X,
   XCircle,
 } from "lucide-react"
@@ -39,7 +41,10 @@ import {
   initialMaterials,
   materialCategoryFilterOptions,
   materialCategoryOptions,
+  materialNamingSources,
+  materialRecognitionStatuses,
   personalGroupOptions,
+  recognizeDemoMaterialImage,
 } from "@/data/demo/materials"
 import { downloadImage } from "@/lib/image-download"
 
@@ -198,6 +203,14 @@ function fileSize(size) {
   if (!size) return "0 KB"
   if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)} MB`
   return `${Math.max(1, Math.round(size / 1024))} KB`
+}
+
+function titleFromFilename(filename) {
+  return filename.replace(/\.[^.]+$/, "") || filename
+}
+
+function parseMaterialTags(value) {
+  return value.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean)
 }
 
 export default function MaterialsClient() {
@@ -412,11 +425,12 @@ export default function MaterialsClient() {
   }
 
   function addMaterials(files, values) {
-    const nextMaterials = files.map((file, index) => {
+    const nextMaterials = files.map((draft, index) => {
+      const file = draft.file || draft
       const type = fileType(file)
       return {
         id: `material-upload-${Date.now()}-${index}`,
-        title: file.name.replace(/\.[^.]+$/, "") || file.name,
+        title: draft.currentTitle?.trim() || titleFromFilename(file.name),
         filename: file.name,
         src: type === "image" ? URL.createObjectURL(file) : null,
         type,
@@ -424,9 +438,10 @@ export default function MaterialsClient() {
         size: fileSize(file.size),
         dimensions: "待识别",
         source: "手动上传",
-        category: values.category,
+        category: draft.currentCategory || values.category,
         personalGroupByUser: values.personalGroup ? { [demoCurrentUser.id]: values.personalGroup } : {},
-        tags: values.tags,
+        tags: draft.currentTags || values.tags,
+        namingSource: draft.namingSource || materialNamingSources.ORIGINAL,
         remark: values.remark,
         scope: values.scope,
         status: "active",
@@ -592,7 +607,7 @@ export default function MaterialsClient() {
         </div>
       </div>
 
-      {dialog?.type === "upload" && <UploadMaterialDialog defaultScope={dialog.defaultScope} currentUser={demoCurrentUser} personalGroups={personalGroups} onCreateGroup={createPersonalGroup} onClose={() => setDialog(null)} onSubmit={addMaterials} />}
+      {dialog?.type === "upload" && <UploadMaterialDialog defaultScope={dialog.defaultScope} currentUser={demoCurrentUser} existingTitles={materials.map((material) => material.title)} personalGroups={personalGroups} onCreateGroup={createPersonalGroup} onClose={() => setDialog(null)} onSubmit={addMaterials} />}
       {dialog?.type === "detail" && <MaterialDetailDialog material={dialog.material} personalGroup={getPersonalGroup(dialog.material, personalGroupAssignments)} viewScope={dialog.viewScope} onClose={() => setDialog(null)} onDownload={() => downloadMaterial(dialog.material)} />}
       {dialog?.type === "edit" && <EditMaterialDialog material={dialog.material} currentUser={demoCurrentUser} personalGroup={getPersonalGroup(dialog.material, personalGroupAssignments)} personalGroups={personalGroups} onCreateGroup={createPersonalGroup} onClose={() => setDialog(null)} onSave={(values) => saveMaterial(dialog.material.id, values)} />}
       {dialog?.type === "group" && <PersonalGroupDialog material={dialog.material} personalGroup={dialog.personalGroup} personalGroups={personalGroups} onCreateGroup={createPersonalGroup} onClose={() => setDialog(null)} onSave={(group) => setMaterialPersonalGroup(dialog.material.id, group)} />}
@@ -716,7 +731,7 @@ function Modal({ title, description, onClose, children, footer, width = "760px" 
   return createPortal(content, document.body)
 }
 
-function UploadMaterialDialog({ defaultScope, currentUser, personalGroups, onCreateGroup, onClose, onSubmit }) {
+function UploadMaterialDialog({ defaultScope, currentUser, existingTitles, personalGroups, onCreateGroup, onClose, onSubmit }) {
   const allowedDefault = defaultScope !== "personal" && !isSystemAdmin(currentUser) ? "personal" : defaultScope
   const [files, setFiles] = useState([])
   const [scope, setScope] = useState(allowedDefault)
@@ -725,30 +740,223 @@ function UploadMaterialDialog({ defaultScope, currentUser, personalGroups, onCre
   const [remark, setRemark] = useState("")
   const [personalGroup, setPersonalGroup] = useState("")
   const [visibleOrgIds, setVisibleOrgIds] = useState(scope === "team" ? [currentUser.departmentId] : [])
-  const canSubmit = files.length > 0 && (scope !== "team" || visibleOrgIds.length > 0)
+  const recognitionRunRef = useRef(0)
+  const mountedRef = useRef(true)
+  const discardedDraftIdsRef = useRef(new Set())
+  const previewUrlsRef = useRef(new Set())
+  const recognitionPending = files.some((draft) => draft.type === "image" && [materialRecognitionStatuses.PENDING, materialRecognitionStatuses.PROCESSING].includes(draft.recognitionStatus))
+  const hasNonImageFiles = files.some((draft) => draft.type !== "image")
+  const canSubmit = files.length > 0
+    && files.every((draft) => draft.currentTitle.trim())
+    && !recognitionPending
+    && (scope !== "team" || visibleOrgIds.length > 0)
+  const adoptableCount = files.filter((draft) => draft.recognitionStatus === materialRecognitionStatuses.READY && !draft.manuallyEdited && draft.namingSource !== materialNamingSources.AI_SUGGESTION).length
+
+  useEffect(() => {
+    mountedRef.current = true
+    const previewUrls = previewUrlsRef.current
+    return () => {
+      mountedRef.current = false
+      recognitionRunRef.current += 1
+      previewUrls.forEach((url) => URL.revokeObjectURL(url))
+      previewUrls.clear()
+    }
+  }, [])
+
+  function updateDraft(draftId, updater) {
+    setFiles((current) => current.map((draft) => draft.id === draftId ? updater(draft) : draft))
+  }
+
+  function isRecognitionActive(runId, draftId) {
+    return mountedRef.current
+      && recognitionRunRef.current === runId
+      && !discardedDraftIdsRef.current.has(draftId)
+  }
+
+  async function recognizeImages(drafts, runId) {
+    const reservedTitles = [...existingTitles]
+    for (const [index, draft] of drafts.entries()) {
+      if (draft.type !== "image" || !isRecognitionActive(runId, draft.id)) continue
+      updateDraft(draft.id, (current) => ({ ...current, recognitionStatus: materialRecognitionStatuses.PROCESSING }))
+      const suggestion = await recognizeDemoMaterialImage(draft.file, { existingTitles: reservedTitles, index })
+      if (!isRecognitionActive(runId, draft.id)) continue
+      if (suggestion) reservedTitles.push(suggestion.title)
+      updateDraft(draft.id, (current) => ({
+        ...current,
+        recognitionStatus: suggestion ? materialRecognitionStatuses.READY : materialRecognitionStatuses.FAILED,
+        suggestion,
+      }))
+    }
+  }
+
+  function selectFiles(event) {
+    const selectedFiles = Array.from(event.target.files || [])
+    recognitionRunRef.current += 1
+    const runId = recognitionRunRef.current
+    discardedDraftIdsRef.current.clear()
+    previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+    previewUrlsRef.current.clear()
+
+    const nextDrafts = selectedFiles.map((file, index) => {
+      const type = fileType(file)
+      const previewUrl = type === "image" ? URL.createObjectURL(file) : null
+      if (previewUrl) previewUrlsRef.current.add(previewUrl)
+      return {
+        id: `upload-draft-${file.lastModified}-${index}-${file.name}`,
+        file,
+        type,
+        previewUrl,
+        recognitionStatus: type === "image" ? materialRecognitionStatuses.PENDING : null,
+        suggestion: null,
+        currentTitle: titleFromFilename(file.name),
+        currentCategory: type === "image" ? "通用" : category,
+        currentTags: type === "image" ? [] : parseMaterialTags(tags),
+        currentTagsText: type === "image" ? "" : tags,
+        manuallyEdited: false,
+        namingSource: materialNamingSources.ORIGINAL,
+      }
+    })
+    setFiles(nextDrafts)
+    event.target.value = ""
+    void recognizeImages(nextDrafts, runId)
+  }
+
+  function removeDraft(draftId) {
+    discardedDraftIdsRef.current.add(draftId)
+    setFiles((current) => {
+      const removed = current.find((draft) => draft.id === draftId)
+      if (removed?.previewUrl) {
+        URL.revokeObjectURL(removed.previewUrl)
+        previewUrlsRef.current.delete(removed.previewUrl)
+      }
+      return current.filter((draft) => draft.id !== draftId)
+    })
+  }
+
+  function adoptSuggestion(draftId) {
+    updateDraft(draftId, (draft) => draft.suggestion ? {
+      ...draft,
+      currentTitle: draft.suggestion.title,
+      currentCategory: draft.suggestion.category,
+      currentTags: draft.suggestion.tags,
+      currentTagsText: draft.suggestion.tags.join("，"),
+      manuallyEdited: false,
+      namingSource: materialNamingSources.AI_SUGGESTION,
+    } : draft)
+  }
+
+  function adoptAllSuggestions() {
+    setFiles((current) => current.map((draft) => (
+      draft.recognitionStatus === materialRecognitionStatuses.READY && !draft.manuallyEdited && draft.namingSource !== materialNamingSources.AI_SUGGESTION
+        ? {
+            ...draft,
+            currentTitle: draft.suggestion.title,
+            currentCategory: draft.suggestion.category,
+            currentTags: draft.suggestion.tags,
+            currentTagsText: draft.suggestion.tags.join("，"),
+            namingSource: materialNamingSources.AI_SUGGESTION,
+          }
+        : draft
+    )))
+  }
+
+  function editDraft(draftId, values) {
+    updateDraft(draftId, (draft) => ({
+      ...draft,
+      ...values,
+      manuallyEdited: true,
+      namingSource: materialNamingSources.MANUAL,
+    }))
+  }
+
+  function changeDefaultCategory(nextCategory) {
+    setCategory(nextCategory)
+    setFiles((current) => current.map((draft) => draft.type !== "image" ? { ...draft, currentCategory: nextCategory } : draft))
+  }
+
+  function changeDefaultTags(nextTags) {
+    setTags(nextTags)
+    const parsedTags = parseMaterialTags(nextTags)
+    setFiles((current) => current.map((draft) => draft.type !== "image" ? { ...draft, currentTags: parsedTags, currentTagsText: nextTags } : draft))
+  }
 
   function changeScope(nextScope) {
     setScope(nextScope)
     if (nextScope === "team" && !visibleOrgIds.length) setVisibleOrgIds([currentUser.departmentId])
   }
 
+  function closeDialog() {
+    recognitionRunRef.current += 1
+    onClose()
+  }
+
   return (
     <Modal
       title="上传素材"
-      description="批量文件使用同一素材范围、类目和标签，上传后仍可逐个编辑。"
-      onClose={onClose}
-      width="820px"
-      footer={<><Button variant="outline" onClick={onClose}>取消</Button><Button className="text-white" disabled={!canSubmit} onClick={() => onSubmit(files, { scope, category, personalGroup, tags: tags.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean), remark, visibleOrgIds })}>上传 {files.length || ""}</Button></>}
+      description="新上传图片将先生成命名建议，视频和音频继续使用统一设置。"
+      onClose={closeDialog}
+      width="960px"
+      footer={<><Button variant="outline" onClick={closeDialog}>取消</Button><Button className="text-white" disabled={!canSubmit} onClick={() => onSubmit(files, { scope, category, personalGroup, tags: parseMaterialTags(tags), remark, visibleOrgIds })}>{recognitionPending ? "图片识别中" : `上传 ${files.length || ""}`}</Button></>}
     >
       <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed bg-[var(--gray-50)] px-4 text-center hover:bg-[var(--bg-hover)]" style={{ borderColor: "var(--border-base)" }}>
         <Upload size={24} className="text-[var(--brand-primary)]" />
         <strong className="mt-2 text-sm text-[var(--text-title)]">选择图片、视频或音频文件</strong>
         <span className="mt-1 text-xs text-[var(--text-secondary)]">支持一次选择多个文件</span>
-        <input type="file" multiple accept="image/*,video/*,audio/*" className="sr-only" onChange={(event) => setFiles(Array.from(event.target.files || []))} />
+        <input type="file" multiple accept="image/*,video/*,audio/*" className="sr-only" onChange={selectFiles} />
       </label>
       {files.length > 0 && (
-        <div className="mt-3 max-h-32 overflow-y-auto rounded-lg border px-3" style={{ borderColor: "var(--border-base)" }}>
-          {files.map((file) => <div key={`${file.name}-${file.lastModified}`} className="flex items-center justify-between gap-3 border-b py-2 text-xs last:border-b-0" style={{ borderColor: "var(--border-light)" }}><span className="truncate text-[var(--text-body)]">{file.name}</span><span className="shrink-0 text-[var(--text-secondary)]">{fileSize(file.size)}</span></div>)}
+        <div className="mt-3 overflow-hidden rounded-lg border" style={{ borderColor: "var(--border-base)" }}>
+          <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b bg-[var(--gray-50)] px-3 py-2" style={{ borderColor: "var(--border-light)" }}>
+            <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-title)]"><WandSparkles size={16} className="text-[var(--brand-primary)]" />图片识别命名</div>
+            <Button type="button" variant="secondary" size="sm" disabled={!adoptableCount} onClick={adoptAllSuggestions}><Check size={14} />全部采纳{adoptableCount ? ` ${adoptableCount}` : ""}</Button>
+          </div>
+          <div className="max-h-[min(46vh,420px)] overflow-y-auto">
+            {files.map((draft) => draft.type === "image" ? (
+              <div key={draft.id} className="border-b p-3 last:border-b-0" style={{ borderColor: "var(--border-light)" }}>
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="size-14 shrink-0 overflow-hidden rounded-md bg-[var(--gray-100)]">
+                    <SafeImage src={draft.previewUrl} alt={draft.file.name} className="h-full w-full object-cover" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-xs font-medium text-[var(--text-body)]" title={draft.file.name}>{draft.file.name}</span>
+                      <span className="shrink-0 text-xs text-[var(--text-secondary)]">{fileSize(draft.file.size)}</span>
+                    </div>
+                    <RecognitionStatus status={draft.recognitionStatus} />
+                  </div>
+                  <button type="button" onClick={() => removeDraft(draft.id)} aria-label={`移除${draft.file.name}`} title="移除文件" className="grid size-8 shrink-0 place-items-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)]"><Trash2 size={15} /></button>
+                </div>
+
+                {draft.recognitionStatus === materialRecognitionStatuses.READY && (
+                  <div className="mt-3 flex flex-col gap-2 rounded-md bg-[var(--brand-primary-soft)] p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <strong className="break-all text-sm text-[var(--text-title)]">{draft.suggestion.title}</strong>
+                        <span className="text-xs text-[var(--brand-primary)]">{draft.suggestion.category}</span>
+                      </div>
+                      <span className="mt-1 block break-words text-xs text-[var(--text-secondary)]">{draft.suggestion.tags.join("、") || "无建议标签"}</span>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" className="self-start sm:self-auto" onClick={() => adoptSuggestion(draft.id)}><Check size={14} />{draft.namingSource === materialNamingSources.AI_SUGGESTION ? "已采纳" : "采纳"}</Button>
+                  </div>
+                )}
+
+                {draft.recognitionStatus === materialRecognitionStatuses.FAILED && <p className="mt-3 rounded-md bg-[var(--gray-50)] px-3 py-2 text-xs text-[var(--text-secondary)]">未识别，已保留原文件名、默认类目和空标签，可直接编辑。</p>}
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(140px,0.7fr)_minmax(0,1fr)]">
+                  <label><FieldLabel inline>素材名称</FieldLabel><input value={draft.currentTitle} onChange={(event) => editDraft(draft.id, { currentTitle: event.target.value })} className="h-9 w-full rounded-lg border px-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }} /></label>
+                  <label><FieldLabel inline>类目</FieldLabel><select value={draft.currentCategory} onChange={(event) => editDraft(draft.id, { currentCategory: event.target.value })} className="h-9 w-full rounded-lg border bg-white px-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }}>{materialCategoryOptions.map((option) => <option key={option}>{option}</option>)}</select></label>
+                  <label><FieldLabel inline>标签</FieldLabel><input value={draft.currentTagsText} onChange={(event) => editDraft(draft.id, { currentTagsText: event.target.value, currentTags: parseMaterialTags(event.target.value) })} placeholder="多个标签用逗号分隔" className="h-9 w-full rounded-lg border px-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }} /></label>
+                </div>
+              </div>
+            ) : (
+              <div key={draft.id} className="flex items-center gap-3 border-b px-3 py-2.5 text-xs last:border-b-0" style={{ borderColor: "var(--border-light)" }}>
+                {draft.type === "video" ? <FileVideo size={18} className="shrink-0 text-[var(--text-secondary)]" /> : <FileAudio size={18} className="shrink-0 text-[var(--text-secondary)]" />}
+                <span className="min-w-0 flex-1 truncate text-[var(--text-body)]">{draft.file.name}</span>
+                <span className="shrink-0 text-[var(--text-secondary)]">不参与识别 · {fileSize(draft.file.size)}</span>
+                <button type="button" onClick={() => removeDraft(draft.id)} aria-label={`移除${draft.file.name}`} title="移除文件" className="grid size-8 shrink-0 place-items-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)]"><Trash2 size={15} /></button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       <FieldLabel>素材范围</FieldLabel>
@@ -764,14 +972,21 @@ function UploadMaterialDialog({ defaultScope, currentUser, personalGroups, onCre
         })}
       </div>
       {scope === "team" && <OrganizationScopeSelector value={visibleOrgIds} onChange={setVisibleOrgIds} />}
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <label><FieldLabel inline>统一类目</FieldLabel><select value={category} onChange={(event) => setCategory(event.target.value)} className="h-9 w-full rounded-lg border bg-white px-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }}>{materialCategoryOptions.map((option) => <option key={option}>{option}</option>)}</select></label>
-        <label><FieldLabel inline>统一标签</FieldLabel><input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="多个标签用逗号分隔" className="h-9 w-full rounded-lg border px-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }} /></label>
+      <div className={`mt-4 grid gap-3 ${hasNonImageFiles ? "sm:grid-cols-3" : "sm:grid-cols-1"}`}>
+        {hasNonImageFiles && <label><FieldLabel inline>视频/音频统一类目</FieldLabel><select value={category} onChange={(event) => changeDefaultCategory(event.target.value)} className="h-9 w-full rounded-lg border bg-white px-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }}>{materialCategoryOptions.map((option) => <option key={option}>{option}</option>)}</select></label>}
+        {hasNonImageFiles && <label><FieldLabel inline>视频/音频统一标签</FieldLabel><input value={tags} onChange={(event) => changeDefaultTags(event.target.value)} placeholder="多个标签用逗号分隔" className="h-9 w-full rounded-lg border px-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }} /></label>}
         <label><FieldLabel inline>统一备注</FieldLabel><input value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="选填" className="h-9 w-full rounded-lg border px-3 text-sm outline-none" style={{ borderColor: "var(--border-base)" }} /></label>
       </div>
       <PersonalGroupField value={personalGroup} onChange={setPersonalGroup} options={personalGroups} onCreateGroup={onCreateGroup} />
     </Modal>
   )
+}
+
+function RecognitionStatus({ status }) {
+  if (status === materialRecognitionStatuses.PROCESSING) return <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-[var(--brand-primary)]"><LoaderCircle size={13} className="animate-spin" />识别中</span>
+  if (status === materialRecognitionStatuses.READY) return <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-[var(--success)]"><Check size={13} />识别完成</span>
+  if (status === materialRecognitionStatuses.FAILED) return <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-[var(--text-secondary)]"><XCircle size={13} />未识别</span>
+  return <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-[var(--text-secondary)]"><LoaderCircle size={13} />等待识别</span>
 }
 
 function SubmitMaterialDialog({ material, currentUser, onClose, onSubmit }) {

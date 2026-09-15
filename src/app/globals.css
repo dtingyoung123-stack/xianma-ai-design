@@ -146,6 +146,7 @@ body {
   border-radius: 14px;
   background: var(--white);
   padding: 12px;
+  min-width: 0;
 }
 
 .xm-panel ::-webkit-scrollbar,
