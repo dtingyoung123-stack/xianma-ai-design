@@ -1095,3 +1095,11 @@
 - 保持不变：AI 工具生成结果和历史结果的“加入素材库”沿用已有结果名称，不重复识别；视频/音频识别、存量素材重命名、权限、审批、共享、统一备注和积分规则不变。
 - 原型边界：共享选择器当前只提供可验证的快捷入库意图与脱敏元数据契约，不伪造真实跨路由素材持久化；生产链路由素材服务在入库后异步更新最终字段。
 - 关联文件：`src/app/materials/MaterialsClient.jsx`、`src/components/workbench/AssetPickerModal.jsx`、`src/data/demo/materials.js`、`src/config/component-catalog.js`、`tests/material-auto-naming.test.mjs`、`docs/AI商详焕新MVP1.0需求PRD_260911.md`、`UI_SPEC.md`。
+
+### 2026-09-15：Git 提交说明与推送稳定性门禁
+
+- 状态：已确认并固化为项目协作规则；该门禁只约束后续 Git 提交与同步，不改变产品功能或上线状态。
+- 提交规则：标题固定为 `type: 具体中文摘要`，必须写明实际模块和动作；涉及 5 个及以上文件时，正文至少使用两条清单映射功能、文档和测试，禁止“本期修改”“全部修改”“相关优化”“更新内容”等依赖上下文的标题。
+- 执行门禁：提交后、推送前必须执行 `npm run check:commit` 并复核完整提交说明；校验不通过不得推送。已推送提交只有在用户明确确认后，才能基于已核实远端 SHA 使用 `--force-with-lease` 改写。
+- 故障处理：推送失败只做一次原因分类和一次同路径重试，随后切换单一已验证备用路径，避免无止损地并行排查 HTTPS、SSH 和 API。
+- 关联文件：`AGENTS.md`、`scripts/validate-commit-message.mjs`、`tests/commit-message-validation.test.mjs`、`package.json`。

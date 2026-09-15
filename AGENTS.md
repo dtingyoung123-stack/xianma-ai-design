@@ -46,8 +46,13 @@ Future code changes, bug fixes, and refactors should follow these rules unless a
 ## 5. GitHub / PR workflow
 
 - One PR should solve one coherent problem.
-- Each Git commit should include a concise summary of the actual update content.
+- Each Git commit subject must use `type: specific Chinese summary`, where `type` is one of `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `build`, `ci`, `perf`, `style`, or `revert`.
+- Name the actual modules and actions in the subject. Do not use context-dependent summaries such as "本期修改", "全部修改", "相关优化", or "更新内容".
+- A commit touching five or more files must include at least two `- ` body bullets that map the implemented features, documentation, and tests to the confirmed scope.
 - When reporting a commit or GitHub push, briefly list the corresponding requirement points so the change purpose is easy to trace.
+- Immediately after committing and before pushing, run `npm run check:commit` and inspect `git show -s --format=%B HEAD`. Do not push until both checks confirm the message is specific and complete.
+- For push failures, classify transport versus authentication once, retry the same transport at most once, then use one verified fallback path. Do not explore HTTPS, SSH, and API paths in parallel without a stop condition.
+- Rewriting a pushed commit requires explicit user confirmation and `--force-with-lease` against the verified remote SHA; never use an unguarded force push.
 - Review the final diff before merging.
 - Address review comments with code or evidence, not assumptions.
 - If a change is partial, document what remains.
