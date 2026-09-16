@@ -53,6 +53,7 @@ const sourceRoutes = {
   "ai-hub": "/ai-hub",
   "multi-angle": "/ai-hub/multi-angle",
   "buyer-show": "/ai-hub/buyer-show",
+  "buyer-show-agent": "/ai-hub/buyer-show-agent",
   "video-stream": "/ai-hub/video-stream",
   "product-suite": "/ai-hub/product-suite",
 }

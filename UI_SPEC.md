@@ -235,6 +235,7 @@ Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
 - 已实现的工作流子页面统一在页面标题区右上角提供“历史记录”入口，不在配置滚动区重复展示历史列表。
 - 历史入口使用公共组件和 `History` 图标，在新标签页打开统一历史页面，并携带来源页面、模型、清晰度、比例、画质、张数等可筛选参数。
 - URL 不携带上传图片、提示词正文或其他大体积、敏感业务内容；历史页面应根据来源参数自动选中对应工具筛选。
+- `AI 买家秀 Agent` 复用 `WorkbenchHistoryAction`，使用独立来源 `buyer-show-agent`；历史数据需保存商品、提示词、补充图片、输出参数、实际模型、任务状态、结果和采用状态。URL 仍只携带来源与筛选参数，不传提示词正文和图片数据。
 
 ### 顶部栏（Topbar）
 
@@ -467,6 +468,7 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 | `/image-tools/batch-edit` | 批量改图 | `src/app/image-tools/batch-edit/page.js` | 原型中 |
 | `/ai-hub` | AI 能力中心(重定向到 multi-angle) | `src/app/ai-hub/page.js` | 重定向 |
 | `/ai-hub/buyer-show` | AI 买家秀 | `src/app/ai-hub/[capability]/page.js` | 已上线 |
+| `/ai-hub/buyer-show-agent` | AI 买家秀 Agent | `src/app/ai-hub/[capability]/page.js` | 原型中 |
 | `/ai-hub/product-suite` | AI 商品套图 | `src/app/ai-hub/[capability]/page.js` | 已上线 |
 | `/ai-hub/[capability]` | AI 能力中心其他 4 项能力 | `src/app/ai-hub/[capability]/page.js` | 原型中 |
 | `/ai-canvas` | 无限画布 | `src/app/ai-canvas/page.js` | 原型中 |
@@ -502,6 +504,8 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 
 工作台共享 `AssetPickerModal` 的本地上传入口在用户勾选“同时加入个人素材”后显示“确认选择后自动识别名称、类目和标签，不影响当前任务”。确认选择时，原图片立即回填工作台，个人素材入库元数据使用后台自动识别模式；不展示逐图采纳表单，也不阻塞当前任务。未勾选时不创建素材、不触发识别；AI 生成结果和历史结果的“加入素材库”不复用该规则。前端原型只验证共享入口和元数据契约，生产跨路由状态由素材服务提供。
 
+AI 买家秀 Agent 使用现有工作台双栏骨架，左侧顺序固定为“选择商品 → 补充图片（可选）→ 创作提示词 → 输出设置 → 开始生成”。补充图片复用 `ImageQueueModule` 与 `AssetPickerModal`，不创建页面专属素材选择器；Agent 自动识别图片角色，页面仅通过 `renderItemExtra` 在队列项中提供角色下拉修正，不要求用户预先分类。提示词复用 `WorkbenchPromptEditor` 的模板和 AI 润色。输出设置复用 `WorkbenchParameterSelect` 的清晰度、画质、比例和张数，但本页不传 `dimensions`，不显示像素宽高；默认模型文案为“智能匹配 · 质量优先”，高级区域可指定主要生成模型。右侧一级只保留“结果图片 / 评价文案”，处理详情默认收起；反馈、微调、采用和版本历史进入结果项交互，多版本时才显示历史入口。1280px 以下图片队列项的业务字段和操作按钮允许换行，390px 窄屏不得出现横向溢出或操作遮挡。
+
 提示词库页使用“个人提示词 / 团队提示词 / 公共提示词 / 灵感广场”四个扁平内容域：个人提示词承载手动创建、历史沉淀和外部收藏；团队提示词仅展示当前用户有组织可见权限且已审核通过的内容；公共提示词是经系统管理员审核、全公司可使用的内部验证资产；灵感广场承载外部同步且未经验证的内容，不等同于公共提示词。提示词是文本资产，不使用封面图或素材式图片网格；页面采用单列紧凑文本列表，直接展示名称、正文摘要、用途分类、标签、来源和状态。页面只保留“用途分类”一个业务分类维度，选项为通用、商品主图、详情页、买家秀、场景图、营销海报和短视频；不向用户展示或要求维护适用工具与适用模型，同类型模型默认均可使用，模型差异只影响生成效果、不作为使用限制。页面保留搜索和用途分类筛选，复制作为一期最高频主操作；收藏、编辑、提交团队、申请公共发布、取消申请、审批和删除按内容域、状态及身份显示。普通用户提交时默认进入本人所属钉钉部门审批，不手动选择组织；部门管理员自动处理授权组织的团队入库，审批员处理所选事项与组织范围内的团队申请；公共发布固定由系统管理员审核，审核期间原团队提示词继续可用。提示词不再作为素材库文件类型；工具关联和已验证模型只作为后端可选扩展字段预留，后续有明确的工具回填协议或模型效果验证机制后再开放，不纳入一期用户录入与筛选。
 
 素材类目为固定一级单选字段：通用、医疗器械类、大健康类、宠物类、护具类、美妆类、进口保健品类、个护类、地毯类。新上传默认通用，历史缺失显示未分类；本期不提供新增、编辑、删除或二级分类管理。素材从个人提交团队审核，团队素材可继续申请公共发布；公共发布固定由系统管理员审核，申请期间原团队素材继续可用。
@@ -535,7 +539,7 @@ AI 能力子页面优先使用 `src/components/workbench/Workbench.jsx`，不要
 | AssetPickerModal | `src/components/workbench/AssetPickerModal.jsx` | 客户端 | 个人/团体/公共/本地四来源素材选择、固定类目、标签、搜索与多选上限 |
 | ProductPickerModal | `src/components/workbench/ProductPickerModal.jsx` | 客户端 | 个人/团队/公共商品库选择、商品智库品类筛选、确认版本校验和可见性判断 |
 | PromptPickerModal | `src/components/workbench/PromptPickerModal.jsx` | 客户端 | 个人/团队/公共/灵感广场四来源提示词模板选择、用途筛选与正文预览 |
-| ImageQueueModule | `src/components/workbench/ImageQueueModule.jsx` | 客户端 | 参考图片选择、上传、排序、预览、替换和删除 |
+| ImageQueueModule | `src/components/workbench/ImageQueueModule.jsx` | 客户端 | 参考图片选择、上传、排序、预览、替换和删除；可通过默认关闭的 `renderItemExtra` 插槽补充单项业务字段，旧调用保持不变 |
 | ImagePreviewModal | `src/components/workbench/ImagePreviewModal.jsx` | 客户端 | 工作台公共图片预览弹窗，统一缩放、拖动、翻转、下载、吸色及色值复制交互 |
 | RegionMaskEditor | `src/components/workbench/RegionMaskEditor.jsx` | 客户端 | 图片区域编辑、遮罩、擦除、撤销、重做和文本标注；支持按业务配置标题、说明、操作和标注文案，复用于商品智库圈选纠错 |
 | ColorSamplerButton / ColorConstraintChips | `src/components/workbench/ColorConstraintPicker.jsx` | 客户端 | 工作台公共吸色入口与颜色记录，包含色块、HEX、复制和删除；按页面需求接入 |

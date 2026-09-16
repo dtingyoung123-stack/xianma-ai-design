@@ -6,6 +6,7 @@ import SuitePage from "../SuitePage"
 import BuyerShowPage from "../BuyerShowPage"
 import MultiAnglePage from "../MultiAnglePage"
 import DetailRefreshPage from "../DetailRefreshPage"
+import BuyerShowAgentPage from "../BuyerShowAgentPage"
 
 export default async function CapabilityPage({ params }) {
   const { capability } = await params
@@ -14,6 +15,7 @@ export default async function CapabilityPage({ params }) {
 
   if (capability === "product-suite") return <SuitePage />
   if (capability === "buyer-show") return <BuyerShowPage />
+  if (capability === "buyer-show-agent") return <BuyerShowAgentPage />
   if (capability === "detail-refresh") return <DetailRefreshPage />
   if (capability === "multi-angle") return <MultiAnglePage />
 

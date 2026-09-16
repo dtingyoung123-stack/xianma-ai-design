@@ -1096,6 +1096,13 @@
 - 原型边界：共享选择器当前只提供可验证的快捷入库意图与脱敏元数据契约，不伪造真实跨路由素材持久化；生产链路由素材服务在入库后异步更新最终字段。
 - 关联文件：`src/app/materials/MaterialsClient.jsx`、`src/components/workbench/AssetPickerModal.jsx`、`src/data/demo/materials.js`、`src/config/component-catalog.js`、`tests/material-auto-naming.test.mjs`、`docs/AI商详焕新MVP1.0需求PRD_260911.md`、`UI_SPEC.md`。
 
+### 2026-09-15：AI 产品 PRD 专项检查规则沉淀
+
+- 复盘结论：AI 产品需求不能只描述页面主流程；进入开发前，产品侧必须先明确业务 Prompt 契约（目标、事实源优先级、允许/禁止行为、结构化输出、空值/失败、示例反例）、模型能力与版本边界、输入/输出兼容、失败降级与人工接管、自动重试与计费、质量样本/成功率/严重错误标准、跨模块与历史兼容、发布和回滚条件。
+- 责任边界：产品负责业务语义、质量标准、兼容目标和验收口径；开发负责具体模型、供应商 Prompt 格式、接口字段、参数、队列、错误码和实现限制。技术限制若改变产品流程、范围、计费或成功标准，必须退回产品确认。
+- 流程固化：后续先马 AI 设计平台 PRD 任务必须读取并执行用户级 `xianma-ai-design-platform-prd` 的 `references/review-checklist.md`、`references/incremental-prd-template.md` 和 `references/workflow.md` 中的 AI 产品专项检查；本条是方法规则，不替代具体 PRD 业务事实。
+- 关联文件：`C:\Users\Administrator\.codex\skills\xianma-ai-design-platform-prd\references\review-checklist.md`、`C:\Users\Administrator\.codex\skills\xianma-ai-design-platform-prd\references\incremental-prd-template.md`、`C:\Users\Administrator\.codex\skills\xianma-ai-design-platform-prd\references\workflow.md`。
+
 ### 2026-09-15：Git 提交说明与推送稳定性门禁
 
 - 状态：已确认并固化为项目协作规则；该门禁只约束后续 Git 提交与同步，不改变产品功能或上线状态。
@@ -1104,3 +1111,26 @@
 - 固定推送顺序：先执行 `git push origin <branch>`；遇到连接重置或超时，只用 HTTP/1.1 重试一次；仍失败且 `api.github.com` 可达时，立即切换已验证的 GitHub Git Database API 快进路径，不再追加 SSH 或重复网络探测。
 - API 备用路径：Blob 必须通过 `git cat-file` 从已提交 Git 对象读取并以 Base64 上传，禁止从工作区文本重建；逐级核对 Blob、Tree、本地提交和远端父提交 SHA，只允许非强制快进更新。若 API 仅改变提交消息末尾字节，只做一次本地对象对齐，不再尝试时区、日期或多轮 amend；结束时必须确认远端 `main`、本地 `HEAD` 与 `origin/main` 完全一致，且不得输出凭据。
 - 关联文件：`AGENTS.md`、`scripts/validate-commit-message.mjs`、`tests/commit-message-validation.test.mjs`、`package.json`。
+
+### 2026-09-16：本期开发 PRD V1.3 规则收口
+
+- 状态：用户已完成 Q01–Q31 产品定版，知识库正式 PRD 与仓库开发副本已升级为 V1.3；本次只更新产品规则和开发基线，不代表真实模型、服务、埋点、部署或上线完成。
+- 商详：商品正文、数字、参数、Logo、表格和箭头语义逐字保留；有确认事实才映射替换，无依据冲突直接失败。`preserve_product` 混入不同 SKU/颜色/型号时生图前失败；首次生成 1 次加最多 3 次自动重试，用户仅为最终成功版本计一次；最终业务成功率不低于 90%，严重商品事实错误误放行数为 0；本期不支持整页超长图。
+- 兼容与多角度：买家秀保留旧场景类别 ID 和历史并增加标准品类映射；旧任务/结果可读，再生成重新校验商品和权限；多角度保持 2–8 个方向，`0°/90°` 不暗中去重，最终比例严格继承输入。
+- 视频与导航：视频本期只处理既有参考图，不新增首帧/首尾帧模式，不扩大 Seedance 2 已验证上限；任务先建并关联异步预处理，编码后严格 `<30,000,000 bytes`。资源新页支持内部 `unknown`，普通浏览器保留各模式原目标路径，钉钉不支持独立窗口时提示主动打开且不回退当前页。
+- 素材命名：序号按“上传人 + 规范化命名前缀”严格递增且空号不回收；20 字为 AI 命名目标，不截断产品主体。开发接入平台批准的低成本视觉模型，单次不可用直接失败；限流、超时和总额熔断均保留原文件名回退。30 张命名样本后续安排，不作为本期开发、联调或上线门禁。
+- 发布：本期不做分模块灰度，沿用现有角色和组织权限；全部模块完成联调、质量、权限、积分、历史和回归验收后统一发布。产品/设计负责业务验收，开发负责技术证据和发布清单。
+- 关联文件：`docs/AI商详焕新MVP1.0需求PRD_260911.md`；知识库正式源 `D:\HermesVault\10_先马电商\03_项目\01_先马AI设计平台\02_产品输出\AI商详焕新\AI商详焕新MVP1.0需求PRD_260911.md`。
+
+### 2026-09-16：AI 买家秀 Agent 独立前端原型
+
+- 状态：已完成 `/ai-hub/buyer-show-agent` 的本地高保真前端原型并通过浏览器验证；页面标记为“原型验证中”。该状态不代表真实 Agent、模型调用、任务服务、生产持久化、部署或上线完成。
+- 独立范围：新入口位于原“AI 买家秀”之后并显示 `NEW`；旧买家秀页面、路由、参数、任务与结果未改动，商品智库现有页面和其他生图工具保持不变。全局历史只新增独立 `buyer-show-agent` 来源和回到本页的路由映射，不改变旧任务数据与交互。
+- 核心流程：左侧固定为“选择商品 → 补充图片（可选）→ 创作提示词 → 输出设置 → 开始生成”。商品和提示词满足即可提交；普通缺口允许继续，商品型号、颜色或结构等关键冲突阻断，指定模型能力不支持时明确阻断。
+- 组件复用：补充图片复用 `ImageQueueModule` 和 `AssetPickerModal`，保留个人/团体/公共素材、本地上传、预览、替换、区域编辑、删除和排序；通过 `renderItemExtra` 增加页面专属图片角色下拉，用户只在 Agent 自动识别错误时修正。提示词复用模板和 AI 润色；输出设置复用 `WorkbenchParameterSelect` 的清晰度、画质、比例和 1～9 张，本页不传 `dimensions`，不显示像素宽高。
+- 模型与历史：默认“智能匹配 · 质量优先”，高级区域可指定主要生成模型；分析、质检和修复仍自动匹配。模型管理演示配置新增独立 `buyer-show-agent` 规则。顶部复用 `WorkbenchHistoryAction`，全局历史原型记录商品、提示词、补充图片、参数、实际模型、状态、结果和采用状态。
+- 结果闭环：右侧一级只保留结果图片和评价文案，处理详情默认收起，不再提供一级“反馈与版本”Tab；结果保留预览、单张/批量下载、认可、待调整、区域反馈、局部微调、失败重试、采用和多版本历史。评价文案只基于已认可或已采用图片生成并关联具体结果。
+- 状态与记录：技术生成完成、Agent 质检通过和用户已采用分别表达；失败与修复版本不覆盖，刷新通过本地原型存储恢复当前任务。补充图片和纠错反馈只用于当前任务，不提供商品智库写回、审核、商品版本更新或相关权限能力。
+- 演示数据：商品、证据、结果、失败原因和任务记录均为脱敏合成数据，存放在 `src/data/demo/buyer-show-agent.js`；不伪造真实商品、真实模型调用或生产任务。
+- 验证：专项测试 8/8、全量 Node 测试 74/74、受影响源码 ESLint 通过；Webpack 生产构建通过。浏览器已验证 1440px、1280px 与 390px 无横向溢出或操作遮挡，商品/素材/反馈弹窗、图片预览、角色修正、无补充图片提交、缺口继续、冲突阻断、Agent 进度、部分成功、反馈新版本、采用、评价文案和刷新恢复均通过，控制台无错误。
+- 关联文件：`src/app/ai-hub/BuyerShowAgentPage.jsx`、`src/app/ai-hub/[capability]/page.js`、`src/config/navigation.js`、`src/data/demo/buyer-show-agent.js`、`src/lib/buyer-show-agent-prototype.mjs`、`src/components/workbench/ImageQueueModule.jsx`、`src/app/history/HistoryClient.jsx`、`src/data/demo/history.js`、`src/data/demo/admin.js`、`tests/buyer-show-agent-prototype.test.mjs`、`UI_SPEC.md`、`ARCHITECTURE.md`、`README.md`。

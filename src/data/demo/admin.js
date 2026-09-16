@@ -186,6 +186,7 @@ export const moduleModelRules = [
   { id: "multi-angle", name: "AI多角度", group: "AI能力中枢", defaultModel: "gpt-image", allowedModels: ["wan", "banana-pro", "banana-2", "gpt-image"] },
   { id: "expand", name: "AI扩图", group: "AI能力中枢", defaultModel: "banana-2", allowedModels: allModelIds },
   { id: "buyer-show", name: "AI买家秀", group: "AI能力中枢", defaultModel: "gpt-image", allowedModels: ["wan", "banana-pro", "banana-2", "gpt-image"] },
+  { id: "buyer-show-agent", name: "AI买家秀 Agent", group: "AI能力中枢", defaultModel: "gpt-image", allowedModels: ["wan", "banana-pro", "banana-2", "gpt-image"] },
   { id: "product-suite", name: "AI商品套图", group: "AI能力中枢", defaultModel: "banana-2", allowedModels: ["banana-2", "seedream", "gpt-image"] },
 ]
 

@@ -17,6 +17,7 @@ npm run dev
 - `src/app/globals.css`：全局设计 token 与基础样式
 - `src/components/workbench/`：公共工作台组件
 - `src/app/ai-hub/BuyerShowPage.jsx`：AI 买家秀
+- `src/app/ai-hub/BuyerShowAgentPage.jsx`：AI 买家秀 Agent 独立前端原型
 - `src/app/ai-hub/SuitePage.jsx`：AI 商品套图
 - `src/app/products/`：商品智库的商品库、商品学习与详情确认原型
 - `src/app/ui-guide/page.js`：UI 样式与设计规范演示页

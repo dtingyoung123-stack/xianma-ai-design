@@ -49,6 +49,15 @@ src/hooks/               可复用的客户端交互和数据 hooks
 - 删除权限由 `canDeleteProduct` 统一判断：个人未发布且无下游引用的草稿、导入失败、信息待确认/补充和待确认商品可由创建人删除；有进行中任务、已确认/团队/公共、修订中、已归档或存在下游引用的商品不可删除。
 - 下游任务必须引用商品版本快照；一旦存在引用，商品只能归档，不能删除，以保证买家秀、商品套图等历史任务可追溯。
 
+## AI 买家秀 Agent 原型边界
+
+- `/ai-hub/buyer-show-agent` 是独立原型路由，由 `src/app/ai-hub/BuyerShowAgentPage.jsx` 组合现有工作台组件；原 `/ai-hub/buyer-show` 保持独立，不共享页面状态或规则对象。
+- 脱敏商品、补充图片、模型、结果和任务样例集中在 `src/data/demo/buyer-show-agent.js`；校验、图片角色与创作分支判断、模型匹配、任务推进、质检、修复和版本转换集中在 `src/lib/buyer-show-agent-prototype.mjs`。
+- 用户输入顺序固定为商品、可选补充图片、创作提示词和输出设置。补充图片复用 `ImageQueueModule` 与 `AssetPickerModal`，页面仅通过 `renderItemExtra` 增加角色修正字段；输出设置复用公共参数组件且不传像素宽高配置。
+- 全局历史使用独立来源 `buyer-show-agent`，模型管理使用独立模块规则；不得复用原 `buyer-show` 的历史来源或模型规则对象。
+- 当前 `localStorage` 恢复、任务推进、模型匹配、质检、修复、版本、采用和评价文案均为前端原型逻辑，不是生产 Agent 或服务端事实。
+- 生产接入必须以已确认商品快照为输入，补齐服务端权限、任务/证据/版本持久化、对象存储、异步队列、模型能力注册、质量检查、幂等、计费、审计和全局历史入库；补充图片与任务内更正本期不得回写商品智库。
+
 ## UI 约定
 
 - Token 遵循 primitive → semantic → component 三层，定义在 `src/app/globals.css`。

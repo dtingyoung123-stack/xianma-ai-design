@@ -9,6 +9,7 @@ export const historySources = [
   { value: "ai-hub", label: "AI能力中枢" },
   { value: "multi-angle", label: "AI多角度" },
   { value: "buyer-show", label: "AI 买家秀" },
+  { value: "buyer-show-agent", label: "AI 买家秀 Agent" },
   { value: "video-stream", label: "AI视频流" },
   { value: "product-suite", label: "AI 商品套图" },
 ]
@@ -23,6 +24,7 @@ export const historyOriginalImages = {
   "ai-hub": ["/assets/mat-6.png"],
   "multi-angle": ["/assets/layout-square-3.jpg"],
   "buyer-show": ["/assets/layout-horizontal-2.png"],
+  "buyer-show-agent": ["/assets/layout-vertical-1.png", "/assets/layout-vertical-2.png"],
   "video-stream": ["/assets/layout-horizontal-4.png"],
   "product-suite": ["/assets/layout-square-5.jpg"],
 }
@@ -36,6 +38,30 @@ export const historyAccounts = [
 ]
 
 export const historyRecords = [
+  {
+    id: "BSA-20260916-1420",
+    source: "buyer-show-agent",
+    title: "复古开衫买家秀 Agent 任务",
+    prompt: "咖啡店休闲穿搭场景，人物自然展示开衫，保持提花、领口和纽扣结构清晰。",
+    model: "GPT Image 2（智能匹配）",
+    spec: "4 张 · 3:4 · 2K",
+    count: 4,
+    status: "已完成",
+    createdAt: "2026-09-16T14:20:00+08:00",
+    time: "今天 14:20",
+    accountId: "current",
+    accountName: "当前账号",
+    productSnapshot: { id: "agent-product-a", name: "复古提花针织开衫 A", versionId: "v2" },
+    supplementalImages: [
+      { id: "evidence-1", role: "商品实拍" },
+      { id: "evidence-2", role: "商品结构或细节" },
+    ],
+    actualModel: { id: "gpt-image", name: "GPT Image 2", version: "prototype-v1" },
+    taskStatus: "待用户确认",
+    adoptedVersions: { "seed-1": "seed-1-v1" },
+    previewImages: ["/assets/layout-vertical-1.png", "/assets/layout-vertical-2.png", "/assets/layout-vertical-4.jpg"],
+    favorite: false,
+  },
   {
     id: "EX-20260814-1610",
     source: "expert",

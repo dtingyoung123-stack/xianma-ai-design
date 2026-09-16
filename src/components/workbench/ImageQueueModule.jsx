@@ -33,6 +33,7 @@ export default function ImageQueueModule({
   onUnavailable,
   onPreviewColorPick,
   onPreviewNotify,
+  renderItemExtra,
 }) {
   const count = images.length
   const full = count >= max
@@ -101,6 +102,7 @@ export default function ImageQueueModule({
                     已设置区域 · mask {image.regionEdit.coverage || 0}% · {image.regionEdit.annotations?.length || 0} 条标注
                   </div>
                 )}
+                {renderItemExtra?.(image, index)}
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 <IconButton title="查看大图" onClick={() => setPreviewIndex(index)}>
