@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
   AlertTriangle,
@@ -25,6 +25,10 @@ import {
   XCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import SafeImage from "@/components/SafeImage"
+import ImageQueueModule from "@/components/workbench/ImageQueueModule"
+import ImagePreviewModal from "@/components/workbench/ImagePreviewModal"
+import { MAX_PROMPT_EFFECT_IMAGES, readPromptEffectFiles, validatePromptEffectFiles } from "@/lib/prompt-effect-images.mjs"
 import OrganizationScopeSelector from "@/components/OrganizationScopeSelector"
 import {
   permissionOrganizationTree,
@@ -589,6 +593,7 @@ function PromptCard({ prompt, activeLibrary, canManage, canRequestPublic, canCan
           <button type="button" onClick={onDetail} className="mt-3 block w-full rounded-lg border bg-[var(--gray-50)] px-3 py-2.5 text-left" style={{ borderColor: "var(--border-light)" }}>
             <p className="line-clamp-3 text-sm leading-6 text-[var(--text-body)]">{prompt.content}</p>
           </button>
+          <PromptEffectImages images={prompt.effectImages} compact />
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-[var(--text-secondary)]">
             <span>{prompt.source}</span>
             {prompt.needsReference && <span>需要参考图</span>}
@@ -641,24 +646,45 @@ function EmptyState({ activeLibrary, teamView, onCreate }) {
 }
 
 function Modal({ title, description, onClose, width = "720px", footer, children }) {
+  const panelRef = useRef(null)
   useEffect(() => {
+    const previousFocus = document.activeElement
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    const panel = panelRef.current
+    panel?.querySelector("button")?.focus()
     function onKeyDown(event) {
       if (event.key === "Escape") onClose()
+      if (event.key !== "Tab") return
+      const controls = Array.from(panel?.querySelectorAll('button:not([disabled]), input:not([disabled]):not([type="file"]), textarea, select, [tabindex="0"]') || [])
+      const first = controls[0]
+      const last = controls.at(-1)
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last?.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first?.focus()
+      }
     }
     window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
+    return () => {
+      window.removeEventListener("keydown", onKeyDown)
+      document.body.style.overflow = previousOverflow
+      if (previousFocus?.isConnected) previousFocus.focus?.()
+    }
   }, [onClose])
 
   if (typeof document === "undefined") return null
   return createPortal(
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[var(--overlay-scrim)] p-3 sm:p-5" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section role="dialog" aria-modal="true" aria-label={title} className="flex max-h-[calc(100vh-24px)] w-full flex-col overflow-hidden rounded-lg bg-white shadow-xl sm:max-h-[calc(100vh-40px)]" style={{ maxWidth: width }}>
-        <div className="flex items-start justify-between gap-3 border-b px-4 py-3.5 sm:px-5" style={{ borderColor: "var(--border-base)" }}>
+      <section ref={panelRef} role="dialog" aria-modal="true" aria-label={title} className="flex max-h-[calc(100dvh-24px)] w-full flex-col overflow-hidden rounded-lg bg-white shadow-xl sm:max-h-[calc(100dvh-40px)]" style={{ maxWidth: width }}>
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b px-4 py-3.5 sm:px-5" style={{ borderColor: "var(--border-base)" }}>
           <div className="min-w-0"><h2 className="text-base font-semibold text-[var(--text-title)]">{title}</h2>{description && <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{description}</p>}</div>
           <button type="button" onClick={onClose} aria-label={`关闭${title}`} className="grid size-8 shrink-0 place-items-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"><X size={17} /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">{children}</div>
-        {footer && <div className="flex flex-wrap justify-end gap-2 border-t px-4 py-3 sm:px-5" style={{ borderColor: "var(--border-base)" }}>{footer}</div>}
+        {footer && <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t px-4 py-3 sm:px-5" style={{ borderColor: "var(--border-base)" }}>{footer}</div>}
       </section>
     </div>,
     document.body,
@@ -677,6 +703,7 @@ function PromptDetailDialog({ prompt, viewLibrary, onClose, onCopy, onCollect })
       {prompt.summary && <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">{prompt.summary}</p>}
       <h3 className="mt-5 text-sm font-semibold text-[var(--text-title)]">提示词内容</h3>
       <div className="mt-2 whitespace-pre-wrap rounded-lg border bg-[var(--gray-50)] p-4 text-sm leading-7 text-[var(--text-body)]" style={{ borderColor: "var(--border-base)" }}>{prompt.content}</div>
+      <PromptEffectImages images={prompt.effectImages} />
       <dl className="mt-5 grid gap-x-6 gap-y-3 rounded-lg border p-4 text-xs sm:grid-cols-[76px_1fr_76px_1fr]" style={{ borderColor: "var(--border-base)" }}>
         <dt className="text-[var(--text-secondary)]">参考图片</dt><dd className="text-[var(--text-body)]">{prompt.needsReference ? "需要" : "不需要"}</dd>
         <dt className="text-[var(--text-secondary)]">可见范围</dt><dd className="text-[var(--text-body)]">{formatVisibleOrganizations(prompt, viewLibrary)}</dd>
@@ -695,15 +722,41 @@ function EditPromptDialog({ prompt, currentUser, defaultLibrary, onClose, onSave
   const [title, setTitle] = useState(prompt?.title || "")
   const [summary, setSummary] = useState(prompt?.summary || "")
   const [content, setContent] = useState(prompt?.content || "")
+  const [effectImages, setEffectImages] = useState(prompt?.effectImages || [])
+  const [imageError, setImageError] = useState("")
+  const [uploading, setUploading] = useState(false)
+  const replaceInput = useRef(null)
+  const replaceIndex = useRef(null)
+  const uploadBusy = useRef(false)
+
+  async function uploadEffects(event, replacing = false) {
+    const files = Array.from(event.target.files || [])
+    event.target.value = ""
+    if (!files.length || uploadBusy.current) return
+    const error = validatePromptEffectFiles(files, effectImages.length, replacing)
+    setImageError(error)
+    if (error) return
+    uploadBusy.current = true
+    setUploading(true)
+    try {
+      const images = await readPromptEffectFiles(files)
+      setEffectImages((current) => replacing ? current.map((image, index) => index === replaceIndex.current ? images[0] : image) : [...current, ...images])
+    } catch (error) {
+      setImageError(error.message || "图片读取失败，请重新选择")
+    } finally {
+      uploadBusy.current = false
+      setUploading(false)
+    }
+  }
   const [sceneId, setSceneId] = useState(prompt?.sceneId || "general")
   const [needsReference, setNeedsReference] = useState(prompt?.needsReference ?? true)
   const [tags, setTags] = useState((prompt?.tags || []).join("、"))
   const [library, setLibrary] = useState(prompt?.library || defaultLibrary)
   const [visibleOrgIds, setVisibleOrgIds] = useState(prompt?.visibleOrgIds || [])
-  const valid = title.trim() && content.trim()
+  const valid = title.trim() && content.trim() && !uploading
   const canEditScope = Boolean(prompt?.library === "team" && canManageTeamPrompt(currentUser, prompt))
   return (
-    <Modal title={prompt ? "编辑提示词" : "新建提示词"} description={library === "public" ? "保存后立即作为公司内部已验证提示词对全公司可见。" : prompt?.library === "team" ? "可同步修改团队可见组织，保存后立即生效。" : "先保存到个人库，验证后再提交团队。"} onClose={onClose} width="760px" footer={<><Button variant="outline" size="lg" onClick={onClose}>取消</Button><Button size="lg" className="gap-2 text-white" disabled={!valid || (canEditScope && !visibleOrgIds.length)} onClick={() => onSave({ title: title.trim(), summary: summary.trim(), content: content.trim(), sceneId, needsReference, tags: tags.split(/[、,，]/).map((tag) => tag.trim()).filter(Boolean), library, visibleOrgIds })}><Check size={15} />{!prompt && library === "public" ? "直接发布" : "保存提示词"}</Button></>}>
+    <Modal title={prompt ? "编辑提示词" : "新建提示词"} description={library === "public" ? "保存后立即作为公司内部已验证提示词对全公司可见。" : prompt?.library === "team" ? "可同步修改团队可见组织，保存后立即生效。" : "先保存到个人库，验证后再提交团队。"} onClose={onClose} width="760px" footer={<><Button variant="outline" size="lg" onClick={onClose}>取消</Button><Button size="lg" className="gap-2 text-white" disabled={!valid || (canEditScope && !visibleOrgIds.length)} onClick={() => onSave({ title: title.trim(), summary: summary.trim(), content: content.trim(), effectImages, sceneId, needsReference, tags: tags.split(/[、,，]/).map((tag) => tag.trim()).filter(Boolean), library, visibleOrgIds })}><Check size={15} />{!prompt && library === "public" ? "直接发布" : "保存提示词"}</Button></>}>
       {!prompt && isSystemAdmin(currentUser) && (
         <div className="mt-4">
           <FieldLabel>保存位置</FieldLabel>
@@ -721,6 +774,13 @@ function EditPromptDialog({ prompt, currentUser, defaultLibrary, onClose, onSave
       </div>
       <Field label="用途说明"><input value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="一句话说明适用商品或使用场景" className="h-10 w-full rounded-lg border px-3 text-sm outline-none focus:border-[var(--brand-primary)]" style={{ borderColor: "var(--border-base)" }} /></Field>
       <Field label="提示词内容"><textarea value={content} onChange={(event) => setContent(event.target.value)} rows={9} placeholder="请输入完整提示词" className="w-full resize-none rounded-lg border px-3 py-2.5 text-sm leading-6 outline-none focus:border-[var(--brand-primary)]" style={{ borderColor: "var(--border-base)" }} /></Field>
+      <div className="mt-4">
+        <ImageQueueModule title="效果图（可选）" images={effectImages} max={MAX_PROMPT_EFFECT_IMAGES} showAssetPicker={false} primaryTitle="效果图 1 · 列表首图" uploadTitle="上传效果图" uploadSub="JPG / PNG · 最多 3 张" emptyText="可上传同一版式的效果示例，帮助使用者看图选择提示词。" readOnly={uploading} onLocalImages={uploadEffects} onRefresh={(index) => { replaceIndex.current = index; replaceInput.current?.click() }} onRemove={(index) => { setEffectImages((current) => current.filter((_, i) => i !== index)); setImageError("") }} onReorder={setEffectImages} renderItemExtra={(_, index) => index > 0 && <button type="button" disabled={uploading} onClick={() => setEffectImages((current) => [current[index], ...current.filter((_, i) => i !== index)])} className="mt-1 text-xs text-[var(--brand-primary)]">设为首图</button>} />
+        <input ref={replaceInput} type="file" accept="image/jpeg,image/png" aria-label="替换效果图文件" className="hidden" onChange={(event) => uploadEffects(event, true)} />
+        <p className="mt-2 text-xs text-[var(--text-secondary)]">效果图仅供预览，不会自动作为生图参考图。</p>
+        {uploading && <p role="status" className="mt-2 text-xs text-[var(--text-secondary)]">正在读取效果图…</p>}
+        {imageError && <p role="alert" className="mt-2 text-xs text-[var(--danger)]">{imageError}</p>}
+      </div>
       <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm text-[var(--text-body)]"><input type="checkbox" checked={needsReference} onChange={(event) => setNeedsReference(event.target.checked)} className="size-4 accent-[var(--brand-primary)]" />使用时需要上传商品或场景参考图</label>
       {canEditScope && <OrganizationScopeSelector value={visibleOrgIds} onChange={setVisibleOrgIds} allowedScopeIds={isSystemAdmin(currentUser) ? null : currentUser.organizationScopeIds} />}
     </Modal>
@@ -734,6 +794,7 @@ function SubmitPromptDialog({ prompt, onClose, onConfirm }) {
         <strong className="block text-sm text-[var(--text-title)]">{prompt.title}</strong>
         <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{prompt.summary}</p>
       </div>
+      <PromptEffectImages images={prompt.effectImages} compact />
       <div className="mt-4 flex items-start gap-3 rounded-lg bg-[var(--brand-primary-soft)] p-3 text-sm text-[var(--text-body)]"><Users size={17} className="mt-0.5 shrink-0 text-[var(--brand-primary)]" /><div><strong className="block text-xs text-[var(--text-title)]">提交部门</strong><span className="mt-1 block text-xs leading-5 text-[var(--text-secondary)]">{demoPromptCurrentUser.department}</span></div></div>
       <div className="mt-3 flex items-start gap-2 rounded-lg bg-[var(--warning-bg)] p-3 text-xs leading-5 text-[var(--text-body)]"><AlertTriangle size={16} className="mt-0.5 shrink-0 text-[var(--warning)]" /><span>审批通过后，该提示词将成为团队资产，发布人将无法自行删除。如需删除，请联系团队负责人处理。</span></div>
     </Modal>
@@ -751,6 +812,7 @@ function ReviewPromptDialog({ prompt, currentUser, onClose, onApprove, onReject 
           <h3 className="text-sm font-semibold text-[var(--text-title)]">{prompt.title}</h3>
           {prompt.summary && <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{prompt.summary}</p>}
           <p className="mt-2 rounded-lg bg-[var(--gray-50)] p-3 text-xs leading-6 text-[var(--text-body)]">{prompt.content}</p>
+          <PromptEffectImages images={prompt.effectImages} />
         </div>
         <div>
           <div className="grid grid-cols-2 gap-2 rounded-lg bg-[var(--gray-100)] p-1">
@@ -771,6 +833,7 @@ function SubmitPublicPromptDialog({ prompt, onClose, onConfirm }) {
         <strong className="block text-sm text-[var(--text-title)]">{prompt.title}</strong>
         <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{prompt.summary}</p>
       </div>
+      <PromptEffectImages images={prompt.effectImages} compact />
       <div className="mt-4 flex items-start gap-2 rounded-lg bg-[var(--warning-bg)] p-3 text-xs leading-5 text-[var(--text-body)]"><AlertTriangle size={16} className="mt-0.5 shrink-0 text-[var(--warning)]" /><span>审批通过后，该提示词将成为公司公共资产，发布人及团队负责人将无法自行删除。如需删除，请联系系统管理员处理。</span></div>
     </Modal>
   )
@@ -784,6 +847,7 @@ function ReviewPublicPromptDialog({ prompt, onClose, onApprove, onReject }) {
       <div className="rounded-lg border bg-[var(--gray-50)] p-4" style={{ borderColor: "var(--border-base)" }}>
         <strong className="block text-sm text-[var(--text-title)]">{prompt.title}</strong>
         <p className="mt-2 whitespace-pre-wrap text-xs leading-6 text-[var(--text-body)]">{prompt.content}</p>
+        <PromptEffectImages images={prompt.effectImages} />
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-[var(--gray-100)] p-1">
         <button type="button" onClick={() => setMode("approve")} className={`h-9 rounded-md text-sm font-medium ${mode === "approve" ? "bg-white text-[var(--success)] shadow-sm" : "text-[var(--text-secondary)]"}`}>通过</button>
@@ -851,4 +915,18 @@ function Field({ label, children, className = "" }) {
 
 function FieldLabel({ children }) {
   return <span className="mb-1.5 block text-xs font-semibold text-[var(--text-title)]">{children}</span>
+}
+
+function PromptEffectImages({ images = [], compact = false }) {
+  const [previewIndex, setPreviewIndex] = useState(null)
+  if (!images.length) return compact ? null : <p className="mt-3 text-xs text-[var(--text-secondary)]">效果图：暂无</p>
+  return (
+    <div className="mt-3">
+      <p className="mb-2 text-xs font-medium text-[var(--text-secondary)]">效果图 · {images.length} 张</p>
+      <div className="flex flex-wrap gap-2">
+        {(compact ? images.slice(0, 1) : images).map((image, index) => <button key={image.id || image.src} type="button" aria-label={`查看效果图 ${index + 1}`} onClick={() => setPreviewIndex(index)} className="h-24 w-24 overflow-hidden rounded-lg border bg-[var(--gray-50)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" style={{ borderColor: "var(--border-base)" }}><SafeImage src={image.src} alt={image.name || `效果图 ${index + 1}`} className="h-full w-full object-contain" /></button>)}
+      </div>
+      {previewIndex !== null && <ImagePreviewModal images={images} index={previewIndex} setIndex={setPreviewIndex} getSrc={(image) => image.src} getName={(image) => image.name || "效果图"} featureName="提示词效果图" onClose={() => setPreviewIndex(null)} />}
+    </div>
+  )
 }

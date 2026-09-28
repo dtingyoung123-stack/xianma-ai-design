@@ -93,6 +93,7 @@ export const initialPrompts = [
   },
   {
     id: "prompt-team-3",
+    effectImages: [{ id: "prompt-team-3-effect", src: "/assets/layout-horizontal-1.png", name: "商品居中信息图示例" }],
     library: "team",
     status: "active",
     title: "亚马逊功能信息图",
@@ -143,6 +144,7 @@ export const initialPrompts = [
   },
   {
     id: "prompt-public-2",
+    effectImages: [{ id: "prompt-public-2-effect", src: "/assets/layout-horizontal-1.png", name: "商品居中信息图示例" }],
     library: "public",
     status: "active",
     title: "合规商品卖点图基础模板",
@@ -332,6 +334,7 @@ export const initialPrompts = [
   },
   {
     id: "prompt-inspiration-3",
+    effectImages: [{ id: "prompt-inspiration-3-effect", src: "/assets/layout-horizontal-1.png", name: "商品居中信息图示例" }],
     library: "inspiration",
     status: "active",
     title: "模块化产品信息图",

@@ -24,6 +24,7 @@ export default function ImageQueueModule({
   getSize = (image) => image?.size,
   getKey = (image, index) => image?.id || image?.src || image?.img || image?.filename || index,
   readOnly = false,
+  showAssetPicker = true,
   onOpenAssetPicker,
   onLocalImages,
   onRemove,
@@ -51,14 +52,14 @@ export default function ImageQueueModule({
 
   return (
     <WorkbenchModule title={title} hint={`${count} / ${max} · ${limitText}`}>
-      <div className="grid grid-cols-2 gap-3">
-        <UploadAction
+      <div className={`grid gap-3 ${showAssetPicker ? "grid-cols-2" : "grid-cols-1"}`}>
+        {showAssetPicker && <UploadAction
           icon={<FolderOpen size={18} />}
           title={assetTitle}
           sub={full ? `已达 ${max} 张上限` : assetSub}
           disabled={full || readOnly}
           onClick={onOpenAssetPicker}
-        />
+        />}
         <label
           className="flex h-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed transition-colors hover:border-[var(--brand-primary)]"
           style={{ borderColor: "var(--border-base)", opacity: full || readOnly ? 0.6 : 1, pointerEvents: full || readOnly ? "none" : "auto" }}

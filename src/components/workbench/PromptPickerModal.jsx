@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react"
 import { AlertCircle, Check, FileText, Lightbulb, LoaderCircle, Search, ShieldCheck, Sparkles, UserRound, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import SafeImage from "@/components/SafeImage"
+import ImagePreviewModal from "@/components/workbench/ImagePreviewModal"
 import WorkbenchPickerDialog from "@/components/workbench/WorkbenchPickerDialog"
 import { promptSceneOptions } from "@/data/demo/prompts"
 
@@ -122,7 +124,7 @@ export default function PromptPickerModal({
       <PromptSourceState status={currentState} message={sourceStatus[library]?.message} onRetry={() => onRetry?.(library)}>
         <div className="mt-3 grid min-h-[360px] gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
           <PromptList prompts={visiblePrompts} selectedId={selectedId} onSelect={setSelectedId} />
-          <PromptPreview prompt={selectedPrompt} />
+          <PromptPreview key={selectedPrompt?.id || "empty"} prompt={selectedPrompt} />
         </div>
       </PromptSourceState>
     </WorkbenchPickerDialog>
@@ -153,6 +155,7 @@ function PromptList({ prompts, selectedId, onSelect }) {
               </span>
               {selected && <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[var(--brand-primary)] text-white"><Check size={14} /></span>}
             </span>
+            {prompt.effectImages?.length > 0 && <span className="mt-2 flex items-center gap-2"><SafeImage src={prompt.effectImages[0].src} alt={`${prompt.title}效果图`} className="h-14 w-14 rounded-md border border-[var(--border-base)] bg-[var(--gray-50)] object-contain" /><span className="text-xs text-[var(--text-secondary)]">{prompt.effectImages.length} 张效果图</span></span>}
             <span className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--text-secondary)]">
               <span className="rounded-md bg-[var(--gray-100)] px-1.5 py-1">{prompt.sceneLabel}</span>
               {prompt.library === "inspiration" ? <span className="rounded-md bg-[var(--warning-bg)] px-1.5 py-1 text-[var(--warning)]">外部来源 · 未验证</span> : prompt.verified && <span className="rounded-md bg-[var(--success-bg)] px-1.5 py-1 text-[var(--success)]">内部已验证</span>}
@@ -166,6 +169,7 @@ function PromptList({ prompts, selectedId, onSelect }) {
 }
 
 function PromptPreview({ prompt }) {
+  const [previewIndex, setPreviewIndex] = useState(null)
   if (!prompt) {
     return <aside className="flex min-h-64 flex-col items-center justify-center rounded-lg border bg-[var(--gray-50)] px-5 text-center" style={{ borderColor: "var(--border-base)" }}><Lightbulb size={26} className="text-[var(--text-disabled)]" /><strong className="mt-2 text-sm text-[var(--text-title)]">选择一条提示词</strong><span className="mt-1 text-xs text-[var(--text-secondary)]">完整正文将在这里预览。</span></aside>
   }
@@ -178,6 +182,13 @@ function PromptPreview({ prompt }) {
       <h3 className="mt-3 text-sm font-semibold text-[var(--text-title)]">{prompt.title}</h3>
       {prompt.summary && <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{prompt.summary}</p>}
       <div className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-white p-3 text-sm leading-6 text-[var(--text-body)]" style={{ borderColor: "var(--border-light)" }}>{prompt.content}</div>
+      <div className="mt-3">
+        <p className="text-xs font-medium text-[var(--text-secondary)]">效果图{prompt.effectImages?.length ? ` · ${prompt.effectImages.length} 张` : "：暂无"}</p>
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          {prompt.effectImages?.map((image, index) => <button key={image.id || image.src} type="button" aria-label={`查看效果图 ${index + 1}`} onClick={() => setPreviewIndex(index)} className="aspect-square overflow-hidden rounded-md border border-[var(--border-base)] bg-[var(--white)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"><SafeImage src={image.src} alt={image.name || `效果图 ${index + 1}`} className="h-full w-full object-contain" /></button>)}
+        </div>
+        {previewIndex !== null && <ImagePreviewModal images={prompt.effectImages} index={previewIndex} setIndex={setPreviewIndex} getSrc={(image) => image.src} getName={(image) => image.name || "效果图"} featureName="提示词效果图" onClose={() => setPreviewIndex(null)} />}
+      </div>
       <dl className="mt-3 grid grid-cols-[64px_1fr] gap-x-2 gap-y-2 text-xs">
         <dt className="text-[var(--text-secondary)]">来源</dt><dd className="truncate text-[var(--text-body)]" title={prompt.source}>{prompt.source}</dd>
         <dt className="text-[var(--text-secondary)]">参考图</dt><dd className="text-[var(--text-body)]">{prompt.needsReference ? "需要" : "不需要"}</dd>

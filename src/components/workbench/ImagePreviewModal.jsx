@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Check, ChevronLeft, ChevronRight, Copy, Download, FlipHorizontal, FlipVertical, X, ZoomIn, ZoomOut } from "lucide-react"
 import SafeImage from "@/components/SafeImage"
@@ -13,6 +13,7 @@ export default function ImagePreviewModal(props) {
 }
 
 function ImagePreviewContent({ images, index, setIndex, getSrc, getName, getMime, featureName = "图片", renderHeaderAction, onClose, onColorPick, onNotify }) {
+  const panelRef = useRef(null)
   const [scale, setScale] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [dragState, setDragState] = useState(null)
@@ -26,10 +27,31 @@ function ImagePreviewContent({ images, index, setIndex, getSrc, getName, getMime
   const total = images.length
 
   useEffect(() => {
+    const previousFocus = document.activeElement
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    panelRef.current?.focus()
     function handleKeyDown(event) {
+      // The image preview can sit above a picker or an editing dialog.
+      // Keep keyboard navigation and Escape in the uppermost overlay.
+      if (["Escape", "Tab", "ArrowLeft", "ArrowRight"].includes(event.key)) event.stopImmediatePropagation()
       if (event.key === "Escape") {
         event.preventDefault()
         onClose()
+        return
+      }
+      if (event.key === "Tab") {
+        const buttons = Array.from(panelRef.current?.querySelectorAll("button:not([disabled])") || [])
+        const first = buttons[0]
+        const last = buttons.at(-1)
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) {
+          event.preventDefault()
+          last?.focus()
+        } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === panelRef.current)) {
+          event.preventDefault()
+          first?.focus()
+        }
+        return
       }
       if (total < 2 || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
@@ -37,8 +59,12 @@ function ImagePreviewContent({ images, index, setIndex, getSrc, getName, getMime
         setIndex((current) => (current + (event.key === "ArrowLeft" ? -1 : 1) + total) % total)
       }
     }
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
+    window.addEventListener("keydown", handleKeyDown, true)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, true)
+      document.body.style.overflow = previousOverflow
+      if (previousFocus?.isConnected) previousFocus.focus?.()
+    }
   }, [onClose, setIndex, total])
 
   function go(nextIndex) {
@@ -104,8 +130,8 @@ function ImagePreviewContent({ images, index, setIndex, getSrc, getName, getMime
   }
 
   const content = (
-    <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4 sm:p-6" style={{ background: "var(--overlay-scrim)" }} onClick={onClose}>
-      <div className="flex h-[min(86vh,760px)] w-[min(1040px,calc(100vw-40px))] flex-col overflow-hidden rounded-lg bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-[1300] flex items-center justify-center p-4 sm:p-6" style={{ background: "var(--overlay-scrim)" }} onClick={onClose}>
+      <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`${featureName}预览`} className="flex h-[min(86vh,760px)] w-[min(1040px,calc(100vw-40px))] flex-col overflow-hidden rounded-lg bg-white shadow-2xl outline-none" onClick={(event) => event.stopPropagation()}>
         <div className="flex shrink-0 flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: "var(--border-light)" }}>
           <div className="min-w-0">
             <strong className="block truncate text-sm" style={{ color: "var(--text-title)" }}>{getName(image)}</strong>
