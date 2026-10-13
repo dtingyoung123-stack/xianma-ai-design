@@ -78,6 +78,8 @@ export const routeMeta = {
   "/ai-hub/video-stream": { label: "AI 视频流", section: "AI 能力中心", status: "prototype" },
   "/ai-hub/product-suite": { label: "AI 商品套图", section: "AI 能力中心", status: "live" },
   "/ai-canvas": { label: "无限画布", section: "自研工具", status: "prototype" },
+  "/ai-canvas/engine-check": { label: "画布引擎验证", section: "自研工具", status: "prototype" },
+  "/ai-canvas/preview": { label: "新版画布预览", section: "自研工具", status: "prototype" },
   "/products": { label: "商品智库", section: "商品智库", status: "prototype" },
   "/products/new": { label: "商品学习", section: "商品智库", status: "prototype" },
   "/products/[id]": { label: "商品详情", section: "商品智库", status: "prototype" },

@@ -1,0 +1,39 @@
+:root { --candidate-accent: var(--brand-primary, var(--brand)); }
+body.xm-liblib-skin { min-width: 0; }
+.xm-liblib-skin .canvas-wrap { overflow: clip; }
+.candidate-toolbar[hidden], .candidate-label[hidden] { display: none; }
+.candidate-toolbar { position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%); z-index: 70; display: flex; gap: 6px; align-items: center; max-width: calc(100vw - 24px); padding: 8px; border: 1px solid var(--float-border); border-radius: var(--float-radius-md); background: var(--float-bg); color: var(--float-text); box-shadow: var(--float-shadow); }
+.candidate-toolbar button, .candidate-window button, .candidate-window select { background: var(--float-bg-solid); color: var(--float-text); border: 1px solid var(--float-border); border-radius: var(--float-radius-sm); padding: 7px 10px; white-space: nowrap; }
+.candidate-toolbar button[aria-pressed=true] { border-color: var(--candidate-accent); color: var(--candidate-accent); }
+.candidate-toolbar button:disabled, .candidate-window button:disabled { opacity: .45; cursor: not-allowed; }
+.candidate-toolbar button:focus-visible, .candidate-window button:focus-visible, .candidate-window select:focus-visible, .candidate-resize:focus-visible { outline: 2px solid var(--candidate-accent); outline-offset: 3px; }
+.candidate-count { white-space: nowrap; font-size: 12px; padding: 0 4px; }
+.node.candidate-selected { outline: 2px solid var(--candidate-accent); outline-offset: 3px; }
+.xm-liblib-skin .node .candidate-node-resize { position: absolute; left: auto; top: auto; right: -6px; bottom: -6px; width: 14px; height: 14px; padding: 0; border: 2px solid var(--panel); border-radius: 3px; background: var(--candidate-accent); cursor: ew-resize; z-index: 10; touch-action: none; }
+.candidate-box { position: fixed; pointer-events: none; z-index: 65; border: 1px solid var(--candidate-accent); background: var(--brand-primary-soft, var(--float-border)); }
+.candidate-window { position: fixed; z-index: 1200; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--float-border-strong); border-radius: var(--float-radius-lg); background: var(--float-bg-solid); color: var(--float-text); box-shadow: var(--float-shadow); }
+.candidate-window[hidden] { display: none; }
+.candidate-window header { display: flex; gap: 8px; align-items: center; padding: 12px; border-bottom: 1px solid var(--float-border); cursor: move; touch-action: none; }
+.candidate-window header strong { flex: 1; }
+.candidate-window main { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; padding: 12px; }
+.candidate-window article { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.candidate-window select { width: 100%; min-width: 0; }
+.candidate-compare-preview { position: relative; min-height: 180px; height: 250px; overflow: hidden; border-radius: var(--float-radius-sm); background: var(--panel-2); }
+.candidate-compare-preview img { width: 100%; height: 100%; object-fit: contain; }
+.candidate-compare-preview .node-media-frame, .candidate-compare-preview .node-art { height: 100%; width: 100%; }
+.candidate-window dl { font-size: 12px; display: grid; grid-template-columns: 56px 1fr; gap: 6px; margin: 0; }
+.candidate-window dd { margin: 0; overflow-wrap: anywhere; }
+.candidate-window dt { color: var(--float-text-dim); }
+.candidate-window footer { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--float-border); font-size: 12px; color: var(--float-text-dim); }
+.candidate-resize { margin-left: auto; cursor: nwse-resize; touch-action: none; }
+.candidate-label { position: fixed; top: 58px; right: 16px; z-index: 60; color: var(--float-text-dim); font-size: 12px; pointer-events: none; }
+@media (max-width: 700px) {
+  .xm-liblib-skin .topbar { overflow-x: auto; }
+  .xm-liblib-skin .brand { min-width: 180px; }
+  .candidate-toolbar { bottom: 72px; flex-wrap: wrap; width: calc(100vw - 24px); justify-content: center; }
+  .candidate-toolbar button { padding: 6px 8px; }
+  .candidate-window main { grid-template-columns: 1fr; }
+  .candidate-window header { padding: 8px; }
+  .candidate-window header button { padding: 5px; }
+  .candidate-label { top: 56px; right: 8px; }
+}

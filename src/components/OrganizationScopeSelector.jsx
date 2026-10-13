@@ -76,7 +76,7 @@ export default function OrganizationScopeSelector({
   }
 
   return (
-    <div className="mt-4 overflow-hidden rounded-lg border" style={{ borderColor: "var(--border-base)" }}>
+    <div data-organization-selector className="mt-4 overflow-hidden rounded-lg border" style={{ borderColor: "var(--border-base)" }}>
       <div className="border-b p-3" style={{ borderColor: "var(--border-base)" }}>
         <div className="mb-1.5 flex items-center justify-between gap-2">
           <span className="text-xs font-semibold text-[var(--text-title)]">可见组织</span>
@@ -90,7 +90,7 @@ export default function OrganizationScopeSelector({
             placeholder="搜索组织名称"
             aria-label="搜索组织名称"
             className="h-9 w-full rounded-md border pl-9 pr-3 text-sm outline-none"
-            style={{ borderColor: "var(--border-base)" }}
+            style={{ borderColor: "var(--border-base)", paddingLeft: "36px" }}
           />
         </label>
       </div>

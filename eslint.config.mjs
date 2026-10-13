@@ -7,6 +7,7 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    "xianma-new-ai-design/.next/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

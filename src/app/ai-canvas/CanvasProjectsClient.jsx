@@ -1,6 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import Link from "next/link"
+import BeefCanvasPrototype from "./BeefCanvasPrototype"
+import WorkflowHub from "./WorkflowHub"
 import {
   AlertTriangle,
   ArrowLeft,
@@ -121,10 +124,14 @@ function replacePrototypePrompt(target, content, frameWindow) {
 }
 
 export default function CanvasProjectsClient() {
+  const [workflowView, setWorkflowView] = useState(false)
   const [folders, setFolders] = useState(initialCanvasFolders)
   const [projects, setProjects] = useState(initialCanvasProjects)
   const [currentFolderId, setCurrentFolderId] = useState(null)
   const [activeProject, setActiveProject] = useState(null)
+  const [candidateMode, setCandidateMode] = useState(false)
+  const [beefMode, setBeefMode] = useState(true)
+  const [projectsReady, setProjectsReady] = useState(false)
   const [dialog, setDialog] = useState(null)
   const projectsRef = useRef(projects)
 
@@ -133,17 +140,49 @@ export default function CanvasProjectsClient() {
   }, [projects])
 
   useEffect(() => {
+    let active = true
+    queueMicrotask(() => {
+      if (!active) return
+      try {
+        const saved = JSON.parse(localStorage.getItem("xianma-canvas-projects-v1"))
+        if (Array.isArray(saved?.projects) && Array.isArray(saved?.folders) && saved.projects.every((p) => typeof p.id === "string" && typeof p.name === "string")) {
+          projectsRef.current = saved.projects
+          setProjects(saved.projects)
+          setFolders(saved.folders)
+        }
+      } catch { /* Keep initial demo if the local snapshot is invalid. */ }
+      syncProjectFromLocation()
+      setProjectsReady(true)
+    })
     function syncProjectFromLocation() {
+      setWorkflowView(new URLSearchParams(window.location.search).get("view") === "templates")
       const projectId = new URLSearchParams(window.location.search).get("project")
+      setCandidateMode(new URLSearchParams(window.location.search).get("canvas") === "candidate")
+      const mode = new URLSearchParams(window.location.search).get("canvas")
+      setBeefMode(mode !== "candidate" && mode !== "legacy")
       setActiveProject(projectsRef.current.find((project) => project.id === projectId) || null)
     }
 
-    syncProjectFromLocation()
     window.addEventListener("popstate", syncProjectFromLocation)
-    return () => window.removeEventListener("popstate", syncProjectFromLocation)
+    return () => { active = false; window.removeEventListener("popstate", syncProjectFromLocation) }
   }, [])
 
+  useEffect(() => {
+    if (!projectsReady) return
+    try { localStorage.setItem("xianma-canvas-projects-v1", JSON.stringify({ projects, folders })) }
+    catch { /* Prototype remains usable without browser storage. */ }
+  }, [projects, folders, projectsReady])
+
   const currentFolder = folders.find((folder) => folder.id === currentFolderId) || null
+  useEffect(() => {
+    if (workflowView) return
+    window.dispatchEvent(new CustomEvent("canvas-breadcrumbs", { detail: [
+      { label: "首页", href: "/home" },
+      { label: "无限画布", href: "/ai-canvas", onClick: () => { window.history.replaceState(window.history.state, "", "/ai-canvas"); setActiveProject(null); setCurrentFolderId(null) } },
+      ...(currentFolder ? [{ label: currentFolder.name, href: "/ai-canvas", onClick: () => { window.history.replaceState(window.history.state, "", "/ai-canvas"); setActiveProject(null) } }] : []),
+      ...(activeProject ? [{ label: activeProject.name }] : []),
+    ] }))
+  }, [workflowView, currentFolder, activeProject])
   const visibleProjects = useMemo(
     () => projects.filter((project) => (project.folderId || null) === currentFolderId),
     [currentFolderId, projects],
@@ -154,11 +193,15 @@ export default function CanvasProjectsClient() {
     [folders, projects],
   )
 
-  function openProject(project) {
+  function openProject(project, candidate = "beef") {
     const url = new URL(window.location.href)
     url.searchParams.set("project", project.id)
+    if (candidate) url.searchParams.set("canvas", candidate === true ? "candidate" : candidate)
+    else url.searchParams.delete("canvas")
     window.history.pushState({ ...window.history.state, aiCanvasProject: project.id }, "", url)
     setActiveProject(project)
+    setCandidateMode(candidate === true)
+    setBeefMode(candidate === "beef")
   }
 
   const closeProject = useCallback(() => {
@@ -176,14 +219,21 @@ export default function CanvasProjectsClient() {
     setDialog({ type, entity, value: entity?.name || "" })
   }
 
+  function renameActiveProject(name) {
+    const value = name.trim()
+    if (!value || !activeProject) return
+    const updated = { ...activeProject, name: value, updatedAt: formatNow() }
+    setProjects((current) => current.map((project) => project.id === updated.id ? updated : project))
+    setActiveProject(updated)
+  }
+
   function confirmDialog() {
     if (!dialog) return
     const value = dialog.value?.trim()
 
     if (dialog.type === "newProject" && value) {
       const now = formatNow()
-      setProjects((current) => [
-        {
+      const created = {
           id: createDemoId("p"),
           name: value,
           folderId: currentFolderId,
@@ -191,9 +241,9 @@ export default function CanvasProjectsClient() {
           createdAt: now,
           updatedAt: now,
           status: "草稿",
-        },
-        ...current,
-      ])
+        }
+      setProjects((current) => [created, ...current])
+      openProject(created)
     }
 
     if (dialog.type === "newFolder" && value) {
@@ -240,30 +290,20 @@ export default function CanvasProjectsClient() {
     setDialog(null)
   }
 
+  if (workflowView) return <WorkflowHub />
+
   if (activeProject) {
-    return <CanvasPrototypeFrame project={activeProject} onExit={closeProject} />
+    return beefMode ? <BeefCanvasPrototype key={activeProject.id} project={activeProject} onExit={closeProject} onRename={renameActiveProject} /> : <CanvasPrototypeFrame project={activeProject} onExit={closeProject} candidate={candidateMode} />
   }
 
   return (
     <>
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          {currentFolder ? (
-            <button
-              type="button"
-              onClick={() => setCurrentFolderId(null)}
-              className="inline-flex min-h-9 items-center gap-2 rounded-md text-sm font-medium text-[var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
-            >
-              <ArrowLeft size={16} />
-              全部项目
-              <span className="text-[var(--text-disabled)]">/</span>
-              <span className="max-w-[240px] truncate text-[var(--text-title)]">{currentFolder.name}</span>
-            </button>
-          ) : (
-            <p className="text-sm text-[var(--text-secondary)]">共 {projects.length} 个项目，{folders.length} 个文件夹</p>
-          )}
+          <p className="text-sm text-[var(--text-secondary)]">共 {visibleProjects.length} 个项目{!currentFolder && `，${folders.length} 个文件夹`}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <a href="/ai-canvas?view=templates" className="inline-flex min-h-10 items-center rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-4 text-sm font-semibold text-[var(--brand-primary)]">工作流模板</a>
           {!currentFolder && (
             <Button variant="outline" onClick={() => openNameDialog("newFolder")}>
               <FolderPlus />新建文件夹
@@ -314,6 +354,8 @@ export default function CanvasProjectsClient() {
                 project={project}
                 folders={folders}
                 onOpen={() => openProject(project)}
+                onCandidate={() => openProject(project, true)}
+                onLegacy={() => openProject(project, "legacy")}
                 onRename={() => openNameDialog("renameProject", project)}
                 onMove={() => setDialog({ type: "moveProject", entity: project, targetFolderId: project.folderId })}
                 onDelete={() => setDialog({ type: "deleteProject", entity: project })}
@@ -356,7 +398,7 @@ function FolderCard({ folder, projectCount, onOpen, onRename, onDelete }) {
   )
 }
 
-function ProjectCard({ project, folders, onOpen, onRename, onMove, onDelete }) {
+function ProjectCard({ project, folders, onOpen, onCandidate, onLegacy, onRename, onMove, onDelete }) {
   const folderName = folders.find((folder) => folder.id === project.folderId)?.name
   const saved = project.status === "已保存"
 
@@ -382,6 +424,16 @@ function ProjectCard({ project, folders, onOpen, onRename, onMove, onDelete }) {
           {folderName && <span className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--text-secondary)]"><FolderOpen size={13} />{folderName}</span>}
         </span>
       </button>
+      <div className="border-t border-[var(--border-base)] px-4 py-2">
+        <button type="button" onClick={onCandidate} className="mr-4 inline-flex min-h-8 items-center text-xs font-medium text-[var(--text-secondary)] hover:underline focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none">第二版备份</button>
+        <button type="button" onClick={onLegacy} className="mr-4 inline-flex min-h-8 items-center text-xs font-medium text-[var(--text-secondary)] hover:underline">原版备份</button>
+        <Link
+          href={`/ai-canvas/preview?project=${encodeURIComponent(project.id)}`}
+          className="inline-flex min-h-8 items-center text-xs font-medium text-[var(--brand-primary)] hover:underline focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
+        >
+          新版预览
+        </Link>
+      </div>
       <EntityMenu label={`${project.name}项目操作`} onRename={onRename} onMove={onMove} onDelete={onDelete} />
     </article>
   )
@@ -452,7 +504,7 @@ function ProjectDialog({ dialog, folders, onChange, onClose, onConfirm }) {
           <p className="leading-6">
             {dialog.type === "deleteFolder"
               ? `删除文件夹“${dialog.entity.name}”后，文件夹内项目将移回全部项目。`
-              : `确认删除项目“${dialog.entity.name}”？该操作仅影响本次演示数据。`}
+              : `确认删除项目“${dialog.entity.name}”？该操作仅影响本地原型数据。`}
           </p>
         </div>
       ) : isMove ? (
@@ -513,7 +565,7 @@ function FolderOption({ label, selected, onClick }) {
   )
 }
 
-function CanvasPrototypeFrame({ project, onExit }) {
+function CanvasPrototypeFrame({ project, onExit, candidate = false }) {
   const [status, setStatus] = useState("loading")
   const [frameKey, setFrameKey] = useState(0)
   const [promptPickerOpen, setPromptPickerOpen] = useState(false)
@@ -619,7 +671,7 @@ function CanvasPrototypeFrame({ project, onExit }) {
       )}
       <iframe
         key={frameKey}
-        src={prototypePath}
+        src={candidate ? "/prototypes/xianma-ai-canvas-candidate.html" : prototypePath}
         title={`${project.name} - 无限画布`}
         className="h-full w-full border-0 bg-white"
         onLoad={connectPrototype}
