@@ -47,6 +47,7 @@ import {
   recognizeDemoMaterialImage,
 } from "@/data/demo/materials"
 import { downloadImage } from "@/lib/image-download"
+import { applyMaterialBatch, canBatchSubmitMaterial } from "@/lib/material-batch-prototype.mjs"
 
 const scopeOptions = [
   { id: "personal", label: "个人素材", shortLabel: "个人", description: "仅自己可见" },
@@ -230,6 +231,7 @@ export default function MaterialsClient() {
   const [pageSize, setPageSize] = useState(8)
   const [dialog, setDialog] = useState(null)
   const [toast, setToast] = useState("")
+  const [selectedIds, setSelectedIds] = useState([])
 
   const teamPendingCount = materials.filter((material) => material.status === "pending" && canReviewMaterial(demoCurrentUser, material)).length
   const publicPendingCount = isSystemAdmin(demoCurrentUser)
@@ -280,6 +282,35 @@ export default function MaterialsClient() {
   const totalPages = Math.max(1, Math.ceil(filteredMaterials.length / pageSize))
   const activePage = Math.min(page, totalPages)
   const visibleMaterials = filteredMaterials.slice((activePage - 1) * pageSize, activePage * pageSize)
+  const batchMode = scope === "personal" ? "submit" : scope === "team" && teamView === "pending" ? "review" : null
+  const selectableMaterials = visibleMaterials.filter((material) => batchMode === "submit"
+    ? canBatchSubmitMaterial(demoCurrentUser, material)
+    : batchMode === "review" && material.scope === "personal" && material.status === "pending" && canReviewMaterial(demoCurrentUser, material))
+  const selectedMaterials = selectableMaterials.filter((material) => selectedIds.includes(material.id))
+  const allSelected = selectableMaterials.length > 0 && selectedMaterials.length === selectableMaterials.length
+
+  function toggleMaterial(id, checked) {
+    setSelectedIds((current) => checked ? [...new Set([...current, id])] : current.filter((selectedId) => selectedId !== id))
+  }
+
+  function openBatchDialog(action) {
+    setDialog({ type: "batch", action, materials: selectedMaterials })
+  }
+
+  function confirmBatch({ organizationIds, reason }) {
+    const visibleOrgIds = compactOrganizationIds(organizationIds || [])
+    const allowedOrganizations = visibleOrgIds.every((id) => isSystemAdmin(demoCurrentUser) || isOrganizationInScope(id, demoCurrentUser.organizationScopeIds))
+    if (!allowedOrganizations) {
+      setToast("所选可见组织超出授权范围，请重新选择")
+      return
+    }
+    const result = applyMaterialBatch(materials, dialog.materials.map((material) => material.id), {
+      action: dialog.action, user: demoCurrentUser, canReview: canReviewMaterial, organizationIds: visibleOrgIds, reason,
+    })
+    setMaterials(result.materials)
+    setSelectedIds([])
+    setDialog({ type: "batch-result", action: dialog.action, successCount: result.successCount, failures: result.failures })
+  }
 
   useEffect(() => {
     if (!toast) return undefined
@@ -295,6 +326,7 @@ export default function MaterialsClient() {
     setCategoryFilter("all")
     setPersonalGroupFilter("all")
     setStatusFilter("all")
+    setSelectedIds([])
     setPage(1)
   }
 
@@ -306,10 +338,12 @@ export default function MaterialsClient() {
     setCategoryFilter("all")
     setPersonalGroupFilter("all")
     setStatusFilter("all")
+    setSelectedIds([])
     setPage(1)
   }
 
   function updateMaterial(materialId, updater) {
+    setSelectedIds([])
     setMaterials((current) => current.map((material) => (
       material.id === materialId ? updater(material) : material
     )))
@@ -460,6 +494,7 @@ export default function MaterialsClient() {
     setMaterials((current) => [...nextMaterials, ...current])
     setScope(values.scope)
     setTeamView("all")
+    setSelectedIds([])
     setPage(1)
     setDialog(null)
     setToast(`已上传 ${nextMaterials.length} 个素材`)
@@ -533,7 +568,7 @@ export default function MaterialsClient() {
             { id: "pending", label: `团队入库 ${teamPendingCount}` },
             ...(isSystemAdmin(demoCurrentUser) ? [{ id: "public-pending", label: `公共发布 ${publicPendingCount}` }] : []),
           ].map((view) => (
-            <button key={view.id} type="button" onClick={() => { setTeamView(view.id); setStatusFilter("all"); setPage(1) }} className={`border-b-2 px-3 py-2 text-sm font-medium ${teamView === view.id ? "border-[var(--brand-primary)] text-[var(--brand-primary)]" : "border-transparent text-[var(--text-secondary)]"}`}>{view.label}</button>
+            <button key={view.id} type="button" onClick={() => { setTeamView(view.id); setStatusFilter("all"); setSelectedIds([]); setPage(1) }} className={`border-b-2 px-3 py-2 text-sm font-medium ${teamView === view.id ? "border-[var(--brand-primary)] text-[var(--brand-primary)]" : "border-transparent text-[var(--text-secondary)]"}`}>{view.label}</button>
           ))}
         </div>
       )}
@@ -543,21 +578,30 @@ export default function MaterialsClient() {
           <Search size={16} className="absolute left-3 top-3 text-[var(--text-secondary)]" />
           <input
             value={query}
-            onChange={(event) => { setQuery(event.target.value); setPage(1) }}
+            onChange={(event) => { setQuery(event.target.value); setSelectedIds([]); setPage(1) }}
             placeholder="搜索标题、标签、来源或部门"
             aria-label="搜索素材"
             className="h-10 w-full rounded-lg border bg-white pl-9 pr-3 text-sm outline-none focus:border-[var(--brand-primary)]"
             style={{ borderColor: "var(--border-base)" }}
           />
         </label>
-        <FilterSelect value={typeFilter} onChange={(value) => { setTypeFilter(value); setPage(1) }} options={typeOptions} ariaLabel="按素材类型筛选" />
-        <FilterSelect value={categoryFilter} onChange={(value) => { setCategoryFilter(value); setPage(1) }} options={materialCategoryFilterOptions} ariaLabel="按素材类目筛选" />
-        <FilterSelect value={personalGroupFilter} onChange={(value) => { setPersonalGroupFilter(value); setPage(1) }} options={[{ id: "all", label: "全部个人分组" }, ...personalGroups.map((group) => ({ id: group, label: group })), { id: "uncategorized", label: "未分组" }]} ariaLabel="按个人分组筛选" />
-        {showStatusFilter && <FilterSelect value={statusFilter} onChange={(value) => { setStatusFilter(value); setPage(1) }} options={statusOptions} ariaLabel="按素材状态筛选" />}
+        <FilterSelect value={typeFilter} onChange={(value) => { setTypeFilter(value); setSelectedIds([]); setPage(1) }} options={typeOptions} ariaLabel="按素材类型筛选" />
+        <FilterSelect value={categoryFilter} onChange={(value) => { setCategoryFilter(value); setSelectedIds([]); setPage(1) }} options={materialCategoryFilterOptions} ariaLabel="按素材类目筛选" />
+        <FilterSelect value={personalGroupFilter} onChange={(value) => { setPersonalGroupFilter(value); setSelectedIds([]); setPage(1) }} options={[{ id: "all", label: "全部个人分组" }, ...personalGroups.map((group) => ({ id: group, label: group })), { id: "uncategorized", label: "未分组" }]} ariaLabel="按个人分组筛选" />
+        {showStatusFilter && <FilterSelect value={statusFilter} onChange={(value) => { setStatusFilter(value); setSelectedIds([]); setPage(1) }} options={statusOptions} ariaLabel="按素材状态筛选" />}
         <div className="flex h-10 items-center justify-end text-xs text-[var(--text-secondary)]">
           找到 {filteredMaterials.length} 个
         </div>
       </div>
+
+      {batchMode && <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-[var(--bg-card)] p-3" style={{ borderColor: "var(--border-base)" }}>
+        <label className="flex items-center gap-2 text-sm text-[var(--text-body)]"><input type="checkbox" className="size-4 accent-[var(--brand-primary)]" checked={allSelected} disabled={!selectableMaterials.length} ref={(input) => { if (input) input.indeterminate = selectedMaterials.length > 0 && !allSelected }} onChange={(event) => setSelectedIds(event.target.checked ? selectableMaterials.map((material) => material.id) : [])} />当前页全选</label>
+        <span className="text-xs text-[var(--text-secondary)]">已选 {selectedMaterials.length} 个 · 仅选择可{batchMode === "submit" ? "提交" : "审批"}素材</span>
+        <div className="flex flex-wrap gap-2 sm:ml-auto">
+          {batchMode === "submit" ? <Button disabled={!selectedMaterials.length} onClick={() => openBatchDialog("submit")}><Send size={14} />批量提交团队</Button> : <><Button disabled={!selectedMaterials.length} onClick={() => openBatchDialog("approve")}><Check size={14} />批量通过</Button><Button variant="outline" disabled={!selectedMaterials.length} onClick={() => openBatchDialog("reject")}><XCircle size={14} />批量驳回</Button></>}
+          <Button variant="ghost" disabled={!selectedMaterials.length} onClick={() => setSelectedIds([])}>清空选择</Button>
+        </div>
+      </div>}
 
       {visibleMaterials.length ? (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(min(230px,100%),1fr))] gap-4">
@@ -567,6 +611,9 @@ export default function MaterialsClient() {
               material={material}
               activeScope={scope}
               currentUser={demoCurrentUser}
+              selectable={selectableMaterials.some((item) => item.id === material.id)}
+              selected={selectedMaterials.some((item) => item.id === material.id)}
+              onSelect={(checked) => toggleMaterial(material.id, checked)}
               personalGroup={getPersonalGroup(material, personalGroupAssignments)}
               canCancelPublic={canCancelPublicMaterial(demoCurrentUser, material)}
               reviewMode={scope === "team" && teamView === "pending" ? "team" : scope === "team" && teamView === "public-pending" ? "public" : null}
@@ -596,14 +643,14 @@ export default function MaterialsClient() {
       <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: "var(--border-base)" }}>
         <span className="text-sm text-[var(--text-secondary)]">共 {filteredMaterials.length} 个素材</span>
         <div className="flex items-center gap-2">
-          <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }} className="h-8 rounded-md border bg-white px-2 text-sm" style={{ borderColor: "var(--border-base)" }} aria-label="每页素材数量">
+          <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setSelectedIds([]); setPage(1) }} className="h-8 rounded-md border bg-white px-2 text-sm" style={{ borderColor: "var(--border-base)" }} aria-label="每页素材数量">
             <option value={8}>8 个/页</option>
             <option value={12}>12 个/页</option>
             <option value={20}>20 个/页</option>
           </select>
-          <Button variant="outline" size="icon" aria-label="上一页" title="上一页" disabled={activePage <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}><ChevronLeft size={16} /></Button>
+          <Button variant="outline" size="icon" aria-label="上一页" title="上一页" disabled={activePage <= 1} onClick={() => { setSelectedIds([]); setPage((current) => Math.max(1, current - 1)) }}><ChevronLeft size={16} /></Button>
           <span className="min-w-16 text-center text-sm text-[var(--text-body)]">{activePage} / {totalPages}</span>
-          <Button variant="outline" size="icon" aria-label="下一页" title="下一页" disabled={activePage >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}><ChevronRight size={16} /></Button>
+          <Button variant="outline" size="icon" aria-label="下一页" title="下一页" disabled={activePage >= totalPages} onClick={() => { setSelectedIds([]); setPage((current) => Math.min(totalPages, current + 1)) }}><ChevronRight size={16} /></Button>
         </div>
       </div>
 
@@ -616,6 +663,11 @@ export default function MaterialsClient() {
       {dialog?.type === "submit-public" && <SubmitPublicMaterialDialog material={dialog.material} onClose={() => setDialog(null)} onConfirm={() => submitToPublic(dialog.material)} />}
       {dialog?.type === "review-public" && <ReviewPublicMaterialDialog material={dialog.material} onClose={() => setDialog(null)} onApprove={() => approvePublicMaterial(dialog.material)} onReject={(reason) => rejectPublicMaterial(dialog.material, reason)} />}
       {dialog?.type === "delete" && <ConfirmDeleteDialog material={dialog.material} onClose={() => setDialog(null)} onConfirm={() => deleteMaterial(dialog.material)} />}
+      {dialog?.type === "batch" && <BatchMaterialDialog action={dialog.action} materials={dialog.materials} currentUser={demoCurrentUser} onClose={() => setDialog(null)} onConfirm={confirmBatch} />}
+      {dialog?.type === "batch-result" && <Modal manageFocus title="批量处理结果" onClose={() => setDialog(null)} width="560px" footer={<Button onClick={() => setDialog(null)}>完成</Button>}>
+        <p role="status" className="text-sm text-[var(--text-body)]">{dialog.action === "submit" ? "提交" : dialog.action === "approve" ? "通过" : "驳回"}成功 {dialog.successCount} 个，失败 {dialog.failures.length} 个。</p>
+        {dialog.failures.length > 0 && <ul className="mt-3 space-y-2 text-sm text-[var(--danger)]">{dialog.failures.map((failure) => <li key={failure.id} className="break-words">{failure.title}：{failure.reason}</li>)}</ul>}
+      </Modal>}
 
       {toast && <div className="fixed bottom-6 left-1/2 z-[120] -translate-x-1/2 rounded-lg bg-[var(--gray-900)] px-4 py-3 text-sm text-white shadow-xl" role="status">{toast}</div>}
     </div>
@@ -633,7 +685,7 @@ function FilterSelect({ value, onChange, options, ariaLabel }) {
   )
 }
 
-function MaterialCard({ material, activeScope, currentUser, personalGroup, canCancelPublic, reviewMode, onView, onEdit, onSetPersonalGroup, onDownload, onDelete, onSubmit, onCancelSubmission, onReview, onSubmitPublic, onCancelPublic, onReviewPublic }) {
+function MaterialCard({ material, activeScope, currentUser, personalGroup, canCancelPublic, reviewMode, selectable, selected, onSelect, onView, onEdit, onSetPersonalGroup, onDownload, onDelete, onSubmit, onCancelSubmission, onReview, onSubmitPublic, onCancelPublic, onReviewPublic }) {
   const TypeIcon = typeMeta[material.type]?.icon || FileText
   const materialStatus = getMaterialStatus(material, activeScope)
   const displayScope = activeScope === "public" ? "public" : material.scope
@@ -641,7 +693,8 @@ function MaterialCard({ material, activeScope, currentUser, personalGroup, canCa
   const isOwnPersonal = material.scope === "personal" && material.ownerId === currentUser.id
   const canRequestPublic = canRequestPublicMaterial(currentUser, material)
   return (
-    <article className="group flex min-h-[360px] flex-col overflow-hidden rounded-lg border bg-white transition-shadow hover:shadow-[var(--shadow-card-hover)]" style={{ borderColor: "var(--border-base)" }}>
+    <article className="group flex min-h-[360px] flex-col overflow-hidden rounded-lg border bg-white transition-shadow hover:shadow-[var(--shadow-card-hover)]" style={{ borderColor: selected ? "var(--brand-primary)" : "var(--border-base)" }}>
+      {selectable && <label className="flex cursor-pointer items-center gap-2 border-b bg-[var(--bg-card)] px-3 py-2 text-xs text-[var(--text-body)]" style={{ borderColor: "var(--border-light)" }}><input type="checkbox" aria-label={`选择${material.title}`} className="size-4 accent-[var(--brand-primary)]" checked={selected} onChange={(event) => onSelect(event.target.checked)} />选择素材</label>}
       <button type="button" onClick={onView} className="relative block aspect-[4/3] w-full overflow-hidden bg-[var(--gray-100)] text-left" aria-label={`查看${material.title}`}>
         {material.src && material.type === "image" ? (
           <SafeImage src={material.src} alt={material.title} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" />
@@ -703,7 +756,32 @@ function IconAction({ label, icon: Icon, tone, onClick }) {
   return <button type="button" aria-label={label} title={label} onClick={onClick} className={`grid size-8 shrink-0 place-items-center rounded-md border transition-colors ${tone === "danger" ? "text-[var(--danger)] hover:bg-[var(--danger-bg)]" : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"}`} style={{ borderColor: "var(--border-base)" }}><Icon size={14} /></button>
 }
 
-function Modal({ title, description, onClose, children, footer, width = "760px" }) {
+function Modal({ title, description, onClose, children, footer, width = "760px", manageFocus = false }) {
+  const dialogRef = useRef(null)
+  useEffect(() => {
+    if (!manageFocus) return undefined
+    const previousFocus = document.activeElement
+    const element = dialogRef.current
+    const getControls = () => [...element.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex="0"]')].filter((control) => control.getClientRects().length)
+    if (!element.contains(document.activeElement)) getControls()[0]?.focus()
+    function trapFocus(event) {
+      if (event.key !== "Tab") return
+      const controls = getControls()
+      const first = controls[0]
+      const last = controls.at(-1)
+      if (!first) return
+      if (!element.contains(document.activeElement) || (event.shiftKey && document.activeElement === first) || (!event.shiftKey && document.activeElement === last)) {
+        event.preventDefault()
+        const target = event.shiftKey ? last : first
+        target.focus()
+      }
+    }
+    document.addEventListener("keydown", trapFocus)
+    return () => {
+      document.removeEventListener("keydown", trapFocus)
+      if (previousFocus?.isConnected) previousFocus.focus()
+    }
+  }, [manageFocus])
   useEffect(() => {
     function handleKeyDown(event) {
       if (event.key === "Escape") onClose()
@@ -715,7 +793,7 @@ function Modal({ title, description, onClose, children, footer, width = "760px" 
   if (typeof document === "undefined") return null
   const content = (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[var(--overlay-scrim)] p-3 sm:p-5" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="flex max-h-[calc(100vh-24px)] w-full flex-col overflow-hidden rounded-lg bg-white shadow-xl sm:max-h-[calc(100vh-40px)]" style={{ maxWidth: width }} role="dialog" aria-modal="true" aria-label={title}>
+      <section ref={dialogRef} className="flex max-h-[calc(100vh-24px)] w-full flex-col overflow-hidden rounded-lg bg-white shadow-xl sm:max-h-[calc(100vh-40px)]" style={{ maxWidth: width }} role="dialog" aria-modal="true" aria-label={title}>
         <div className="flex shrink-0 items-start justify-between gap-3 border-b px-4 py-3.5 sm:px-5" style={{ borderColor: "var(--border-base)" }}>
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-[var(--text-title)]">{title}</h2>
@@ -729,6 +807,20 @@ function Modal({ title, description, onClose, children, footer, width = "760px" 
     </div>
   )
   return createPortal(content, document.body)
+}
+
+function BatchMaterialDialog({ action, materials, currentUser, onClose, onConfirm }) {
+  // Cross-department batches require an explicit common scope, rather than inheriting the first resource's department.
+  const [visibleOrgIds, setVisibleOrgIds] = useState([])
+  const [reason, setReason] = useState("")
+  const label = action === "submit" ? "批量提交团队" : action === "approve" ? "批量通过" : "批量驳回"
+  const valid = materials.length > 0 && (action === "approve" ? visibleOrgIds.length > 0 : action === "reject" ? Boolean(reason.trim()) : true)
+  return <Modal manageFocus title={label} description={`本次处理 ${materials.length} 个素材，每个素材独立记录结果。`} onClose={onClose} width="760px" footer={<><Button variant="outline" onClick={onClose}>取消</Button><Button variant={action === "reject" ? "destructive" : "default"} disabled={!valid} onClick={() => onConfirm({ organizationIds: visibleOrgIds, reason: reason.trim() })}>确认{action === "submit" ? "提交" : action === "approve" ? "通过并发布" : "驳回"}</Button></>}>
+    <ul className="max-h-40 space-y-2 overflow-y-auto rounded-lg bg-[var(--bg-hover)] p-3">{materials.map((material) => <li key={material.id} className="flex items-center gap-2 text-sm text-[var(--text-body)]"><span className="min-w-0 flex-1 truncate" title={material.title}>{material.title}</span><span className="max-w-[45%] truncate text-xs text-[var(--text-secondary)]" title={material.ownerDepartment}>{material.ownerDepartment}</span></li>)}</ul>
+    {action === "submit" && <p className="mt-4 rounded-lg bg-[var(--warning-bg)] p-3 text-xs leading-5 text-[var(--text-body)]">统一提交给本人所属部门，保留各素材原备注。审批通过后素材成为团队资产，发布人无法自行删除。</p>}
+    {action === "approve" && <div className="mt-4"><p className="mb-3 text-sm text-[var(--text-body)]">以下可见组织统一用于所有选中素材。需要不同范围的素材请分批审批。</p><OrganizationScopeSelector value={visibleOrgIds} onChange={setVisibleOrgIds} allowedScopeIds={isSystemAdmin(currentUser) ? null : currentUser.organizationScopeIds} /></div>}
+    {action === "reject" && <label className="mt-4 block"><FieldLabel inline>统一驳回原因</FieldLabel><textarea autoFocus value={reason} onChange={(event) => setReason(event.target.value)} placeholder="所有选中素材使用同一原因；原因不同请分批驳回" rows={4} className="w-full resize-none rounded-lg border bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-body)] outline-none focus:border-[var(--brand-primary)]" style={{ borderColor: "var(--border-base)" }} /></label>}
+  </Modal>
 }
 
 function UploadMaterialDialog({ defaultScope, currentUser, existingTitles, personalGroups, onCreateGroup, onClose, onSubmit }) {
