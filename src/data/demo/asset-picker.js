@@ -6,13 +6,13 @@ export const buyerShowPersonalAssets = [
 ]
 
 export const buyerShowPublicAssets = [
-  { id: "buyer-public-1", title: "AI 买家秀封面", filename: "AI买家秀.png", src: "/assets/AI买家秀.png", size: "123KB", source: "公共素材库", category: "通用", tags: ["封面", "示例"] },
+  { id: "buyer-public-1", title: "AI 买家秀封面", filename: "AI买家秀.png", src: "/assets/AI买家秀.png", size: "123KB", source: "公共素材库", folderPath: "公司精选 / 产品参考", category: "通用", tags: ["封面", "示例"] },
   { id: "buyer-public-2", title: "专家模式封面", filename: "专家模式.png", src: "/assets/专家模式.png", size: "155KB", source: "公共素材库", category: "通用", tags: ["封面", "示例"] },
 ]
 
 export const buyerShowTeamAssets = [
-  { id: "buyer-team-1", title: "团队护具场景参考", filename: "mat-3.png", src: "/assets/mat-3.png", size: "107KB", source: "团体素材库", category: "护具类", tags: ["场景", "团队精选"] },
-  { id: "buyer-team-2", title: "团队商品角度参考", filename: "mat-4.png", src: "/assets/mat-4.png", size: "94KB", source: "团体素材库", category: "护具类", tags: ["角度", "团队精选"] },
+  { id: "buyer-team-1", title: "团队护具场景参考", filename: "mat-3.png", src: "/assets/mat-3.png", size: "107KB", source: "团体素材库", ownerDepartment: "演示商品部", folderPath: "商品素材 / 护腰 / 实拍", category: "护具类", tags: ["场景", "团队精选"] },
+  { id: "buyer-team-2", title: "团队商品角度参考", filename: "mat-4.png", src: "/assets/mat-4.png", size: "94KB", source: "团体素材库", ownerDepartment: "演示内容部", folderPath: "场景参考 / 居家", category: "护具类", tags: ["角度", "团队精选"] },
 ]
 
 export const suitePersonalAssets = [

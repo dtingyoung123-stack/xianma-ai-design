@@ -70,9 +70,85 @@
 .resourceList { padding-top:20px; }
 .resourceList button { width:100%; flex-direction:column; padding:10px; }
 .resourceImage { position:relative; width:100%; height:160px; overflow:hidden; border-radius:10px; }
+.generationOverlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:16px; background:var(--gray-900); color:var(--gray-200); font-size:12px; text-align:center; }
+.generationOverlay button { padding:8px 16px; border:1px solid var(--gray-600); }
+.versionPicker { position:absolute; left:8px; bottom:8px; max-width:calc(100% - 16px); background:var(--gray-800); color:var(--gray-200); border:1px solid var(--gray-600); border-radius:6px; padding:4px; font-size:11px; }
+.modeDescription { color:var(--gray-300); font-size:12px; line-height:1.8; overflow-wrap:anywhere; }
+.referencePreview { position:relative; height:130px; background:var(--gray-900); border-radius:10px; }
+.panel select { max-width:100%; }
+.fourViewPanel { display:flex; flex-direction:column; overflow:hidden; }
+.fourViewPanel header,.fourViewPanel>.primary { flex-shrink:0; }
+.fourViewPanel .panelBody { overflow:auto; min-height:0; padding-right:4px; }
+.fourViewPanel>.primary { margin-top:12px; }
 .toast { position:absolute; z-index:50; left:50%; top:80px; transform:translateX(-50%); padding:12px 18px; background:var(--gray-800); border:1px solid var(--gray-600); }
 @media(max-width:1100px) { .zoom { bottom:100px; right:12px; } .hint { bottom:155px; } }
 @media(max-width:600px) { .topbar { left:12px; right:12px; gap:8px; } .saved { display:none; } .badge { font-size:9px; padding:4px 6px; } .projectName { max-width:25vw; font-size:11px; } .topbar button { font-size:11px; padding:8px; } .empty { top:45%; } .empty h1 { font-size:19px; } .empty>p { font-size:12px; margin-bottom:12px; } .emptyMenu { padding:12px; } .dock { bottom:12px; gap:1px; padding:6px; } .dock button { width:34px; height:38px; } .dock i { margin:8px 2px; } .hint { display:none; } .zoom { bottom:84px; } }
 
 /* Workflow entry stays reachable without adding a second canvas dock. */
 @media(max-width:600px) { .topbar { flex-wrap:wrap; } .topbar .badge { display:none; } }
+.creationCard { --creation-surface:var(--canvas-prompt-bg); --creation-border:var(--canvas-prompt-border); color-scheme:dark; position:absolute; z-index:30; display:flex; flex-direction:column; border:1px solid var(--creation-border); border-radius:16px; background:var(--creation-surface); color:var(--gray-200); box-shadow:0 12px 40px var(--overlay-scrim); padding:12px; user-select:text; }
+.creationCard header { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-shrink:0; font-size:12px; padding-bottom:10px; }
+.creationCard header>div { display:flex; align-items:center; gap:8px; }
+.creationCard header button { min-width:24px; height:26px; }
+.creationCard .templateTrigger { width:auto; padding:0 3px; font-size:12px; gap:5px; }
+.creationCard button:hover:not(:disabled) { background:var(--creation-border); }
+.creationBody { min-height:0; overflow:auto; padding:0; }
+.generationInputs h3 { font-size:11px; color:var(--gray-300); font-weight:500; margin:0 0 8px; }
+.inputThumbnails { display:flex; flex-wrap:wrap; align-items:flex-start; gap:8px; padding:0 4px 4px 0; }
+.inputThumbnail { position:relative; width:48px; flex-shrink:0; }
+.inputThumbnail>button:first-child { display:flex; position:relative; width:48px; height:48px; border-radius:6px; overflow:hidden; background:var(--creation-border); }
+.inputThumbnail>button:first-child>span { position:absolute; z-index:1; bottom:0; left:0; max-width:100%; padding:0 3px; background:var(--overlay-scrim); color:var(--white); font-size:10px; }
+.inputThumbnail .removeReference { position:absolute; z-index:2; right:-4px; top:-4px; width:15px; height:15px; border-radius:50%; background:var(--creation-border); opacity:0; }
+.inputThumbnail:hover .removeReference,.inputThumbnail:focus-within .removeReference { opacity:1; }
+.inputThumbnail.chosenReference>button:first-child { outline:1px solid var(--brand-primary); outline-offset:2px; }
+.inputThumbnail .chooseReference { width:100%; margin-top:4px; font-size:10px; padding:2px; border:1px solid var(--creation-border); }
+.inputThumbnail .chooseReference[aria-pressed=true] { color:var(--brand-primary); border-color:var(--brand-primary); }
+.creationCard .addReference { width:48px; height:48px; border:1px solid var(--creation-border); border-radius:14px; color:var(--gray-400); }
+.promptEditor { position:relative; min-height:190px; padding:12px 24px 8px 0; }
+.promptEditor textarea { display:block; width:100%; min-height:170px; resize:none; background:transparent; color:inherit; font-size:14px; line-height:1.8; padding:0; }
+.promptEditor textarea::placeholder { color:var(--gray-500); }
+/* Keep the focus ring inside the editor so its scrolling parent cannot clip it. */
+.canvas .promptEditor textarea:focus-visible { outline-offset:-2px; }
+.creationCard .expandPrompt { position:absolute; top:8px; right:0; width:22px; height:22px; color:var(--gray-300); }
+.creationCard footer { display:flex; align-items:center; gap:8px; padding-top:10px; flex-shrink:0; }
+.modelControl { position:relative; display:flex; align-items:center; min-width:0; max-width:180px; }
+.modelControl select { appearance:none; background:var(--creation-surface); border:1px solid var(--creation-border); border-radius:24px; height:34px; min-width:0; max-width:100%; padding:0 24px 0 12px; color:var(--gray-200); font-size:12px; cursor:pointer; }
+.modelControl svg { position:absolute; right:9px; pointer-events:none; }
+.creationCard .parameterTrigger { min-height:34px; padding:0 10px; border:1px solid var(--creation-border); border-radius:24px; background:var(--creation-border); gap:6px; font-size:12px; white-space:nowrap; }
+.creationCard .capabilityTrigger { width:32px; height:32px; flex-shrink:0; }
+.generateControl { margin-left:auto; flex-shrink:0; }
+.creationCard .generateArrow { width:48px; height:38px; border-radius:24px; background:var(--gray-200); color:var(--gray-900); }
+.creationCard .generateArrow:hover:not(:disabled) { background:var(--white); }
+.modeChip { display:inline-flex; gap:6px; align-items:center; border:1px solid var(--brand-primary-border); background:var(--brand-primary-soft); border-radius:7px; padding:4px 8px; font-size:12px; }
+.modeChip button { padding:2px; }
+.referenceWarning { color:var(--gray-400); font-size:12px; line-height:1.7; margin-top:10px; }
+.cardNote { font-size:11px; color:var(--gray-400); padding-top:8px; flex-shrink:0; }
+.cardSpecification { font-size:11px; color:var(--gray-300); }
+.capabilityMenu,.imageSettingsPopover { position:absolute; z-index:2; bottom:62px; border:1px solid var(--creation-border); border-radius:12px; background:var(--creation-surface); color:var(--gray-200); padding:12px; box-shadow:0 8px 24px var(--overlay-scrim); max-height:calc(100dvh - 150px); overflow:auto; }
+.capabilityMenu { right:62px; width:260px; max-width:calc(100% - 24px); }
+.capabilityMenu>small { display:block; font-size:11px; color:var(--gray-400); padding:4px 8px; }
+.capabilityMenu button { width:100%; justify-content:flex-start; text-align:left; padding:9px 8px; }
+.capabilityMenu span { display:flex; flex-direction:column; gap:3px; }
+.capabilityMenu strong { font-size:12px; }
+.capabilityMenu small { font-size:10px; color:var(--gray-400); }
+.imageSettingsPopover { right:12px; width:320px; max-width:calc(100% - 24px); }
+.imageSettingsPopover>strong { font-size:13px; }
+.imageSettingsPopover>p { display:flex; align-items:center; gap:5px; font-size:10px; color:var(--gray-400); margin-top:8px; line-height:1.7; }
+.imageSettingsPopover fieldset { margin:12px 0 0; padding:0; border:0; min-width:0; }
+.imageSettingsPopover legend { font-size:11px; color:var(--gray-400); margin-bottom:6px; }
+.imageSettingsPopover fieldset>div { display:flex; flex-wrap:wrap; gap:6px; }
+.imageSettingsPopover fieldset button { border:1px solid var(--creation-border); font-size:11px; min-height:28px; padding:4px 9px; border-radius:6px; }
+.imageSettingsPopover button[aria-pressed=true] { border-color:var(--gray-200); background:var(--creation-border); }
+.imageSettingsPopover fieldset:disabled button { cursor:not-allowed; opacity:.45; }
+.imageSettingsPopover fieldset:disabled button[aria-pressed=true] { opacity:1; }
+.referencePickingBar { position:absolute; z-index:35; top:78px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:16px; width:max-content; max-width:calc(100% - 24px); border:1px solid var(--brand-primary); background:var(--gray-800); border-radius:12px; padding:12px; font-size:12px; }
+.referencePickingBar button { flex-shrink:0; padding:7px; background:var(--brand-primary); }
+.canvas[data-reference-picking=true] .node { cursor:crosshair; }
+.expandedEditor { color:var(--text-body); }
+.expandedEditor .generationInputs h3 { color:var(--text-secondary); }
+.expandedEditor .inputThumbnails { margin-bottom:12px; }
+.expandedEditor .addReference { width:48px; height:48px; border:1px solid var(--border-base); border-radius:10px; display:flex; align-items:center; justify-content:center; }
+.expandedEditor .removeReference { opacity:1; background:var(--gray-600); color:var(--white); display:flex; align-items:center; justify-content:center; }
+.expandedEditor textarea { width:100%; min-height:300px; border:1px solid var(--border-base); border-radius:8px; padding:12px; font-size:14px; line-height:1.8; resize:vertical; }
+.expandedTemplate { display:flex; align-items:center; gap:6px; font-size:12px; margin:0 0 10px auto; padding:6px; }
+@media(max-width:600px) { .creationCard { padding:10px; } .creationCard footer { gap:5px; flex-wrap:wrap; } .modelControl { max-width:145px; } .modelControl select { font-size:11px; padding-left:9px; } .creationCard .parameterTrigger { padding:0 7px; font-size:10px; } .creationCard .parameterTrigger svg { width:12px; } .creationCard .capabilityTrigger { width:26px; } .creationCard .generateArrow { width:38px; } .referencePickingBar { flex-direction:column; gap:6px; text-align:center; } .promptEditor { min-height:150px; } .promptEditor textarea { min-height:130px; } }

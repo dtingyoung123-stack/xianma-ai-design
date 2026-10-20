@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react"
 import { AlertCircle, Check, FolderOpen, LoaderCircle, Search, Upload } from "lucide-react"
+import { useMaterialFolderState } from "@/lib/material-folder-store"
+import { folderPath } from "@/lib/material-folders.mjs"
 import SafeImage from "@/components/SafeImage"
 import { Button } from "@/components/ui/button"
 import WorkbenchPickerDialog from "@/components/workbench/WorkbenchPickerDialog"
@@ -39,24 +41,42 @@ export default function AssetPickerModal({
   const [saveToMine, setSaveToMine] = useState(false)
   const [visibleCategory, setVisibleCategory] = useState("全部类目")
   const [visibleTag, setVisibleTag] = useState("全部标签")
+  const [visibleDepartment, setVisibleDepartment] = useState("")
+  const [visibleFolder, setVisibleFolder] = useState("")
+  const [folderSearch, setFolderSearch] = useState("")
   const [visiblePersonalGroup, setVisiblePersonalGroup] = useState("全部个人分组")
 
-  const activePool = getSourcePool(source, personalAssets, teamAssets, publicAssets)
+  const [folderState] = useMaterialFolderState()
+  const rawPool = getSourcePool(source, personalAssets, teamAssets, publicAssets)
+  const activePool = useMemo(() => rawPool.filter((asset) => source !== "team" || !folderState.removedTeamIds.includes(asset.id)).map((asset) => {
+    const material = folderState.materials.find((item) => item.id === asset.id)
+    const personalGroup = folderState.personalGroupAssignments[asset.id] ?? asset.personalGroup ?? ""
+    const folderId = folderState.folderAssignments[`${source === "mine" ? "personal" : source}:${asset.id}`]
+    return { ...asset, personalGroup, ownerDepartment: material?.ownerDepartment || asset.ownerDepartment, folderPath: folderId !== undefined ? folderPath(folderState.folders, folderId) : asset.folderPath || "" }
+  }), [rawPool, source, folderState])
   const categoryOptions = useMemo(() => ["全部类目", ...categories, "未分类"], [categories])
   const tagOptions = useMemo(() => tags?.length ? tags : deriveTagOptions(activePool), [activePool, tags])
   const personalGroupOptions = useMemo(() => derivePersonalGroupOptions(activePool), [activePool])
 
+  const departmentOptions = [...new Set(activePool.map((asset) => asset.ownerDepartment || asset.departmentName).filter(Boolean))]
+  const folderPaths = [...new Set(activePool.filter((asset) => !visibleDepartment || (asset.ownerDepartment || asset.departmentName) === visibleDepartment).flatMap((asset) => {
+    const path = source === "mine" ? asset.personalGroup : source === "team" && asset.folderPath ? `${asset.ownerDepartment || asset.departmentName || "所属部门"} / ${asset.folderPath}` : asset.folderPath
+    return path ? path.split(" / ").map((_, index, parts) => parts.slice(0, index + 1).join(" / ")) : []
+  }))]
   const libraryAssets = useMemo(() => activePool
     .map((asset, index) => normalizeAsset(asset, `${source}-${index}`, source))
     .filter((asset) => {
-      const haystack = `${asset.title} ${asset.filename} ${asset.category} ${asset.tags.join(" ")}`.toLowerCase()
+      const haystack = `${asset.title} ${asset.filename} ${asset.category} ${asset.tags.join(" ")} ${asset.folderPath || ""} ${asset.ownerDepartment || ""}`.toLowerCase()
       const queryOk = !query || haystack.includes(query.toLowerCase())
       const categoryOk = visibleCategory === "全部类目" || asset.category === visibleCategory
       const tagOk = visibleTag === "全部标签" || asset.tags.includes(visibleTag)
       const personalGroupOk = visiblePersonalGroup === "全部个人分组"
-        || (visiblePersonalGroup === "未分组" ? !asset.personalGroup : asset.personalGroup === visiblePersonalGroup)
-      return queryOk && categoryOk && tagOk && personalGroupOk
-    }), [activePool, query, source, visibleCategory, visiblePersonalGroup, visibleTag])
+        || (visiblePersonalGroup === "未分组" ? !asset.personalGroup : (asset.personalGroup === visiblePersonalGroup || asset.personalGroup.startsWith(`${visiblePersonalGroup} / `)))
+      const departmentOk = !visibleDepartment || (asset.ownerDepartment || asset.departmentName) === visibleDepartment
+      const path = source === "mine" ? asset.personalGroup : source === "team" && asset.folderPath ? `${asset.ownerDepartment || asset.departmentName || "所属部门"} / ${asset.folderPath}` : asset.folderPath || ""
+      const folderOk = !visibleFolder || (visibleFolder === "ungrouped" ? !path : path === visibleFolder || path.startsWith(`${visibleFolder} / `))
+      return queryOk && categoryOk && tagOk && personalGroupOk && departmentOk && folderOk
+    }), [activePool, query, source, visibleCategory, visiblePersonalGroup, visibleTag, visibleDepartment, visibleFolder])
 
   const visibleAssets = source === "local" ? localAssets : libraryAssets
   const selectedAssets = selectedKeys.map((key) => selectedAssetsByKey[key]).filter(Boolean)
@@ -87,8 +107,14 @@ export default function AssetPickerModal({
     setVisibleCategory("全部类目")
     setVisibleTag("全部标签")
     setVisiblePersonalGroup("全部个人分组")
-    setSelectedKeys([])
-    setSelectedAssetsByKey({})
+    setVisibleDepartment("")
+    setVisibleFolder("")
+    setFolderSearch("")
+    // Library sources share resource identities; local uploads remain a separate flow.
+    if (source === "local" || nextSource === "local") {
+      setSelectedKeys([])
+      setSelectedAssetsByKey({})
+    }
     setQuery("")
   }
 
@@ -183,6 +209,16 @@ export default function AssetPickerModal({
             <PickerSelect value={visibleTag} onChange={setVisibleTag} options={tagOptions} ariaLabel="按素材标签筛选" />
             <PickerSelect value={visiblePersonalGroup} onChange={setVisiblePersonalGroup} options={personalGroupOptions} ariaLabel="按个人分组筛选" />
           </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {source === "team" && departmentOptions.length > 1 && <PickerSelect value={visibleDepartment || "全部可见部门"} onChange={(value) => { setVisibleDepartment(value === "全部可见部门" ? "" : value); setVisibleFolder(""); setFolderSearch("") }} options={["全部可见部门", ...departmentOptions]} ariaLabel="按部门筛选素材" />}
+            {source !== "mine" && folderPaths.length > 0 && <>
+              <input aria-label="搜索文件夹路径" value={folderSearch} onChange={(event) => setFolderSearch(event.target.value)} placeholder="搜索文件夹，直接选完整路径" className="h-10 min-w-0 flex-1 rounded-lg border px-3 text-sm" style={{ borderColor: "var(--border-base)" }} />
+              <select aria-label="按文件夹筛选素材" value={visibleFolder} onChange={(event) => setVisibleFolder(event.target.value)} className="h-10 min-w-0 max-w-full flex-1 rounded-lg border bg-[var(--bg-card)] px-3 text-sm" style={{ borderColor: "var(--border-base)" }}>
+                <option value="">全部文件夹</option><option value="ungrouped">未分组</option>
+                {folderPaths.filter((path) => path === visibleFolder || path.toLowerCase().includes(folderSearch.trim().toLowerCase())).map((path) => <option key={path} value={path}>{path}</option>)}
+              </select>
+            </>}
+          </div>
           <SourceContentState
             status={currentState}
             message={sourceStatus[source]?.message}
@@ -262,6 +298,7 @@ function AssetGrid({ assets, selectedKeys, onToggle, emptyText }) {
             <div className="p-2">
               <strong className="block truncate text-xs text-[var(--text-title)]">{asset.title}</strong>
               <span className="mt-1 block truncate text-[11px] text-[var(--text-secondary)]">{asset.category}</span>
+              {asset.folderPath && <span className="mt-1 block truncate text-[11px] text-[var(--text-secondary)]" title={`${asset.ownerDepartment || asset.departmentName || ""} / ${asset.folderPath}`}>{asset.ownerDepartment || asset.departmentName ? `${asset.ownerDepartment || asset.departmentName} · ` : ""}{asset.folderPath}</span>}
               {asset.personalGroup && <span className="mt-1 block truncate text-[11px] text-[var(--text-secondary)]">{asset.personalGroup}</span>}
               <span className="mt-1 block truncate text-[11px] text-[var(--text-disabled)]">{asset.source}</span>
             </div>
@@ -300,7 +337,7 @@ function normalizeAsset(asset, fallbackKey, sourceType) {
   const src = asset.src || asset.img || asset.url
   return {
     ...asset,
-    key: asset.key || asset.id || fallbackKey,
+    key: asset.id || asset.key || fallbackKey,
     id: asset.id || asset.key || fallbackKey,
     src,
     img: src,

@@ -35,6 +35,12 @@
   --gray-700: #344054;
   --gray-800: #1D2939;
   --gray-900: #101828;
+  --charcoal-900: #211F1C;
+  --charcoal-700: #44413C;
+
+  /* Canvas prompt card, aligned with the production dark editor. */
+  --canvas-prompt-bg: var(--charcoal-900);
+  --canvas-prompt-border: var(--charcoal-700);
 
   /* Semantic tokens: meaning and usage, not raw values. */
   --text-title:     var(--gray-900);

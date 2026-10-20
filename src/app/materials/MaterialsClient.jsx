@@ -18,6 +18,7 @@ import {
   Globe2,
   Image as ImageIcon,
   LoaderCircle,
+  MoreHorizontal,
   Pencil,
   Plus,
   Search,
@@ -30,6 +31,9 @@ import {
   X,
   XCircle,
 } from "lucide-react"
+import { folderPath, descendantIds, validateFolder, canManageFolders, planFolderDeletion } from "@/lib/material-folders.mjs"
+import { useMaterialFolderState } from "@/lib/material-folder-store"
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import SafeImage from "@/components/SafeImage"
 import OrganizationScopeSelector from "@/components/OrganizationScopeSelector"
 import { Button } from "@/components/ui/button"
@@ -38,12 +42,10 @@ import {
 } from "@/data/demo/admin"
 import {
   demoCurrentUser,
-  initialMaterials,
   materialCategoryFilterOptions,
   materialCategoryOptions,
   materialNamingSources,
   materialRecognitionStatuses,
-  personalGroupOptions,
   recognizeDemoMaterialImage,
 } from "@/data/demo/materials"
 import { downloadImage } from "@/lib/image-download"
@@ -215,40 +217,122 @@ function parseMaterialTags(value) {
 }
 
 export default function MaterialsClient() {
-  const [materials, setMaterials] = useState(initialMaterials)
+  const [materials, setMaterials] = useMaterialFolderState("materials")
   const [scope, setScope] = useState("personal")
   const [teamView, setTeamView] = useState("all")
   const [query, setQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [personalGroupFilter, setPersonalGroupFilter] = useState("all")
-  const [personalGroups, setPersonalGroups] = useState(personalGroupOptions)
-  const [personalGroupAssignments, setPersonalGroupAssignments] = useState(() => Object.fromEntries(
-    initialMaterials.map((material) => [material.id, material.personalGroupByUser?.[demoCurrentUser.id] || ""]),
-  ))
+  const [personalGroups, setPersonalGroups] = useMaterialFolderState("personalGroups")
+  const [personalGroupAssignments, setPersonalGroupAssignments] = useMaterialFolderState("personalGroupAssignments")
   const [statusFilter, setStatusFilter] = useState("all")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(8)
   const [dialog, setDialog] = useState(null)
   const [toast, setToast] = useState("")
   const [selectedIds, setSelectedIds] = useState([])
-
+  const [folders, setFolders] = useMaterialFolderState("folders")
+  const [folderAssignments, setFolderAssignments] = useMaterialFolderState("folderAssignments")
+  const [departmentFilter, setDepartmentFilter] = useState("all")
+  const [activeFolder, setActiveFolder] = useState("")
+  const [teamAllMaterials, setTeamAllMaterials] = useState(false)
+  const [teamFiltersOpen, setTeamFiltersOpen] = useState(false)
+  const [teamBatchMode, setTeamBatchMode] = useState(false)
+  const activeFilterCount = [typeFilter, categoryFilter, personalGroupFilter, statusFilter].filter((value) => value !== "all").length
+  const [removedTeamIds] = useMaterialFolderState("removedTeamIds")
+  const [, setFolderState] = useMaterialFolderState()
+  const [lastTeamLocation, setLastTeamLocation] = useMaterialFolderState("lastTeamLocation")
+  const departmentOptions = [...new Set([demoCurrentUser.departmentId, ...materials.filter((item) => item.scope === "team" || item.status === "pending").map((item) => item.ownerDepartmentId)])].map((id) => ({ id, label: organizationMap[id]?.name || id }))
+  const effectiveDepartment = departmentOptions.length === 1 ? departmentOptions[0].id : departmentFilter
+  const currentFolders = folders.filter((folder) => folder.scope === scope && (scope !== "team" || effectiveDepartment === "all" || folder.departmentId === effectiveDepartment))
+  const currentFolderNode = folders.find((folder) => folder.id === activeFolder)
+  const canManageCurrentFolders = canManageFolders(demoCurrentUser, scope, effectiveDepartment, isOrganizationInScope) && (scope !== "team" || effectiveDepartment !== "all")
+  function assignedFolder(material, targetScope = scope) {
+    if (targetScope === "personal") {
+      const path = getPersonalGroup(material, personalGroupAssignments)
+      return folders.find((folder) => folder.scope === "personal" && folderPath(folders, folder.id) === path)?.id || ""
+    }
+    return folderAssignments[`${targetScope}:${material.id}`] || ""
+  }
+  const teamBrowsing = teamView === "all"
+  const teamSearching = teamBrowsing && !!query.trim()
+  const childFolders = currentFolders.filter((folder) => folder.parentId === (currentFolderNode?.id || "") && activeFolder !== "ungrouped")
+  function countFolderMaterials(id) {
+    const ids = id ? descendantIds(folders, id) : []
+    return materials.filter((material) => {
+      const inScope = scope === "personal" ? material.ownerId === demoCurrentUser.id : scope === "public" ? material.status === "active" && (material.scope === "public" || material.publicReviewStatus === "approved") : material.scope === "team" && material.status === "active" && (effectiveDepartment === "all" || material.ownerDepartmentId === effectiveDepartment) && !removedTeamIds.includes(material.id)
+      const assigned = assignedFolder(material)
+      return inScope && (id ? ids.includes(assigned) : !assigned)
+    }).length
+  }
+  function navigateFolder(id, department = departmentFilter) {
+    { setTeamBatchMode(false); setTeamAllMaterials(false); setQuery(""); setTypeFilter("all"); setCategoryFilter("all"); setPersonalGroupFilter("all"); setStatusFilter("all"); setTeamFiltersOpen(false) }
+    setActiveFolder(id); setDepartmentFilter(department); setSelectedIds([]); setPage(1)
+    if (scope === "team") setLastTeamLocation({ folder: id, department })
+  }
+  function assignToFolder(items, folderId, targetScope = scope) {
+    if (folderId === "keep") { setDialog(null); setSelectedIds([]); return }
+    if (targetScope === "personal") {
+      setPersonalGroupAssignments((current) => ({ ...current, ...Object.fromEntries(items.map((item) => [item.id, folderPath(folders, folderId)])) }))
+    } else {
+      const folder = folders.find((item) => item.id === folderId)
+      if (folder && (folder.scope !== targetScope || (targetScope === "team" && items.some((item) => item.ownerDepartmentId !== folder.departmentId)))) { setToast("请按部门分别归组"); return }
+      setFolderAssignments((current) => ({ ...current, ...Object.fromEntries(items.map((item) => [`${targetScope}:${item.id}`, folderId])) }))
+    }
+    setDialog(null); setSelectedIds([]); setToast("文件夹已调整")
+  }
+  function saveFolder(candidate) {
+    if (!canManageFolders(demoCurrentUser, candidate.scope, candidate.departmentId, isOrganizationInScope)) return "无该部门的文件夹管理权限"
+    const error = validateFolder(folders, candidate)
+    if (error) return error
+    const next = candidate.id ? folders.map((item) => item.id === candidate.id ? candidate : item) : [...folders, { ...candidate, id: `folder-${Date.now()}` }]
+    if (candidate.scope === "personal") {
+      setPersonalGroupAssignments((current) => Object.fromEntries(Object.entries(current).map(([id, path]) => {
+        const oldFolder = folders.find((item) => item.scope === "personal" && folderPath(folders, item.id) === path)
+        return [id, oldFolder ? folderPath(next, oldFolder.id) : path]
+      })))
+      setPersonalGroups(next.filter((item) => item.scope === "personal").map((item) => folderPath(next, item.id)))
+    }
+    setFolders(next); setDialog(null); return ""
+  }
+  function deleteFolder(folder, deleteAssets) {
+    try {
+      setFolderState((current) => {
+        const actual = current.folders.find((item) => item.id === folder.id)
+        if (!actual || !canManageFolders(demoCurrentUser, actual.scope, actual.departmentId, isOrganizationInScope)) {
+          throw new Error("文件夹或管理权限已变化")
+        }
+        if (deleteAssets && !isSystemAdmin(demoCurrentUser)
+          && !(demoCurrentUser.roleIds.includes("department_admin") && isOrganizationInScope(actual.departmentId, demoCurrentUser.organizationScopeIds))) {
+          throw new Error("没有团队素材删除权限")
+        }
+        return planFolderDeletion(current, folder.id, deleteAssets, (material) => canManageMaterial(demoCurrentUser, material))
+      })
+    } catch (error) {
+      return `删除未完成，文件夹和素材均未删除，请刷新后重试。${error.message || "本地保存失败"}`
+    }
+    setActiveFolder(""); setDialog(null); setSelectedIds([]); setPage(1)
+    if (folder.scope === "personal") setPersonalGroupFilter("all")
+    setToast(deleteAssets ? "文件夹及团队素材已删除，个人与公共内容保留" : "文件夹已删除，素材已转入未分组")
+    return ""
+  }
   const teamPendingCount = materials.filter((material) => material.status === "pending" && canReviewMaterial(demoCurrentUser, material)).length
   const publicPendingCount = isSystemAdmin(demoCurrentUser)
     ? materials.filter((material) => material.scope === "team" && material.status === "active" && material.publicReviewStatus === "pending").length
     : 0
   const pendingCount = teamPendingCount + publicPendingCount
   const scopeCounts = useMemo(() => ({
-    personal: materials.filter((material) => material.scope === "personal" && material.ownerId === demoCurrentUser.id).length,
-    team: materials.filter((material) => material.scope === "team" && material.status === "active").length,
+    personal: materials.filter((material) => material.ownerId === demoCurrentUser.id).length,
+    team: materials.filter((material) => material.scope === "team" && material.status === "active" && !removedTeamIds.includes(material.id)).length,
     public: materials.filter((material) => material.status === "active" && (material.scope === "public" || material.publicReviewStatus === "approved")).length,
-  }), [materials])
+  }), [materials, removedTeamIds])
 
-  const filteredMaterials = useMemo(() => {
+  const filteredMaterials = (() => {
     const normalizedQuery = query.trim().toLowerCase()
     return materials.filter((material) => {
       const scopeMatch = scope === "personal"
-        ? material.scope === "personal" && material.ownerId === demoCurrentUser.id
+        ? material.ownerId === demoCurrentUser.id
         : scope === "team"
           ? teamView === "pending"
             ? material.status === "pending" && canReviewMaterial(demoCurrentUser, material)
@@ -261,7 +345,7 @@ export default function MaterialsClient() {
         || (categoryFilter === "uncategorized" ? !material.category : material.category === categoryFilter)
       const personalGroup = getPersonalGroup(material, personalGroupAssignments)
       const personalGroupMatch = personalGroupFilter === "all"
-        || (personalGroupFilter === "uncategorized" ? !personalGroup : personalGroup === personalGroupFilter)
+        || (personalGroupFilter === "uncategorized" ? !personalGroup : (personalGroup === personalGroupFilter || personalGroup.startsWith(`${personalGroupFilter} / `)))
       const statusMatch = statusFilter === "all" || getMaterialStatus(material).id === statusFilter
       const queryMatch = !normalizedQuery || [
         material.title,
@@ -270,11 +354,18 @@ export default function MaterialsClient() {
         material.ownerDepartment,
         material.category || "未分类",
         personalGroup || "未分组",
+        ...(teamBrowsing ? [folderPath(folders, assignedFolder(material)) || "未分组"] : []),
         ...material.tags,
       ].join(" ").toLowerCase().includes(normalizedQuery)
-      return scopeMatch && typeMatch && categoryMatch && personalGroupMatch && statusMatch && queryMatch
+      const departmentMatch = scope !== "team" || teamView !== "all" || effectiveDepartment === "all" || material.ownerDepartmentId === effectiveDepartment
+      const groupId = assignedFolder(material)
+      const folderMatch = teamView !== "all" || (teamBrowsing && teamAllMaterials) || !activeFolder || (activeFolder === "ungrouped" ? !groupId : teamBrowsing && !teamSearching ? groupId === activeFolder : descendantIds(folders, activeFolder).includes(groupId))
+      const projectionExists = scope !== "team" || teamView !== "all" || !removedTeamIds.includes(material.id)
+      return scopeMatch && typeMatch && categoryMatch && personalGroupMatch && statusMatch && queryMatch && departmentMatch && folderMatch && projectionExists
     })
-  }, [categoryFilter, materials, personalGroupAssignments, personalGroupFilter, query, scope, statusFilter, teamView, typeFilter])
+  })()
+
+  const showMaterialList = !teamBrowsing || teamAllMaterials || teamSearching || currentFolders.length === 0 || (!!activeFolder && (filteredMaterials.length > 0 || childFolders.length === 0 || teamFiltersOpen))
 
   const statusOptions = scope === "personal" ? personalStatusOptions : teamStatusOptions
   const showStatusFilter = teamView === "all" && scope !== "public"
@@ -282,10 +373,10 @@ export default function MaterialsClient() {
   const totalPages = Math.max(1, Math.ceil(filteredMaterials.length / pageSize))
   const activePage = Math.min(page, totalPages)
   const visibleMaterials = filteredMaterials.slice((activePage - 1) * pageSize, activePage * pageSize)
-  const batchMode = scope === "personal" ? "submit" : scope === "team" && teamView === "pending" ? "review" : null
+  const batchMode = scope === "personal" ? "submit" : scope === "team" && teamView === "pending" ? "review" : teamView === "all" && scope !== "personal" ? "organize" : null
   const selectableMaterials = visibleMaterials.filter((material) => batchMode === "submit"
     ? canBatchSubmitMaterial(demoCurrentUser, material)
-    : batchMode === "review" && material.scope === "personal" && material.status === "pending" && canReviewMaterial(demoCurrentUser, material))
+    : batchMode === "organize" ? canManageFolders(demoCurrentUser, scope, material.ownerDepartmentId, isOrganizationInScope) : batchMode === "review" && material.scope === "personal" && material.status === "pending" && canReviewMaterial(demoCurrentUser, material))
   const selectedMaterials = selectableMaterials.filter((material) => selectedIds.includes(material.id))
   const allSelected = selectableMaterials.length > 0 && selectedMaterials.length === selectableMaterials.length
 
@@ -297,7 +388,7 @@ export default function MaterialsClient() {
     setDialog({ type: "batch", action, materials: selectedMaterials })
   }
 
-  function confirmBatch({ organizationIds, reason }) {
+  function confirmBatch({ organizationIds, reason, groupByDepartment }) {
     const visibleOrgIds = compactOrganizationIds(organizationIds || [])
     const allowedOrganizations = visibleOrgIds.every((id) => isSystemAdmin(demoCurrentUser) || isOrganizationInScope(id, demoCurrentUser.organizationScopeIds))
     if (!allowedOrganizations) {
@@ -307,6 +398,11 @@ export default function MaterialsClient() {
     const result = applyMaterialBatch(materials, dialog.materials.map((material) => material.id), {
       action: dialog.action, user: demoCurrentUser, canReview: canReviewMaterial, organizationIds: visibleOrgIds, reason,
     })
+    if (dialog.action !== "reject") {
+      const failed = new Set(result.failures.map((item) => item.id))
+      const successful = dialog.materials.filter((item) => !failed.has(item.id))
+      setFolderAssignments((current) => ({ ...current, ...Object.fromEntries(successful.map((item) => [`team:${item.id}`, groupByDepartment?.[item.ownerDepartmentId] ?? current[`team:${item.id}`] ?? ""])) }))
+    }
     setMaterials(result.materials)
     setSelectedIds([])
     setDialog({ type: "batch-result", action: dialog.action, successCount: result.successCount, failures: result.failures })
@@ -319,6 +415,11 @@ export default function MaterialsClient() {
   }, [toast])
 
   function changeScope(nextScope) {
+    setActiveFolder(nextScope === "team" ? lastTeamLocation?.folder || "" : "")
+    if (nextScope === "team") setDepartmentFilter(lastTeamLocation?.department || "all")
+    setTeamBatchMode(false)
+    setTeamAllMaterials(false)
+    setTeamFiltersOpen(false)
     setScope(nextScope)
     setTeamView("all")
     setQuery("")
@@ -331,6 +432,8 @@ export default function MaterialsClient() {
   }
 
   function openPendingApprovals() {
+    setTeamBatchMode(false)
+    setTeamFiltersOpen(false)
     setScope("team")
     setTeamView(teamPendingCount === 0 && publicPendingCount > 0 ? "public-pending" : "pending")
     setQuery("")
@@ -349,10 +452,14 @@ export default function MaterialsClient() {
     )))
   }
 
-  function createPersonalGroup(name) {
-    const nextName = name.trim()
+  function createPersonalGroup(name, parentPath = "") {
+    const leafName = name.trim()
+    const nextName = parentPath ? `${parentPath} / ${leafName}` : leafName
     if (!nextName || ["未分组", "全部个人分组"].includes(nextName)) return ""
-    setPersonalGroups((current) => current.includes(nextName) ? current : [...current, nextName])
+    if (personalGroups.includes(nextName)) return nextName
+    if (leafName.includes("/") || leafName.length > 30 || nextName.split(" / ").length > 3) { setToast("请通过文件夹入口逐层新建，名称最多30字"); return "" }
+    setFolders((current) => [...current, { id: `personal-${Date.now()}`, name: leafName, scope: "personal", departmentId: "", parentId: folders.find((item) => item.scope === "personal" && folderPath(folders, item.id) === parentPath)?.id || "" }])
+    setPersonalGroups((current) => [...current, nextName])
     return nextName
   }
 
@@ -362,7 +469,7 @@ export default function MaterialsClient() {
     setToast(group ? `已归入“${group}”` : "已移出个人分组")
   }
 
-  function submitToTeam(material, note) {
+  function submitToTeam(material, note, folderId) {
     updateMaterial(material.id, (current) => ({
       ...current,
       status: "pending",
@@ -371,6 +478,7 @@ export default function MaterialsClient() {
       submittedAt: "刚刚",
     }))
     setDialog(null)
+    setFolderAssignments((current) => ({ ...current, [`team:${material.id}`]: folderId || "" }))
     setToast("已提交给所属部门审核")
   }
 
@@ -379,7 +487,7 @@ export default function MaterialsClient() {
     setToast("已取消团队提交")
   }
 
-  function approveMaterial(material, organizationIds) {
+  function approveMaterial(material, organizationIds, folderId) {
     updateMaterial(material.id, (current) => ({
       ...current,
       scope: "team",
@@ -389,6 +497,7 @@ export default function MaterialsClient() {
       reviewedAt: "刚刚",
     }))
     setDialog(null)
+    setFolderAssignments((current) => ({ ...current, [`team:${material.id}`]: folderId || "" }))
     setToast("素材已发布到团体素材库")
   }
 
@@ -561,59 +670,81 @@ export default function MaterialsClient() {
         </div>
       </div>
 
-      {scope === "team" && (
-        <div className="flex items-center gap-1 border-b" style={{ borderColor: "var(--border-base)" }}>
+      {scope === "team" && teamView !== "all" && (
+        <div className="flex flex-wrap items-center gap-1 border-b" style={{ borderColor: "var(--border-base)" }}>
           {[
-            { id: "all", label: "全部团体素材" },
+            { id: "all", label: "返回素材库" },
             { id: "pending", label: `团队入库 ${teamPendingCount}` },
             ...(isSystemAdmin(demoCurrentUser) ? [{ id: "public-pending", label: `公共发布 ${publicPendingCount}` }] : []),
           ].map((view) => (
-            <button key={view.id} type="button" onClick={() => { setTeamView(view.id); setStatusFilter("all"); setSelectedIds([]); setPage(1) }} className={`border-b-2 px-3 py-2 text-sm font-medium ${teamView === view.id ? "border-[var(--brand-primary)] text-[var(--brand-primary)]" : "border-transparent text-[var(--text-secondary)]"}`}>{view.label}</button>
+            <button key={view.id} type="button" onClick={() => { setTeamView(view.id); setTeamFiltersOpen(false); setTeamBatchMode(false); setQuery(""); setTypeFilter("all"); setCategoryFilter("all"); setPersonalGroupFilter("all"); setStatusFilter("all"); setSelectedIds([]); setPage(1) }} className={`border-b-2 px-3 py-2 text-sm font-medium ${teamView === view.id ? "border-[var(--brand-primary)] text-[var(--brand-primary)]" : "border-transparent text-[var(--text-secondary)]"}`}>{view.label}</button>
           ))}
         </div>
       )}
 
-      <div className={`grid gap-2 sm:grid-cols-2 ${showStatusFilter ? "xl:grid-cols-[minmax(220px,1fr)_140px_160px_160px_160px_auto]" : "xl:grid-cols-[minmax(220px,1fr)_150px_160px_160px_auto]"}`}>
-        <label className="relative block">
-          <Search size={16} className="absolute left-3 top-3 text-[var(--text-secondary)]" />
-          <input
-            value={query}
-            onChange={(event) => { setQuery(event.target.value); setSelectedIds([]); setPage(1) }}
-            placeholder="搜索标题、标签、来源或部门"
-            aria-label="搜索素材"
-            className="h-10 w-full rounded-lg border bg-white pl-9 pr-3 text-sm outline-none focus:border-[var(--brand-primary)]"
-            style={{ borderColor: "var(--border-base)" }}
-          />
-        </label>
+      {teamBrowsing && <section className="space-y-4" aria-label="素材文件夹浏览">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <nav aria-label="素材文件夹路径" className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+            {scope === "team" && departmentOptions.length > 1 && <DepartmentTreeSelect value={effectiveDepartment} options={departmentOptions} onChange={(value) => navigateFolder("", value)} />}
+            <DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>{teamAllMaterials ? "全部素材" : "文件夹首页"}<ChevronDown size={14} /></DropdownMenuTrigger><DropdownMenuContent><DropdownMenuItem onClick={() => navigateFolder("")}>文件夹首页</DropdownMenuItem><DropdownMenuItem onClick={() => { navigateFolder(""); setTeamAllMaterials(true) }}>全部素材</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+            {currentFolderNode && folderPath(folders, activeFolder).split(" / ").map((part, index, parts) => <button key={index} className="break-all text-[var(--text-secondary)] hover:text-[var(--brand-primary)]" onClick={() => navigateFolder(currentFolders.find((item) => folderPath(folders, item.id) === parts.slice(0, index + 1).join(" / ") && item.departmentId === currentFolderNode.departmentId)?.id || "")}> / {part}</button>)}
+            {activeFolder === "ungrouped" && <span>/ 未分组</span>}
+
+          </nav>
+          <label className="relative min-w-0 flex-1 basis-56">
+            <Search size={16} className="absolute left-3 top-3 text-[var(--text-secondary)]" />
+            <input aria-label={scope === "team" ? "搜索团队素材" : scope === "personal" ? "搜索个人素材" : "搜索公共素材"} value={query} onChange={(event) => { setQuery(event.target.value); setSelectedIds([]); setPage(1) }} placeholder={activeFolder && !teamAllMaterials ? "搜索本文件夹及子级素材" : scope !== "team" ? "搜索全部素材" : effectiveDepartment === "all" ? "搜索全部可见部门的素材" : "搜索本部门全部素材"} className="h-10 w-full rounded-lg border bg-[var(--bg-card)] pl-9 pr-10 text-sm outline-none focus:border-[var(--brand-primary)]" style={{ borderColor: "var(--border-base)" }} />
+            {query && <button aria-label="清空素材搜索" onClick={() => { setQuery(""); setSelectedIds([]); setPage(1) }} className="absolute right-3 top-3 text-[var(--text-secondary)]"><X size={16} /></button>}
+          </label>
+          {showMaterialList && <Button variant="outline" aria-expanded={teamFiltersOpen} onClick={() => setTeamFiltersOpen((value) => !value)}>筛选{activeFilterCount ? ` · ${activeFilterCount}` : ""}</Button>}
+          {canManageCurrentFolders && <DropdownMenu><DropdownMenuTrigger render={<Button variant="outline" size="icon" aria-label="文件夹更多操作" />}><MoreHorizontal size={18} /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem disabled={!!currentFolderNode && folderPath(folders, activeFolder).split(" / ").length >= 3} onClick={() => setDialog({ type: "folder-edit", folder: null })}>新建文件夹</DropdownMenuItem>{currentFolderNode && <><DropdownMenuItem onClick={() => setDialog({ type: "folder-edit", folder: currentFolderNode })}>重命名文件夹</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onClick={() => setDialog({ type: "folder-delete", folder: currentFolderNode })}>删除文件夹</DropdownMenuItem></>}</DropdownMenuContent></DropdownMenu>}
+        </div>
+        {!teamSearching && !teamAllMaterials && currentFolders.length > 0 && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {!activeFolder && <button onClick={() => navigateFolder("ungrouped")} className="flex items-center gap-3 rounded-lg border bg-[var(--bg-card)] p-4 text-left hover:bg-[var(--bg-hover)]" style={{ borderColor: "var(--border-base)" }}><FolderOpen size={28} className="shrink-0 text-[var(--text-secondary)]" /><span><strong className="block text-sm">未分组</strong><span className="text-xs text-[var(--text-secondary)]">{countFolderMaterials("")} 个素材</span></span></button>}
+          {childFolders.map((folder) => <button key={folder.id} onClick={() => navigateFolder(folder.id, folder.departmentId)} className="flex min-w-0 items-center gap-3 rounded-lg border bg-[var(--bg-card)] p-4 text-left hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary-soft)]" style={{ borderColor: "var(--border-base)" }}><FolderOpen size={28} className="shrink-0 text-[var(--brand-primary)]" /><span className="min-w-0"><strong className="block truncate text-sm" title={folder.name}>{folder.name}</strong><span className="block text-xs text-[var(--text-secondary)]">{countFolderMaterials(folder.id)} 个素材 · 含子级</span>{scope === "team" && effectiveDepartment === "all" && <span className="block truncate text-xs text-[var(--text-secondary)]">{organizationMap[folder.departmentId]?.name}</span>}</span></button>)}
+        </div>}
+
+      </section>}
+
+      {scope === "team" && teamView !== "all" && <div className="flex flex-wrap gap-2"><input aria-label="搜索待审批素材" value={query} onChange={(event) => { setQuery(event.target.value); setSelectedIds([]); setPage(1) }} placeholder="搜索标题、标签、来源或部门" className="h-10 min-w-0 flex-1 rounded-lg border border-[var(--border-base)] bg-[var(--bg-card)] px-3 text-sm" /><Button variant="outline" aria-expanded={teamFiltersOpen} onClick={() => setTeamFiltersOpen((value) => !value)}>筛选{activeFilterCount ? ` · ${activeFilterCount}` : ""}</Button></div>}
+      {showMaterialList && teamFiltersOpen && <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
         <FilterSelect value={typeFilter} onChange={(value) => { setTypeFilter(value); setSelectedIds([]); setPage(1) }} options={typeOptions} ariaLabel="按素材类型筛选" />
         <FilterSelect value={categoryFilter} onChange={(value) => { setCategoryFilter(value); setSelectedIds([]); setPage(1) }} options={materialCategoryFilterOptions} ariaLabel="按素材类目筛选" />
         <FilterSelect value={personalGroupFilter} onChange={(value) => { setPersonalGroupFilter(value); setSelectedIds([]); setPage(1) }} options={[{ id: "all", label: "全部个人分组" }, ...personalGroups.map((group) => ({ id: group, label: group })), { id: "uncategorized", label: "未分组" }]} ariaLabel="按个人分组筛选" />
         {showStatusFilter && <FilterSelect value={statusFilter} onChange={(value) => { setStatusFilter(value); setSelectedIds([]); setPage(1) }} options={statusOptions} ariaLabel="按素材状态筛选" />}
         <div className="flex h-10 items-center justify-end text-xs text-[var(--text-secondary)]">
-          找到 {filteredMaterials.length} 个
+          <Button variant="ghost" onClick={() => { setTypeFilter("all"); setCategoryFilter("all"); setPersonalGroupFilter("all"); setStatusFilter("all"); setSelectedIds([]); setPage(1) }}>重置筛选</Button>
         </div>
-      </div>
+      </div>}
 
-      {batchMode && <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-[var(--bg-card)] p-3" style={{ borderColor: "var(--border-base)" }}>
+      {showMaterialList && <div className="flex items-center justify-between gap-2 text-sm text-[var(--text-secondary)]"><span>{teamSearching ? "搜索结果" : "素材"} · {filteredMaterials.length} 个{teamSearching && currentFolderNode ? "（含子文件夹）" : ""}</span>{batchMode && <Button variant="ghost" size="sm" onClick={() => { setTeamBatchMode(!(teamBatchMode || selectedIds.length > 0)); setSelectedIds([]) }}>{teamBatchMode || selectedIds.length ? "退出批量选择" : "批量选择"}</Button>}</div>}
+      {showMaterialList && batchMode && (teamBatchMode || selectedIds.length > 0) && <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-[var(--bg-card)] p-3" style={{ borderColor: "var(--border-base)" }}>
         <label className="flex items-center gap-2 text-sm text-[var(--text-body)]"><input type="checkbox" className="size-4 accent-[var(--brand-primary)]" checked={allSelected} disabled={!selectableMaterials.length} ref={(input) => { if (input) input.indeterminate = selectedMaterials.length > 0 && !allSelected }} onChange={(event) => setSelectedIds(event.target.checked ? selectableMaterials.map((material) => material.id) : [])} />当前页全选</label>
-        <span className="text-xs text-[var(--text-secondary)]">已选 {selectedMaterials.length} 个 · 仅选择可{batchMode === "submit" ? "提交" : "审批"}素材</span>
+        <span className="text-xs text-[var(--text-secondary)]">已选 {selectedMaterials.length} 个 · 仅选择可{batchMode === "submit" ? "提交" : batchMode === "organize" ? "整理" : "审批"}素材</span>
         <div className="flex flex-wrap gap-2 sm:ml-auto">
-          {batchMode === "submit" ? <Button disabled={!selectedMaterials.length} onClick={() => openBatchDialog("submit")}><Send size={14} />批量提交团队</Button> : <><Button disabled={!selectedMaterials.length} onClick={() => openBatchDialog("approve")}><Check size={14} />批量通过</Button><Button variant="outline" disabled={!selectedMaterials.length} onClick={() => openBatchDialog("reject")}><XCircle size={14} />批量驳回</Button></>}
+          {batchMode === "organize" ? <Button disabled={!selectedMaterials.length || (scope === "team" && new Set(selectedMaterials.map((item) => item.ownerDepartmentId)).size > 1)} onClick={() => setDialog({ type: "folder-assign", materials: selectedMaterials })}><FolderOpen size={14} />调整文件夹</Button> : batchMode === "submit" ? <Button disabled={!selectedMaterials.length} onClick={() => openBatchDialog("submit")}><Send size={14} />批量提交团队</Button> : <><Button disabled={!selectedMaterials.length} onClick={() => openBatchDialog("approve")}><Check size={14} />批量通过</Button><Button variant="outline" disabled={!selectedMaterials.length} onClick={() => openBatchDialog("reject")}><XCircle size={14} />批量驳回</Button></>}
           <Button variant="ghost" disabled={!selectedMaterials.length} onClick={() => setSelectedIds([])}>清空选择</Button>
         </div>
       </div>}
 
-      {visibleMaterials.length ? (
+      {showMaterialList && (visibleMaterials.length ? (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(min(230px,100%),1fr))] gap-4">
           {visibleMaterials.map((material) => (
             <MaterialCard
               key={material.id}
+              compact
+              showSelection={teamBatchMode || selectedIds.length > 0}
+              showFolderPath={teamBrowsing && (teamSearching || teamAllMaterials || (scope === "team" && effectiveDepartment === "all"))}
               material={material}
               activeScope={scope}
               currentUser={demoCurrentUser}
               selectable={selectableMaterials.some((item) => item.id === material.id)}
               selected={selectedMaterials.some((item) => item.id === material.id)}
               onSelect={(checked) => toggleMaterial(material.id, checked)}
+              onOpenFolder={teamBrowsing ? () => navigateFolder(assignedFolder(material) || "ungrouped", material.ownerDepartmentId) : null}
+              teamRemoved={removedTeamIds.includes(material.id)}
+              folderLabel={scope === "personal" ? getPersonalGroup(material, personalGroupAssignments) || "未分组" : scope === "team" || scope === "public" ? `${scope === "team" ? `${organizationMap[material.ownerDepartmentId]?.name || material.ownerDepartment}${folders.some((item) => item.scope === scope && item.departmentId === material.ownerDepartmentId) ? " · " : ""}` : ""}${folderPath(folders, assignedFolder(material)) || (folders.some((item) => item.scope === scope && (scope !== "team" || item.departmentId === material.ownerDepartmentId)) ? "未分组" : "")}` : ""}
+              onMoveFolder={teamView === "all" && scope !== "personal" && canManageFolders(demoCurrentUser, scope, material.ownerDepartmentId, isOrganizationInScope) ? () => setDialog({ type: "folder-assign", materials: [material] }) : null}
               personalGroup={getPersonalGroup(material, personalGroupAssignments)}
               canCancelPublic={canCancelPublicMaterial(demoCurrentUser, material)}
               reviewMode={scope === "team" && teamView === "pending" ? "team" : scope === "team" && teamView === "public-pending" ? "public" : null}
@@ -638,9 +769,9 @@ export default function MaterialsClient() {
           <span className="mt-1 text-xs text-[var(--text-secondary)]">调整筛选条件，或上传新的素材。</span>
           <Button className="mt-4 gap-2 text-white" onClick={() => setDialog({ type: "upload", defaultScope: scope })}><Upload size={15} />上传素材</Button>
         </div>
-      )}
+      ))}
 
-      <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: "var(--border-base)" }}>
+      {showMaterialList && <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: "var(--border-base)" }}>
         <span className="text-sm text-[var(--text-secondary)]">共 {filteredMaterials.length} 个素材</span>
         <div className="flex items-center gap-2">
           <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setSelectedIds([]); setPage(1) }} className="h-8 rounded-md border bg-white px-2 text-sm" style={{ borderColor: "var(--border-base)" }} aria-label="每页素材数量">
@@ -652,18 +783,21 @@ export default function MaterialsClient() {
           <span className="min-w-16 text-center text-sm text-[var(--text-body)]">{activePage} / {totalPages}</span>
           <Button variant="outline" size="icon" aria-label="下一页" title="下一页" disabled={activePage >= totalPages} onClick={() => { setSelectedIds([]); setPage((current) => Math.min(totalPages, current + 1)) }}><ChevronRight size={16} /></Button>
         </div>
-      </div>
+      </div>}
 
+      {dialog?.type === "folder-edit" && <FolderEditDialog folders={folders} scope={scope} departmentId={scope === "team" ? effectiveDepartment : ""} folder={dialog.folder} parentId={currentFolderNode?.id || ""} onClose={() => setDialog(null)} onSave={saveFolder} />}
+      {dialog?.type === "folder-assign" && <FolderAssignDialog folders={folders} scope={scope} departmentId={dialog.materials[0].ownerDepartmentId} initialValue={dialog.materials.length > 1 ? "keep" : assignedFolder(dialog.materials[0])} allowKeep={dialog.materials.length > 1} onClose={() => setDialog(null)} onSave={(id) => assignToFolder(dialog.materials, id)} />}
+      {dialog?.type === "folder-delete" && <FolderDeleteDialog folder={dialog.folder} folders={folders} materials={materials.filter((item) => descendantIds(folders, dialog.folder.id).includes(assignedFolder(item, dialog.folder.scope)) && (dialog.folder.scope !== "team" || (item.scope === "team" && item.status === "active" && !removedTeamIds.includes(item.id))))} canDeleteAssets={isSystemAdmin(demoCurrentUser) || (demoCurrentUser.roleIds.includes("department_admin") && isOrganizationInScope(dialog.folder.departmentId, demoCurrentUser.organizationScopeIds))} onClose={() => setDialog(null)} onDelete={(deleteAssets) => deleteFolder(dialog.folder, deleteAssets)} />}
       {dialog?.type === "upload" && <UploadMaterialDialog defaultScope={dialog.defaultScope} currentUser={demoCurrentUser} existingTitles={materials.map((material) => material.title)} personalGroups={personalGroups} onCreateGroup={createPersonalGroup} onClose={() => setDialog(null)} onSubmit={addMaterials} />}
       {dialog?.type === "detail" && <MaterialDetailDialog material={dialog.material} personalGroup={getPersonalGroup(dialog.material, personalGroupAssignments)} viewScope={dialog.viewScope} onClose={() => setDialog(null)} onDownload={() => downloadMaterial(dialog.material)} />}
       {dialog?.type === "edit" && <EditMaterialDialog material={dialog.material} currentUser={demoCurrentUser} personalGroup={getPersonalGroup(dialog.material, personalGroupAssignments)} personalGroups={personalGroups} onCreateGroup={createPersonalGroup} onClose={() => setDialog(null)} onSave={(values) => saveMaterial(dialog.material.id, values)} />}
       {dialog?.type === "group" && <PersonalGroupDialog material={dialog.material} personalGroup={dialog.personalGroup} personalGroups={personalGroups} onCreateGroup={createPersonalGroup} onClose={() => setDialog(null)} onSave={(group) => setMaterialPersonalGroup(dialog.material.id, group)} />}
-      {dialog?.type === "submit" && <SubmitMaterialDialog material={dialog.material} currentUser={demoCurrentUser} onClose={() => setDialog(null)} onSubmit={(note) => submitToTeam(dialog.material, note)} />}
-      {dialog?.type === "review" && <ReviewMaterialDialog material={dialog.material} currentUser={demoCurrentUser} onClose={() => setDialog(null)} onApprove={(organizationIds) => approveMaterial(dialog.material, organizationIds)} onReject={(reason) => rejectMaterial(dialog.material, reason)} />}
+      {dialog?.type === "submit" && <SubmitMaterialDialog material={dialog.material} currentUser={demoCurrentUser} folders={folders} onClose={() => setDialog(null)} onSubmit={(note, folderId) => submitToTeam(dialog.material, note, folderId)} />}
+      {dialog?.type === "review" && <ReviewMaterialDialog material={dialog.material} currentUser={demoCurrentUser} folders={folders} initialFolder={assignedFolder(dialog.material, "team")} onClose={() => setDialog(null)} onApprove={(organizationIds, folderId) => approveMaterial(dialog.material, organizationIds, folderId)} onReject={(reason) => rejectMaterial(dialog.material, reason)} />}
       {dialog?.type === "submit-public" && <SubmitPublicMaterialDialog material={dialog.material} onClose={() => setDialog(null)} onConfirm={() => submitToPublic(dialog.material)} />}
       {dialog?.type === "review-public" && <ReviewPublicMaterialDialog material={dialog.material} onClose={() => setDialog(null)} onApprove={() => approvePublicMaterial(dialog.material)} onReject={(reason) => rejectPublicMaterial(dialog.material, reason)} />}
       {dialog?.type === "delete" && <ConfirmDeleteDialog material={dialog.material} onClose={() => setDialog(null)} onConfirm={() => deleteMaterial(dialog.material)} />}
-      {dialog?.type === "batch" && <BatchMaterialDialog action={dialog.action} materials={dialog.materials} currentUser={demoCurrentUser} onClose={() => setDialog(null)} onConfirm={confirmBatch} />}
+      {dialog?.type === "batch" && <BatchMaterialDialog folders={folders} assignments={folderAssignments} action={dialog.action} materials={dialog.materials} currentUser={demoCurrentUser} onClose={() => setDialog(null)} onConfirm={confirmBatch} />}
       {dialog?.type === "batch-result" && <Modal manageFocus title="批量处理结果" onClose={() => setDialog(null)} width="560px" footer={<Button onClick={() => setDialog(null)}>完成</Button>}>
         <p role="status" className="text-sm text-[var(--text-body)]">{dialog.action === "submit" ? "提交" : dialog.action === "approve" ? "通过" : "驳回"}成功 {dialog.successCount} 个，失败 {dialog.failures.length} 个。</p>
         {dialog.failures.length > 0 && <ul className="mt-3 space-y-2 text-sm text-[var(--danger)]">{dialog.failures.map((failure) => <li key={failure.id} className="break-words">{failure.title}：{failure.reason}</li>)}</ul>}
@@ -685,13 +819,74 @@ function FilterSelect({ value, onChange, options, ariaLabel }) {
   )
 }
 
-function MaterialCard({ material, activeScope, currentUser, personalGroup, canCancelPublic, reviewMode, selectable, selected, onSelect, onView, onEdit, onSetPersonalGroup, onDownload, onDelete, onSubmit, onCancelSubmission, onReview, onSubmitPublic, onCancelPublic, onReviewPublic }) {
+// Page-local single-department navigation. OrganizationScopeSelector handles
+// multi-select permission scopes (parent includes children), so it is not reused here.
+function DepartmentTreeSelect({ value, options, onChange }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const [expanded, setExpanded] = useState([])
+  const selectableIds = new Set(options.map((item) => item.id))
+  const visibleIds = new Set(options.flatMap((item) => [item.id, ...(organizationMap[item.id]?.ancestorIds || [])]))
+  const query = search.trim().toLowerCase()
+  const matches = options.filter((item) => (organizationMap[item.id]?.path || item.label).toLowerCase().includes(query))
+  const searchIds = new Set(matches.flatMap((item) => [item.id, ...(organizationMap[item.id]?.ancestorIds || [])]))
+  const rows = organizationRows.filter((item) => visibleIds.has(item.id) && (query ? searchIds.has(item.id) : item.ancestorIds.every((id) => expanded.includes(id))))
+  const selected = organizationMap[value]
+  const shortName = (name) => name.split(/[~～]/).at(-1)
+  function select(id) { onChange(id); setOpen(false) }
+  return <DropdownMenu open={open} onOpenChange={(next) => { setOpen(next); if (next) { setSearch(""); setExpanded(selected?.ancestorIds || []) } }}>
+    <DropdownMenuTrigger render={<Button variant="outline" title={selected?.path || "全部可见部门"} aria-label="素材所属部门" className="max-w-52" />}><span className="truncate">{selected ? shortName(selected.name) : "全部可见部门"}</span><ChevronDown size={14} /></DropdownMenuTrigger>
+    <DropdownMenuContent className="w-80 max-w-[calc(100vw-24px)]" aria-label="选择素材所属部门">
+      <div className="relative mb-2"><Search size={14} className="absolute left-3 top-3 text-[var(--text-secondary)]" /><input aria-label="搜索部门" placeholder="搜索部门名称或路径" value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => { if (event.key !== "Escape" && event.key !== "Tab") event.stopPropagation() }} className="h-9 w-full rounded-md border border-[var(--border-base)] bg-[var(--bg-card)] pl-8 pr-2 text-sm" /></div>
+      <DropdownMenuItem onClick={() => select("all")}><span className="flex-1">全部可见部门</span>{value === "all" && <Check size={14} />}</DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <div className="max-h-72 overflow-y-auto" aria-label="部门层级">
+        {rows.map((item) => {
+          const hasChildren = organizationRows.some((child) => visibleIds.has(child.id) && child.ancestorIds.at(-1) === item.id)
+          const isExpanded = !!query || expanded.includes(item.id)
+          return <div key={item.id} className="flex items-center" style={{ paddingLeft: `${item.depth * 16}px` }}>
+            {hasChildren ? <button type="button" aria-label={`${isExpanded ? "收起" : "展开"}${shortName(item.name)}`} aria-expanded={isExpanded} disabled={!!query} onClick={() => setExpanded((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id])} className="grid size-8 shrink-0 place-items-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]">{isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button> : <span className="w-8 shrink-0" />}
+            {selectableIds.has(item.id) ? <DropdownMenuItem className="min-w-0 flex-1" onClick={() => select(item.id)} title={item.path}><span className="min-w-0 flex-1 truncate">{shortName(item.name)}</span>{value === item.id && <Check size={14} />}</DropdownMenuItem> : <span className="min-w-0 truncate px-3 py-2 text-sm text-[var(--text-secondary)]" title={item.path}>{shortName(item.name)}</span>}
+          </div>
+        })}
+        {query && matches.length === 0 && <p className="p-3 text-sm text-[var(--text-secondary)]">没有匹配的部门</p>}
+      </div>
+    </DropdownMenuContent>
+  </DropdownMenu>
+}
+
+function MaterialCard({ compact, showSelection, showFolderPath, onOpenFolder, teamRemoved, folderLabel, onMoveFolder, material, activeScope, currentUser, personalGroup, canCancelPublic, reviewMode, selectable, selected, onSelect, onView, onEdit, onSetPersonalGroup, onDownload, onDelete, onSubmit, onCancelSubmission, onReview, onSubmitPublic, onCancelPublic, onReviewPublic }) {
   const TypeIcon = typeMeta[material.type]?.icon || FileText
   const materialStatus = getMaterialStatus(material, activeScope)
   const displayScope = activeScope === "public" ? "public" : material.scope
   const canManage = canManageMaterial(currentUser, material)
   const isOwnPersonal = material.scope === "personal" && material.ownerId === currentUser.id
-  const canRequestPublic = canRequestPublicMaterial(currentUser, material)
+  const canRequestPublic = !teamRemoved && canRequestPublicMaterial(currentUser, material)
+  if (compact) return <article className="group relative flex min-w-0 flex-col overflow-hidden rounded-lg border bg-[var(--bg-card)] transition-shadow hover:shadow-[var(--shadow-card-hover)]" style={{ borderColor: selected ? "var(--brand-primary)" : "var(--border-base)" }}>
+    {selectable && <label className={`absolute left-2 top-2 z-10 rounded bg-[var(--bg-card)] p-1.5 transition-opacity max-sm:opacity-100 ${showSelection || selected ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}><input type="checkbox" aria-label={`选择${material.title}`} checked={selected} onChange={(event) => onSelect(event.target.checked)} className="block size-4 accent-[var(--brand-primary)]" /></label>}
+    <button type="button" aria-label={`查看${material.title}`} onClick={onView} className="relative block aspect-[4/3] w-full overflow-hidden bg-[var(--gray-100)]">
+      {material.src && material.type === "image" ? <SafeImage src={material.src} alt={material.title} className="h-full w-full object-cover" /> : <span className="flex h-full flex-col items-center justify-center gap-2 text-[var(--text-secondary)]"><TypeIcon size={34} /><span className="text-xs">{typeMeta[material.type]?.label}</span></span>}
+      {(materialStatus.tone === "warning" || materialStatus.tone === "danger") && <span title={material.publicRejectionReason || material.rejectionReason || materialStatus.label} className={`absolute right-2 top-2 rounded-md px-2 py-1 text-xs ${materialStatus.tone === "danger" ? "bg-[var(--danger-bg)] text-[var(--danger)]" : "bg-[var(--warning-bg)] text-[var(--warning)]"}`}>{materialStatus.label}</span>}
+    </button>
+    <div className="flex min-w-0 flex-1 flex-col gap-2 p-3">
+      <strong className="truncate text-sm text-[var(--text-title)]" title={material.title}>{material.title}</strong>
+      {showFolderPath && folderLabel && <button disabled={!onOpenFolder} onClick={onOpenFolder} title={folderLabel} className="truncate text-left text-xs text-[var(--text-secondary)] hover:underline">{folderLabel}</button>}
+      {reviewMode && <span className="truncate text-xs text-[var(--text-secondary)]" title={material.ownerDepartment}>{material.ownerDepartment}</span>}
+      {isOwnPersonal && !reviewMode && <Button size="sm" variant={material.status === "pending" ? "outline" : "default"} className={material.status === "pending" ? "" : "text-white"} onClick={material.status === "pending" ? onCancelSubmission : onSubmit}>{material.status === "pending" ? "取消提交" : material.status === "rejected" ? "重新提交" : "提交到团队"}</Button>}
+      {activeScope === "personal" && teamRemoved && <span className="text-xs text-[var(--text-secondary)]">团队库已删除 · 个人素材保留</span>}
+      {reviewMode && <Button size="sm" className="text-white" onClick={reviewMode === "team" ? onReview : onReviewPublic}>{reviewMode === "team" ? "审核" : "审核公共发布"}</Button>}
+      <div className="mt-auto flex items-center gap-2 pt-1"><span className="min-w-0 flex-1 truncate text-xs text-[var(--text-secondary)]">{material.createdAt}</span><IconAction label="下载" icon={Download} onClick={onDownload} />
+        <DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label={`${material.title}更多操作`} />}><MoreHorizontal size={17} /></DropdownMenuTrigger><DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={onView}>查看详情</DropdownMenuItem>
+          {onMoveFolder && <DropdownMenuItem onClick={onMoveFolder}>调整文件夹</DropdownMenuItem>}
+          <DropdownMenuItem onClick={onSetPersonalGroup}>设置个人分组</DropdownMenuItem>
+          {canManage && material.status !== "pending" && material.publicReviewStatus !== "pending" && <DropdownMenuItem onClick={onEdit}>编辑素材</DropdownMenuItem>}
+          {!reviewMode && activeScope === "team" && canRequestPublic && (material.publicReviewStatus === "pending" ? canCancelPublic && <DropdownMenuItem onClick={onCancelPublic}>取消公共申请</DropdownMenuItem> : <DropdownMenuItem onClick={onSubmitPublic}>{material.publicReviewStatus === "rejected" ? "再次申请公共" : "申请公共发布"}</DropdownMenuItem>)}
+          {!reviewMode && canManage && material.status !== "pending" && material.publicReviewStatus !== "pending" && <><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onClick={onDelete}>删除素材</DropdownMenuItem></>}
+        </DropdownMenuContent></DropdownMenu>
+      </div>
+    </div>
+  </article>
   return (
     <article className="group flex min-h-[360px] flex-col overflow-hidden rounded-lg border bg-white transition-shadow hover:shadow-[var(--shadow-card-hover)]" style={{ borderColor: selected ? "var(--brand-primary)" : "var(--border-base)" }}>
       {selectable && <label className="flex cursor-pointer items-center gap-2 border-b bg-[var(--bg-card)] px-3 py-2 text-xs text-[var(--text-body)]" style={{ borderColor: "var(--border-light)" }}><input type="checkbox" aria-label={`选择${material.title}`} className="size-4 accent-[var(--brand-primary)]" checked={selected} onChange={(event) => onSelect(event.target.checked)} />选择素材</label>}
@@ -717,6 +912,8 @@ function MaterialCard({ material, activeScope, currentUser, personalGroup, canCa
         <div className="mt-2 flex min-h-6 flex-wrap gap-1">
           {material.tags.length ? material.tags.slice(0, 3).map((tag) => <span key={tag} className="rounded-md bg-[var(--gray-100)] px-1.5 py-1 text-[11px] text-[var(--text-secondary)]">{tag}</span>) : <span className="text-xs text-[var(--text-disabled)]">无标签</span>}
         </div>
+        {activeScope === "personal" && teamRemoved && <span className="mt-2 text-xs text-[var(--text-secondary)]">团队库已删除 · 个人素材保留</span>}
+        {folderLabel && (onOpenFolder ? <button className="mt-2 truncate text-left text-xs text-[var(--brand-primary)] hover:underline" title={folderLabel} onClick={onOpenFolder}>{folderLabel}</button> : <span className="mt-2 truncate text-xs text-[var(--text-secondary)]" title={folderLabel}>{folderLabel}</span>)}
         {reviewMode && <span className="mt-2 truncate text-xs text-[var(--text-secondary)]" title={material.ownerDepartment}>{material.ownerDepartment}</span>}
         {material.status === "rejected" && <span className="mt-2 line-clamp-2 text-xs text-[var(--danger)]">{material.rejectionReason}</span>}
         {material.publicReviewStatus === "rejected" && <span className="mt-2 line-clamp-2 text-xs text-[var(--danger)]">公共驳回：{material.publicRejectionReason}</span>}
@@ -740,6 +937,7 @@ function MaterialCard({ material, activeScope, currentUser, personalGroup, canCa
           ) : null}
           <div className={`flex min-w-0 items-center gap-1 ${reviewMode || isOwnPersonal || canRequestPublic ? "mt-2 justify-end" : ""}`}>
             {!reviewMode && !isOwnPersonal && <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-secondary)]">{material.createdAt}</span>}
+            {onMoveFolder && <IconAction label="调整文件夹" icon={FolderOpen} onClick={onMoveFolder} />}
             <IconAction label="查看" icon={Eye} onClick={onView} />
             <IconAction label="下载" icon={Download} onClick={onDownload} />
             <IconAction label="设置个人分组" icon={FolderOpen} onClick={onSetPersonalGroup} />
@@ -756,11 +954,13 @@ function IconAction({ label, icon: Icon, tone, onClick }) {
   return <button type="button" aria-label={label} title={label} onClick={onClick} className={`grid size-8 shrink-0 place-items-center rounded-md border transition-colors ${tone === "danger" ? "text-[var(--danger)] hover:bg-[var(--danger-bg)]" : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"}`} style={{ borderColor: "var(--border-base)" }}><Icon size={14} /></button>
 }
 
-function Modal({ title, description, onClose, children, footer, width = "760px", manageFocus = false }) {
+function Modal({ title, description, onClose, children, footer, width = "760px", manageFocus = true }) {
   const dialogRef = useRef(null)
   useEffect(() => {
     if (!manageFocus) return undefined
     const previousFocus = document.activeElement
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
     const element = dialogRef.current
     const getControls = () => [...element.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex="0"]')].filter((control) => control.getClientRects().length)
     if (!element.contains(document.activeElement)) getControls()[0]?.focus()
@@ -779,6 +979,7 @@ function Modal({ title, description, onClose, children, footer, width = "760px",
     document.addEventListener("keydown", trapFocus)
     return () => {
       document.removeEventListener("keydown", trapFocus)
+      document.body.style.overflow = previousOverflow
       if (previousFocus?.isConnected) previousFocus.focus()
     }
   }, [manageFocus])
@@ -809,14 +1010,17 @@ function Modal({ title, description, onClose, children, footer, width = "760px",
   return createPortal(content, document.body)
 }
 
-function BatchMaterialDialog({ action, materials, currentUser, onClose, onConfirm }) {
+function BatchMaterialDialog({ folders, assignments, action, materials, currentUser, onClose, onConfirm }) {
   // Cross-department batches require an explicit common scope, rather than inheriting the first resource's department.
   const [visibleOrgIds, setVisibleOrgIds] = useState([])
   const [reason, setReason] = useState("")
+  const departments = [...new Set(materials.map((item) => item.ownerDepartmentId))]
+  const [groupByDepartment, setGroupByDepartment] = useState({})
   const label = action === "submit" ? "批量提交团队" : action === "approve" ? "批量通过" : "批量驳回"
   const valid = materials.length > 0 && (action === "approve" ? visibleOrgIds.length > 0 : action === "reject" ? Boolean(reason.trim()) : true)
-  return <Modal manageFocus title={label} description={`本次处理 ${materials.length} 个素材，每个素材独立记录结果。`} onClose={onClose} width="760px" footer={<><Button variant="outline" onClick={onClose}>取消</Button><Button variant={action === "reject" ? "destructive" : "default"} disabled={!valid} onClick={() => onConfirm({ organizationIds: visibleOrgIds, reason: reason.trim() })}>确认{action === "submit" ? "提交" : action === "approve" ? "通过并发布" : "驳回"}</Button></>}>
-    <ul className="max-h-40 space-y-2 overflow-y-auto rounded-lg bg-[var(--bg-hover)] p-3">{materials.map((material) => <li key={material.id} className="flex items-center gap-2 text-sm text-[var(--text-body)]"><span className="min-w-0 flex-1 truncate" title={material.title}>{material.title}</span><span className="max-w-[45%] truncate text-xs text-[var(--text-secondary)]" title={material.ownerDepartment}>{material.ownerDepartment}</span></li>)}</ul>
+  return <Modal manageFocus title={label} description={`本次处理 ${materials.length} 个素材，每个素材独立记录结果。`} onClose={onClose} width="760px" footer={<><Button variant="outline" onClick={onClose}>取消</Button><Button variant={action === "reject" ? "destructive" : "default"} disabled={!valid} onClick={() => onConfirm({ organizationIds: visibleOrgIds, reason: reason.trim(), groupByDepartment })}>确认{action === "submit" ? "提交" : action === "approve" ? "通过并发布" : "驳回"}</Button></>}>
+    <ul className="max-h-40 space-y-2 overflow-y-auto rounded-lg bg-[var(--bg-hover)] p-3">{materials.map((material) => <li key={material.id} className="flex items-center gap-2 text-sm text-[var(--text-body)]"><span className="min-w-0 flex-1 truncate" title={material.title}>{material.title}</span><span className="max-w-[45%] truncate text-xs text-[var(--text-secondary)]" title={material.ownerDepartment}>{material.ownerDepartment} · {folderPath(folders, assignments[`team:${material.id}`]) || "未分组"}</span></li>)}</ul>
+    {action !== "reject" && departments.map((departmentId) => <FolderChoice key={departmentId} folders={folders} scope="team" departmentId={departmentId} label={`${organizationMap[departmentId]?.name || "所属部门"}文件夹`} allowKeep={action === "approve"} value={groupByDepartment[departmentId] ?? (action === "approve" ? "keep" : "")} onChange={(value) => setGroupByDepartment((current) => ({ ...current, [departmentId]: value === "keep" ? undefined : value }))} />)}
     {action === "submit" && <p className="mt-4 rounded-lg bg-[var(--warning-bg)] p-3 text-xs leading-5 text-[var(--text-body)]">统一提交给本人所属部门，保留各素材原备注。审批通过后素材成为团队资产，发布人无法自行删除。</p>}
     {action === "approve" && <div className="mt-4"><p className="mb-3 text-sm text-[var(--text-body)]">以下可见组织统一用于所有选中素材。需要不同范围的素材请分批审批。</p><OrganizationScopeSelector value={visibleOrgIds} onChange={setVisibleOrgIds} allowedScopeIds={isSystemAdmin(currentUser) ? null : currentUser.organizationScopeIds} /></div>}
     {action === "reject" && <label className="mt-4 block"><FieldLabel inline>统一驳回原因</FieldLabel><textarea autoFocus value={reason} onChange={(event) => setReason(event.target.value)} placeholder="所有选中素材使用同一原因；原因不同请分批驳回" rows={4} className="w-full resize-none rounded-lg border bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-body)] outline-none focus:border-[var(--brand-primary)]" style={{ borderColor: "var(--border-base)" }} /></label>}
@@ -1081,33 +1285,38 @@ function RecognitionStatus({ status }) {
   return <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-[var(--text-secondary)]"><LoaderCircle size={13} />等待识别</span>
 }
 
-function SubmitMaterialDialog({ material, currentUser, onClose, onSubmit }) {
+function SubmitMaterialDialog({ material, currentUser, folders, onClose, onSubmit }) {
   const [note, setNote] = useState(material.remark || "")
+  const [folderId, setFolderId] = useState("")
   return (
-    <Modal title="提交到团队" description="系统默认提交到本人所属钉钉部门，不需要手动选择组织。" onClose={onClose} width="520px" footer={<><Button variant="outline" onClick={onClose}>取消</Button><Button className="gap-2 text-white" onClick={() => onSubmit(note)}><Send size={15} />确认提交</Button></>}>
+    <Modal title="提交到团队" description="系统默认提交到本人所属钉钉部门，不需要手动选择组织。" onClose={onClose} width="520px" footer={<><Button variant="outline" onClick={onClose}>取消</Button><Button className="gap-2 text-white" onClick={() => onSubmit(note, folderId)}><Send size={15} />确认提交</Button></>}>
       <div className="rounded-lg bg-[var(--gray-50)] px-4 py-3">
         <strong className="block text-sm text-[var(--text-title)]">{material.title}</strong>
         <span className="mt-1 block text-xs text-[var(--text-secondary)]">默认提交给：{currentUser.department}</span>
       </div>
       <div className="mt-3 flex items-start gap-2 rounded-lg bg-[var(--warning-bg)] p-3 text-xs leading-5 text-[var(--text-body)]"><AlertTriangle size={16} className="mt-0.5 shrink-0 text-[var(--warning)]" /><span>审批通过后，该素材将成为团队资产，发布人将无法自行删除。如需删除，请联系团队负责人处理。</span></div>
+      <FolderChoice folders={folders} scope="team" departmentId={currentUser.departmentId} value={folderId} onChange={setFolderId} />
+      <p className="mt-2 text-xs text-[var(--text-secondary)]">没有合适文件夹？请联系该部门管理员创建。</p>
       <label className="mt-4 block"><FieldLabel inline>推荐说明</FieldLabel><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="选填，简单说明适用场景" rows={3} className="w-full resize-none rounded-lg border px-3 py-2 text-sm outline-none" style={{ borderColor: "var(--border-base)" }} /></label>
     </Modal>
   )
 }
 
-function ReviewMaterialDialog({ material, currentUser, onClose, onApprove, onReject }) {
+function ReviewMaterialDialog({ material, currentUser, folders, initialFolder, onClose, onApprove, onReject }) {
   const [visibleOrgIds, setVisibleOrgIds] = useState([material.ownerDepartmentId])
   const [reason, setReason] = useState("")
   const [showReject, setShowReject] = useState(false)
+  const [folderId, setFolderId] = useState(initialFolder || "")
   return (
     <Modal
       title="审核团队素材"
       description={`${material.ownerDepartment} 提交`}
       onClose={onClose}
       width="760px"
-      footer={showReject ? <><Button variant="outline" onClick={() => setShowReject(false)}>返回</Button><Button variant="destructive" disabled={!reason.trim()} onClick={() => onReject(reason.trim())}>确认驳回</Button></> : <><Button variant="outline" onClick={() => setShowReject(true)}>驳回</Button><Button className="gap-2 text-white" disabled={!visibleOrgIds.length} onClick={() => onApprove(visibleOrgIds)}><Check size={15} />通过并发布</Button></>}
+      footer={showReject ? <><Button variant="outline" onClick={() => setShowReject(false)}>返回</Button><Button variant="destructive" disabled={!reason.trim()} onClick={() => onReject(reason.trim())}>确认驳回</Button></> : <><Button variant="outline" onClick={() => setShowReject(true)}>驳回</Button><Button className="gap-2 text-white" disabled={!visibleOrgIds.length} onClick={() => onApprove(visibleOrgIds, folderId)}><Check size={15} />通过并发布</Button></>}
     >
       <MaterialReviewSummary material={material} />
+      {!showReject && <FolderChoice folders={folders} scope="team" departmentId={material.ownerDepartmentId} value={folderId} onChange={setFolderId} />}
       {showReject ? (
         <label className="mt-4 block"><FieldLabel inline>驳回原因</FieldLabel><textarea autoFocus value={reason} onChange={(event) => setReason(event.target.value)} placeholder="填写后提交人可以据此修改" rows={4} className="w-full resize-none rounded-lg border px-3 py-2 text-sm outline-none" style={{ borderColor: "var(--border-base)" }} /></label>
       ) : (
@@ -1123,8 +1332,9 @@ function MaterialReviewSummary({ material }) {
 
 function PersonalGroupField({ value, onChange, options, onCreateGroup }) {
   const [draft, setDraft] = useState("")
+  const [parent, setParent] = useState("")
   function handleCreate() {
-    const nextGroup = onCreateGroup?.(draft)
+    const nextGroup = onCreateGroup?.(draft, parent)
     if (nextGroup) {
       onChange(nextGroup)
       setDraft("")
@@ -1144,6 +1354,9 @@ function PersonalGroupField({ value, onChange, options, onCreateGroup }) {
           <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1" disabled={!draft.trim()} onClick={handleCreate}><Plus size={14} />新建</Button>
         </div>
       </div>
+      <label className="mt-2 block text-xs text-[var(--text-secondary)]">新分组的父级
+        <select aria-label="个人分组父级" value={parent} onChange={(event) => setParent(event.target.value)} className="mt-1 h-9 w-full rounded-lg border bg-[var(--bg-card)] px-3 text-sm" style={{ borderColor: "var(--border-base)" }}><option value="">顶层</option>{options.filter((path) => path.split(" / ").length < 3).map((path) => <option key={path}>{path}</option>)}</select>
+      </label>
     </div>
   )
 }
@@ -1257,4 +1470,51 @@ function DetailTerm({ children }) {
 
 function DetailValue({ children }) {
   return <dd className="min-w-0 break-words text-[var(--text-body)]">{children}</dd>
+}
+
+
+function FolderChoice({ folders, scope, departmentId, value, onChange, label = "团队文件夹（可选）", allowKeep = false }) {
+  const [search, setSearch] = useState("")
+  const options = folders.filter((folder) => folder.scope === scope && (scope !== "team" || folder.departmentId === departmentId))
+  return <div className="mt-4 space-y-2">
+    <FieldLabel inline>{label}</FieldLabel>
+    <input aria-label={`搜索${label}`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索文件夹名称，直接选择完整路径" className="h-9 w-full rounded-lg border bg-[var(--bg-card)] px-3 text-sm" style={{ borderColor: "var(--border-base)" }} />
+    <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} className="h-10 w-full rounded-lg border bg-[var(--bg-card)] px-3 text-sm" style={{ borderColor: "var(--border-base)" }}>
+      {allowKeep && <option value="keep">保留各素材原文件夹</option>}
+      <option value="">未分组</option>
+      {options.filter((folder) => folder.id === value || folderPath(folders, folder.id).toLowerCase().includes(search.trim().toLowerCase())).map((folder) => <option key={folder.id} value={folder.id}>{folderPath(folders, folder.id)}</option>)}
+    </select>
+    {search && !options.some((folder) => folderPath(folders, folder.id).includes(search)) && <p className="text-xs text-[var(--text-secondary)]">没有匹配的文件夹</p>}
+  </div>
+}
+
+function FolderEditDialog({ folders, scope, departmentId, folder, parentId, onClose, onSave }) {
+  const [name, setName] = useState(folder?.name || "")
+  const [parent, setParent] = useState(folder?.parentId ?? parentId)
+  const [error, setError] = useState("")
+  const options = folders.filter((item) => item.scope === scope && item.departmentId === departmentId && folderPath(folders, item.id).split(" / ").length < 3 && (!folder || !descendantIds(folders, folder.id).includes(item.id)))
+  return <Modal manageFocus title={folder ? "重命名文件夹" : "新建文件夹"} description="最多三层，同一父级下名称不可重复。" width="520px" onClose={onClose} footer={<><Button variant="outline" onClick={onClose}>取消</Button><Button disabled={!name.trim()} onClick={() => setError(onSave({ id: folder?.id, name: name.trim(), parentId: parent, scope, departmentId }))}>保存</Button></>}>
+    <label className="block text-sm">文件夹名称<input autoFocus maxLength={30} value={name} onChange={(event) => setName(event.target.value)} className="mt-2 h-10 w-full rounded-lg border px-3" style={{ borderColor: "var(--border-base)" }} /></label>
+    {!folder && <label className="mt-4 block text-sm">所属父级<select value={parent} onChange={(event) => setParent(event.target.value)} className="mt-2 h-10 w-full rounded-lg border bg-[var(--bg-card)] px-3" style={{ borderColor: "var(--border-base)" }}><option value="">顶层</option>{options.map((item) => <option key={item.id} value={item.id}>{folderPath(folders, item.id)}</option>)}</select></label>}
+    {error && <p role="alert" className="mt-3 text-sm text-[var(--danger)]">{error}</p>}
+  </Modal>
+}
+
+function FolderAssignDialog({ folders, scope, departmentId, initialValue, allowKeep, onClose, onSave }) {
+  const [value, setValue] = useState(initialValue || "")
+  return <Modal manageFocus title="调整文件夹" width="520px" onClose={onClose} description="只改变归档位置，不改变素材可见范围。" footer={<><Button variant="outline" onClick={onClose}>取消</Button><Button onClick={() => onSave(value)}>保存</Button></>}><FolderChoice folders={folders} scope={scope} departmentId={departmentId} value={value} onChange={setValue} label="目标文件夹" allowKeep={allowKeep} /></Modal>
+}
+
+function FolderDeleteDialog({ folder, folders, materials, canDeleteAssets, onClose, onDelete }) {
+  const [deleteAssets, setDeleteAssets] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [error, setError] = useState("")
+  return <Modal manageFocus title={confirming ? "最终确认删除团队素材" : "删除文件夹"} width="520px" onClose={onClose} footer={<><Button variant="outline" onClick={onClose}>取消</Button><Button variant="destructive" onClick={() => { if (deleteAssets && !confirming) setConfirming(true); else { const message = onDelete(deleteAssets); setError(message || ""); if (message) setConfirming(false) } }}>{confirming ? "确认永久删除" : "删除"}</Button></>}>
+    <strong className="break-all text-sm">{folderPath(folders, folder.id)}</strong>
+    <p className="mt-3 text-sm text-[var(--text-body)]">包含全部子文件夹，共 {descendantIds(folders, folder.id).length} 个文件夹、{materials.length} 项素材。</p>
+    <p className="mt-2 text-sm text-[var(--text-secondary)]">默认保留素材，转入当前{folder.scope === "team" ? "部门" : "范围"}的“未分组”。</p>
+    {folder.scope === "team" && canDeleteAssets && <label className="mt-4 flex items-center gap-2 text-sm"><input type="checkbox" checked={deleteAssets} disabled={confirming} onChange={(event) => setDeleteAssets(event.target.checked)} className="size-4 accent-[var(--brand-primary)]" />同时删除其中的团队素材</label>}
+    {error && <p role="alert" className="mt-3 text-sm text-[var(--danger)]">{error}</p>}
+    {deleteAssets && <p className="mt-3 rounded-lg bg-[var(--danger-bg)] p-3 text-sm text-[var(--danger)]">删除后无法找回团队素材，不影响个人素材和公共素材中的内容。{confirming && "请再次确认。"}</p>}
+  </Modal>
 }

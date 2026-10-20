@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { resolveCanvasPointerIntent, resolveCanvasSelectionStrategy, applyCanvasSelectionStrategy, canvasSelectionHitsBounds, worldPoint, wheelViewport } from "../src/app/ai-canvas/beef-operations.mjs"
+import { resolveCanvasPointerIntent, resolveCanvasSelectionStrategy, applyCanvasSelectionStrategy, canvasSelectionHitsBounds, worldPoint, wheelViewport, canvasWireTarget } from "../src/app/ai-canvas/beef-operations.mjs"
 
 test("BeefTV pointer modes keep selection and navigation separate", () => {
   const input = { background: true, button: 0, pointerType: "mouse", boxSelectEnabled: true }
@@ -29,4 +29,15 @@ test("trackpad movement and Shift wheel pan without zooming", () => {
   const v = { x: 0, y: 0, k: 1 }
   assert.deepEqual(wheelViewport(v, { deltaMode: 0, deltaX: 12, deltaY: 6 }, { x: 0, y: 0 }), { x: -12, y: -6, k: 1 })
   assert.deepEqual(wheelViewport(v, { deltaMode: 0, deltaX: 0, deltaY: 100, shiftKey: true }, { x: 0, y: 0 }), { x: -100, y: 0, k: 1 })
+})
+test("wires can target an earlier node including the input port outside its body", () => {
+  const a = { id: "A", x: 100, y: 100, width: 280 }
+  const b = { id: "B", x: 500, y: 100, width: 280 }
+  assert.equal(canvasWireTarget([a, b], "B", { x: 99, y: 250 }).id, "A")
+  assert.equal(canvasWireTarget([a, b], "B", { x: 88, y: 240 }).id, "A")
+  assert.equal(canvasWireTarget([a, b], "B", { x: 110, y: 200 }).id, "A")
+  assert.equal(canvasWireTarget([a, b], "B", { x: 600, y: 250 }), undefined)
+  assert.equal(canvasWireTarget([a, b], "B", { x: 80, y: 250 }), undefined)
+  assert.equal(canvasWireTarget([a, b], "B", { x: 99, y: 100 }), undefined)
+  assert.equal(canvasWireTarget([a, b], "A", { x: 499, y: 250 }).id, "B")
 })

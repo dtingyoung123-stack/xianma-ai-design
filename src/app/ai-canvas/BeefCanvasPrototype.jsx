@@ -1,9 +1,15 @@
 "use client"
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
-import { ArrowLeft, Plus, MousePointer2, Hand, Undo2, Redo2, Image as ImageIcon, Video, Music, Type, Upload, FolderOpen, Clock3, Maximize2, Minus, X, Copy, Trash2, Search, Play, Download, Check, Workflow } from "lucide-react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
+import { ArrowLeft, Plus, MousePointer2, Hand, Undo2, Redo2, Image as ImageIcon, Video, Music, Type, Upload, FolderOpen, Clock3, Maximize2, Minus, X, Copy, Trash2, Search, Play, Download, Check, Workflow, Grid2X2, ArrowUp, BookOpenText, SlidersHorizontal, ChevronDown, LockKeyhole } from "lucide-react"
+import { characterViewSamples, characterViewSettings, characterViewPrompt, canvasImageModels, canvasImageRatios } from "@/data/demo/character-four-views"
+import { connectedImageReferences, appendCharacterVersion, characterGenerationBlock, imageCreationSettings, changeImageCreationSetting, toggleCanvasReference, characterPromptSnapshot } from "./character-views.mjs"
+import PromptPickerModal from "@/components/workbench/PromptPickerModal"
+import ImagePreviewModal from "@/components/workbench/ImagePreviewModal"
+import CanvasDialog from "./WorkflowDialog"
+import { initialPrompts } from "@/data/demo/prompts"
 import SafeImage from "@/components/SafeImage"
-import { resolveCanvasPointerIntent, resolveCanvasSelectionStrategy, applyCanvasSelectionStrategy, createCanvasSelectionBounds, canvasSelectionHitsBounds, worldPoint, wheelViewport } from "./beef-operations.mjs"
+import { resolveCanvasPointerIntent, resolveCanvasSelectionStrategy, applyCanvasSelectionStrategy, createCanvasSelectionBounds, canvasSelectionHitsBounds, worldPoint, wheelViewport, canvasWireTarget } from "./beef-operations.mjs"
 import styles from "./beef-canvas.module.css"
 import WorkflowPublishDialog from "./WorkflowPublishDialog"
 import { useWorkflowStore } from "./workflow-store"
@@ -45,6 +51,16 @@ export default function BeefCanvasPrototype({ project, onExit, onRename }) {
   const [box, setBox] = useState(null)
   const [wire, setWire] = useState(null)
   const [panel, setPanel] = useState(null)
+  const [capabilitiesOpen, setCapabilitiesOpen] = useState(false)
+  const [imageSettingsOpen, setImageSettingsOpen] = useState(false)
+  const [promptPickerOpen, setPromptPickerOpen] = useState(false)
+  const [expandedPrompt, setExpandedPrompt] = useState(false)
+  const [previewReference, setPreviewReference] = useState(null)
+  const [referencePicking, setReferencePicking] = useState(null)
+  const closePromptPicker = useCallback(() => setPromptPickerOpen(false), [])
+  const closeExpandedPrompt = useCallback(() => setExpandedPrompt(false), [])
+  const closePreviewReference = useCallback(() => setPreviewReference(null), [])
+  const [canvasSize, setCanvasSize] = useState({ width: 1024, height: 768 })
   const [message, setMessage] = useState("")
   const [history, setHistory] = useState({ past: [], future: [] })
   const [ready, setReady] = useState(false)
@@ -55,8 +71,17 @@ export default function BeefCanvasPrototype({ project, onExit, onRename }) {
   const clipboard = useRef(null)
   const fileInput = useRef(null)
   const latest = useRef({})
+  const [runningNodes, setRunningNodes] = useState(new Set())
+  const running = useRef(new Set())
+  const timers = useRef(new Set())
+  useEffect(() => () => { timers.current.forEach(clearTimeout) }, [])
+  useEffect(() => {
+    const observer = new ResizeObserver(([entry]) => setCanvasSize({ width: entry.contentRect.width, height: entry.contentRect.height }))
+    observer.observe(root.current)
+    return () => observer.disconnect()
+  }, [])
   const storageKey = `xianma-beef-prototype-v3:${project.id}`
-  useLayoutEffect(() => { latest.current = { document, viewport, selected, tool, menu, history, panel, publishing } })
+  useLayoutEffect(() => { latest.current = { document, viewport, selected, tool, menu, history, panel, publishing, modalOpen: promptPickerOpen || expandedPrompt || !!previewReference, referencePicking } })
 
   useEffect(() => {
     let active = true
@@ -84,7 +109,7 @@ export default function BeefCanvasPrototype({ project, onExit, onRename }) {
   }, [document, viewport, storageKey, ready])
 
   useEffect(() => {
-    if (!panel) return
+    if (!["assets", "history"].includes(panel)) return
     const previous = window.document.activeElement
     const frame = requestAnimationFrame(() => {
       const dialog = root.current?.querySelector("[role=dialog]")
@@ -168,7 +193,16 @@ export default function BeefCanvasPrototype({ project, onExit, onRename }) {
   }
   // BeefTV's pointer routing: V/blank drag selects; H, Space and middle button pan.
   function pointerDown(event) {
-    if (latest.current.publishing) return
+    if (latest.current.publishing || latest.current.modalOpen) return
+    if (latest.current.referencePicking) {
+      const id = event.target.closest("[data-node-id]")?.dataset.nodeId
+      if (id) {
+        const current = latest.current.document
+        const next = toggleCanvasReference(current, latest.current.referencePicking, id, newId())
+        if (next !== current) commit(next)
+      }
+      return
+    }
     if (event.target.closest("[data-canvas-ui],input,textarea,button,select")) return
     const at = point(event), world = worldPoint(at, viewport)
     const node = event.target.closest("[data-node-id]")
@@ -180,8 +214,14 @@ export default function BeefCanvasPrototype({ project, onExit, onRename }) {
       const strategy = resolveCanvasSelectionStrategy(event)
       const ids = strategy === "replace" && selected.has(id) ? selected : applyCanvasSelectionStrategy(selected, [id], strategy)
       setSelected(ids)
+      setPanel(ids.size === 1 ? id : null)
+      setCapabilitiesOpen(false)
+      setImageSettingsOpen(false)
       gesture.current = { type: "nodes", at: world, before: document, ids, moved: false }
     } else if (intent === "select") {
+      setPanel(null)
+      setCapabilitiesOpen(false)
+      setImageSettingsOpen(false)
       gesture.current = { type: "box", at: world, initial: selected, strategy: resolveCanvasSelectionStrategy(event) }
       setBox(createCanvasSelectionBounds(world.x, world.y, world.x, world.y))
     } else return
@@ -207,14 +247,29 @@ export default function BeefCanvasPrototype({ project, onExit, onRename }) {
     }
     if (g.type === "wire") setWire({ source: g.id, point: world })
   }
+  function openCreation(id) {
+    setSelected(new Set([id]))
+    setPanel(id)
+    setCapabilitiesOpen(false)
+    setImageSettingsOpen(false)
+    const node = latest.current.document.nodes.find(item => item.id === id)
+    if (!node) return
+    const v = latest.current.viewport
+    const height = root.current.getBoundingClientRect().height
+    const bottom = v.y + (node.y + nodeHeight) * v.k
+    const availableBottom = height - 434
+    // Reserve room beneath the node when the viewport can fit both.
+    if (bottom > availableBottom && availableBottom - nodeHeight * v.k >= 100) setViewport({ ...v, y: v.y - bottom + availableBottom })
+  }
   function pointerUp(event) {
     const g = gesture.current
     if (!g) return
     gesture.current = null
+    if (g.type === "nodes" && !g.moved && g.ids.size === 1) openCreation([...g.ids][0])
     if (g.type === "nodes" && g.moved || g.type === "resize") commit(latest.current.document, g.before)
     if (g.type === "wire") {
       const p = point(event), w = worldPoint(p, latest.current.viewport)
-      const target = latest.current.document.nodes.findLast((n) => n.id !== g.id && w.x >= n.x && w.x <= n.x + n.width && w.y >= n.y && w.y <= n.y + nodeHeight)
+      const target = canvasWireTarget(latest.current.document.nodes, g.id, w, nodeHeight)
       if (target) {
         const d = latest.current.document
         if (!d.edges.some((e) => e.source === g.id && e.target === target.id)) commit({ ...d, edges: [...d.edges, { id: newId(), source: g.id, target: target.id }] })
@@ -225,17 +280,21 @@ export default function BeefCanvasPrototype({ project, onExit, onRename }) {
   useEffect(() => {
     const element = root.current
     function wheel(event) {
-      if (latest.current.publishing) return
+      if (latest.current.publishing || latest.current.modalOpen) return
       if (event.target.closest("[data-canvas-ui],textarea,select")) return
       event.preventDefault()
       const rect = element.getBoundingClientRect()
       setViewport(wheelViewport(latest.current.viewport, event, { x: event.clientX - rect.left, y: event.clientY - rect.top }))
     }
     function key(event) {
-      if (latest.current.publishing) return
+      if (latest.current.publishing || latest.current.modalOpen) return
       const k = event.key.toLowerCase()
-      if (k === "escape") { setMenu(null); setPanel(null); setSelected(new Set()); gesture.current = null; setBox(null); setWire(null); return }
-      if (latest.current.panel) {
+      if (latest.current.referencePicking) {
+        if (k === "escape") { event.preventDefault(); setReferencePicking(null) }
+        return
+      }
+      if (k === "escape") { setCapabilitiesOpen(false); setImageSettingsOpen(false); setMenu(null); setPanel(null); setSelected(new Set()); gesture.current = null; setBox(null); setWire(null); return }
+      if (["assets", "history"].includes(latest.current.panel)) {
         if (k === "tab") {
           const items = [...element.querySelectorAll("[role=dialog] button,[role=dialog] textarea,[role=dialog] select")].filter((el) => !el.disabled)
           const first = items[0], last = items.at(-1)
@@ -244,9 +303,9 @@ export default function BeefCanvasPrototype({ project, onExit, onRename }) {
         }
         return
       }
-      if (editable(event.target)) return
+      if (editable(event.target) || event.target.closest("[data-creation-card]")) return
       if (k === " ") { event.preventDefault(); space.current = true }
-      if (k === "escape") { setMenu(null); setPanel(null); setSelected(new Set()); gesture.current = null; setBox(null); setWire(null) }
+      if (k === "escape") { setCapabilitiesOpen(false); setImageSettingsOpen(false); setMenu(null); setPanel(null); setSelected(new Set()); gesture.current = null; setBox(null); setWire(null) }
       if (!event.ctrlKey && !event.metaKey && k === "v") setTool("box-select")
       if (!event.ctrlKey && !event.metaKey && k === "h") setTool("move")
       if (k === "delete" || k === "backspace") { event.preventDefault(); removeSelection() }
@@ -287,6 +346,30 @@ export default function BeefCanvasPrototype({ project, onExit, onRename }) {
     setEditingName(false)
   }
   function generate(node) {
+    if (node.mode === characterViewSettings.mode) {
+      if (running.current.has(node.id)) return
+      const refs = connectedImageReferences(latest.current.document, node.id)
+      const source = refs.find(ref => ref.id === node.referenceId) || (refs.length === 1 ? refs[0] : null)
+      if (characterGenerationBlock(latest.current.document, node)) return
+      const promptSnapshot = characterPromptSnapshot(characterViewPrompt, node.prompt || "")
+      const sample = characterViewSamples.find(item => item.reference === source.result)
+      running.current.add(node.id)
+      setRunningNodes(new Set(running.current))
+      updateNode(node.id, { generationError: null })
+      const timer = setTimeout(() => {
+        timers.current.delete(timer)
+        running.current.delete(node.id)
+        setRunningNodes(new Set(running.current))
+        const current = latest.current.document
+        const target = current.nodes.find(item => item.id === node.id)
+        if (!target) return
+        if (!sample) { updateNode(node.id, { generationError: "这张参考图暂未生成成功，请重试或换一张示例参考图" }); return }
+        const version = { id: newId(), result: sample.result, label: `四视图 ${new Date().toLocaleTimeString("zh-CN")}`, reference: source.result, ...promptSnapshot, ...characterViewSettings }
+        commit({ ...current, nodes: current.nodes.map(item => item.id === node.id ? appendCharacterVersion(item, version) : item) })
+      }, 900)
+      timers.current.add(timer)
+      return
+    }
     // Deliberately synchronous local result; no backend task or billing.
     updateNode(node.id, { result: node.type === "text" ? node.prompt || "一段新的创作内容" : "/assets/layout-horizontal-5.jpg", generated: true })
   }
@@ -300,8 +383,33 @@ export default function BeefCanvasPrototype({ project, onExit, onRename }) {
     reader.readAsDataURL(file)
   }
   const selectedNodes = document.nodes.filter((n) => selected.has(n.id))
-  const activeNode = document.nodes.find((n) => n.id === panel)
+  const activeNode = selected.size === 1 ? document.nodes.find((n) => n.id === panel && selected.has(n.id)) : null
+  const generationInputs = activeNode ? document.nodes.filter(node => document.edges.some(edge => edge.target === activeNode.id && edge.source === node.id) && ((node.type === "image" && node.result) || node.type === "text")) : []
+  const settings = activeNode ? imageCreationSettings(activeNode) : null
+  const activeReferences = activeNode ? connectedImageReferences(document, activeNode.id) : []
+  const activeBlock = activeNode ? characterGenerationBlock(document, activeNode) : ""
+  const cardWidth = Math.min(600, canvasSize.width - 24)
+  const preferredCardHeight = activeNode?.type === "image" ? 420 : 260
+  const cardTop = activeNode ? Math.max(76, Math.min(viewport.y + (activeNode.y + nodeHeight) * viewport.k + 14, canvasSize.height - Math.min(preferredCardHeight, canvasSize.height - 100) - 12)) : 0
+  const cardLeft = activeNode ? Math.max(12, Math.min(viewport.x + activeNode.x * viewport.k + activeNode.width * viewport.k / 2 - cardWidth / 2, canvasSize.width - cardWidth - 12)) : 0
   const visibleCommands = commands.filter((c) => c.label.includes(query.trim()))
+  function updateImageSetting(key, value) {
+    if (!activeNode || runningNodes.has(activeNode.id)) return
+    const next = changeImageCreationSetting(activeNode, key, value)
+    if (next !== activeNode) updateNode(activeNode.id, { [key]: next[key] })
+  }
+  function renderImageSetting(label, key, options) {
+    return <fieldset disabled={settings.locked || runningNodes.has(activeNode.id)}><legend>{label}{settings.locked && key === "ratio" ? "（已锁定）" : ""}</legend><div>{options.map(value => <button key={value} aria-label={`${label} ${value}${key === "count" ? " 张" : ""}`} aria-pressed={settings[key] === value} onClick={() => updateImageSetting(key, value)}>{value}{key === "count" ? " 张" : ""}</button>)}</div></fieldset>
+  }
+  function removeReference(sourceId, targetId) {
+    const current = latest.current.document
+    commit({ ...current, edges: current.edges.filter(edge => edge.source !== sourceId || edge.target !== targetId) })
+  }
+  const generationInputsContent = activeNode ? <section className={styles.generationInputs} aria-label="生成输入"><h3>生成输入</h3><div className={styles.inputThumbnails}>{generationInputs.map((ref, index) => <div key={ref.id} className={`${styles.inputThumbnail} ${settings.locked && (ref.id === activeNode.referenceId || activeReferences.length === 1 && ref.type === "image") ? styles.chosenReference : ""}`}>
+      <button aria-label={`预览${ref.type === "image" ? "图片" : "文本"}${index + 1}`} title={ref.type === "image" ? ref.title : ref.prompt} onClick={() => { if (ref.type === "image") setPreviewReference(ref) }}>{ref.type === "image" ? <SafeImage src={ref.result} alt={ref.title} className="absolute inset-0 h-full w-full object-cover" /> : <Type size={20} />}<span>{ref.type === "image" ? "图片" : "文本"}{index + 1}</span></button>
+      <button className={styles.removeReference} aria-label={`移除${ref.type === "image" ? "图片" : "文本"}${index + 1}`} disabled={runningNodes.has(activeNode.id)} onClick={() => removeReference(ref.id, activeNode.id)}><X size={10} /></button>
+      {settings.locked && ref.type === "image" && activeReferences.length > 1 && <button className={styles.chooseReference} aria-label={`用${ref.title}生成四视图`} aria-pressed={ref.id === activeNode.referenceId} disabled={runningNodes.has(activeNode.id)} onClick={() => updateNode(activeNode.id, { referenceId: ref.id })}>{ref.id === activeNode.referenceId ? "已选" : "使用"}</button>}
+    </div>)}<button className={styles.addReference} aria-label="从画布选择参考内容" title="从画布选择参考内容" disabled={runningNodes.has(activeNode.id)} onClick={() => { setExpandedPrompt(false); setReferencePicking(activeNode.id); setImageSettingsOpen(false); setCapabilitiesOpen(false) }}><Plus size={18} /></button></div></section> : null
   function createMenu(grid = false) {
     return <div className={grid ? styles.emptyMenu : styles.createMenu} data-canvas-ui>
       <header><strong>添加节点</strong>{!grid && <button aria-label="关闭新增菜单" onClick={() => setMenu(null)}><X size={16} /></button>}</header>
@@ -315,7 +423,7 @@ export default function BeefCanvasPrototype({ project, onExit, onRename }) {
     const bend = Math.max(60, Math.abs(b.x - a.x) / 2)
     return `M${a.x},${a.y} C${a.x + bend},${a.y} ${b.x - bend},${b.y} ${b.x},${b.y}`
   }
-  return <div ref={root} className={styles.canvas} data-tool={tool} data-prototype="beef-v3" onPointerDownCapture={e => { if (nodeEditing !== null && !e.target.closest("[data-node-name-editor]")) saveNodeName() }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={() => { gesture.current = null; setBox(null); setWire(null) }} onDoubleClick={(e) => { if (publishing) return; if (!e.target.closest("[data-node-id],[data-canvas-ui]")) showMenu(point(e)) }} onContextMenu={(e) => { if (publishing) return; if (editable(e.target)) return; e.preventDefault(); if (!e.target.closest("[data-canvas-ui]")) { const id = e.target.closest("[data-node-id]")?.dataset.nodeId; if (id) setSelected(new Set([id])); showMenu(point(e), null, id) } }}>
+  return <div ref={root} className={styles.canvas} data-tool={tool} data-prototype="beef-v3" data-reference-picking={!!referencePicking} onPointerDownCapture={e => { if (nodeEditing !== null && !e.target.closest("[data-node-name-editor]")) saveNodeName() }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={() => { gesture.current = null; setBox(null); setWire(null) }} onDoubleClick={(e) => { if (publishing) return; if (!e.target.closest("[data-node-id],[data-canvas-ui]")) showMenu(point(e)) }} onContextMenu={(e) => { if (publishing) return; if (editable(e.target)) return; e.preventDefault(); if (!e.target.closest("[data-canvas-ui]")) { const id = e.target.closest("[data-node-id]")?.dataset.nodeId; if (id) setSelected(new Set([id])); showMenu(point(e), null, id) } }}>
     <header className={styles.topbar} data-canvas-ui><button onClick={onExit}><ArrowLeft size={16} />返回项目</button>{editingName ? <input className={styles.nameInput} autoFocus maxLength={80} aria-label="项目名称" value={nameDraft} onFocus={(event) => event.target.select()} onChange={(event) => setNameDraft(event.target.value)} onBlur={saveName} onKeyDown={(event) => {
       event.stopPropagation()
       if (event.key === "Enter" && nameDraft.trim()) { event.preventDefault(); saveName() }
@@ -332,9 +440,12 @@ export default function BeefCanvasPrototype({ project, onExit, onRename }) {
         return <article key={node.id} className={`${styles.node} ${selected.has(node.id) ? styles.selected : ""}`} data-node-id={node.id} style={{ left: node.x, top: node.y, width: node.width }}>
           <div className={styles.nodeTitle}><Icon size={16} />{nodeEditing === node.id ? <input data-node-name-editor className={styles.nameInput} autoFocus aria-label="节点名称" value={nodeName} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()} onChange={e => setNodeName(e.target.value)} onBlur={saveNodeName} onKeyDown={e => { e.stopPropagation(); if (e.key === "Enter") { e.preventDefault(); saveNodeName() } if (e.key === "Escape") { nodeNameCanceled.current = true; setNodeEditing(null) } }} /> : <span role="button" tabIndex={0} title="双击修改节点名称" onPointerDown={e => e.stopPropagation()} aria-label={`修改节点名称：${node.title}`} onDoubleClick={e => { e.stopPropagation(); nodeNameCanceled.current = false; setNodeName(node.title); setNodeEditing(node.id) }} onKeyDown={e => { if (e.key === "Enter") { e.stopPropagation(); nodeNameCanceled.current = false; setNodeName(node.title); setNodeEditing(node.id) } }}>{node.title}</span>}<small>{selected.has(node.id) ? "已选择" : nodeTypes[node.type].label}</small></div>
           <div className={styles.nodeBody}>
-            {node.result && node.type === "image" ? <SafeImage src={node.result} alt={node.title} className="absolute inset-0 h-full w-full object-cover" /> : <div className={styles.placeholder}>{node.type === "text" ? <textarea aria-label="文本内容" value={node.prompt} placeholder="输入文本，或编写创作提示词…" onChange={(e) => updateNode(node.id, { prompt: e.target.value })} /> : <><Icon size={36} /><span>{node.generated ? "创作结果已生成" : `开始${nodeTypes[node.type].label}创作`}</span></>}</div>}
+            {node.result && node.type === "image" ? <SafeImage src={node.result} alt={node.title} className={`absolute inset-0 h-full w-full ${node.mode === characterViewSettings.mode ? "object-contain" : "object-cover"}`} /> : <div className={styles.placeholder}>{node.type === "text" ? <textarea aria-label="文本内容" value={node.prompt} placeholder="输入文本，或编写创作提示词…" onChange={(e) => updateNode(node.id, { prompt: e.target.value })} /> : <><Icon size={36} /><span>{node.generated ? "创作结果已生成" : `开始${nodeTypes[node.type].label}创作`}</span></>}</div>}
+            {runningNodes.has(node.id) && <div className={styles.generationOverlay} role="status">正在生成角色四视图…</div>}
+            {node.generationError && <div className={styles.generationOverlay} role="alert"><span>{node.generationError}</span><button disabled={!!characterGenerationBlock(document, node) || runningNodes.has(node.id)} title={characterGenerationBlock(document, node)} onClick={() => generate(node)}>重试</button></div>}
+            {node.versions?.length > 0 && <select className={styles.versionPicker} data-canvas-ui aria-label={`${node.title}历史版本`} value={node.activeVersion} disabled={runningNodes.has(node.id)} onChange={event => { const version = node.versions.find(item => item.id === event.target.value); updateNode(node.id, { result: version.result, activeVersion: version.id }) }}>{node.versions.map((version, index) => <option key={version.id} value={version.id}>{index + 1} · {version.label}</option>)}</select>}
           </div>
-          <div className={styles.nodeFooter} data-canvas-ui><button onClick={() => { setSelected(new Set([node.id])); setPanel(node.id) }}><Type size={14} />{node.prompt ? "编辑提示词" : "添加提示词"}</button><button className={styles.primary} onClick={() => generate(node)}><Play size={13} />生成</button></div>
+          <div className={styles.nodeFooter} data-canvas-ui><button onClick={() => openCreation(node.id)}><Type size={14} />{node.type === "image" ? node.mode === characterViewSettings.mode ? "角色四视图" : "创作设置" : node.prompt ? "编辑提示词" : "添加提示词"}</button><button className={styles.primary} disabled={runningNodes.has(node.id) || !!characterGenerationBlock(document, node)} title={characterGenerationBlock(document, node)} onClick={() => generate(node)}><Play size={13} />{runningNodes.has(node.id) ? "生成中" : "生成"}</button></div>
           <button className={styles.inputPort} aria-label={`${node.title}输入连接点`} title="拖入连线" />
           <button className={styles.outputPort} aria-label={`${node.title}输出连接点`} title="拖动连线到节点或空白处" onPointerDown={(e) => { e.stopPropagation(); gesture.current = { type: "wire", id: node.id }; setWire({ source: node.id, point: worldPoint(point(e), viewport) }); root.current.setPointerCapture(e.pointerId) }}><Plus size={14} /></button>
           <button className={styles.resize} aria-label={`调整${node.title}宽度`} onPointerDown={(e) => { e.stopPropagation(); gesture.current = { type: "resize", id: node.id, at: worldPoint(point(e), viewport), before: document, width: node.width }; root.current.setPointerCapture(e.pointerId) }} />
@@ -344,7 +455,7 @@ export default function BeefCanvasPrototype({ project, onExit, onRename }) {
     </div>
     {ready && !document.nodes.length && <div className={styles.empty} data-canvas-ui><h1>从一个想法开始</h1><p>添加节点，连接内容，开始创作</p>{createMenu(true)}</div>}
     {menu && <div className={styles.menuPosition} style={{ left: menu.left, top: menu.top, maxHeight: `calc(100dvh - ${menu.top + 90}px)` }}>{createMenu()}</div>}
-    {selected.size > 0 && <div className={styles.selectionTools} data-canvas-ui><span>已选 {selected.size} 项</span><button title="复制" aria-label="复制选中节点" onClick={() => { copySelection(); pasteSelection() }}><Copy size={16} /></button><button title="删除" aria-label="删除选中节点" onClick={removeSelection}><Trash2 size={16} /></button>{selectedNodes.some((n) => n.result && n.type === "image") && <button aria-label="下载选中图片" onClick={() => { const n = selectedNodes.find((n) => n.result && n.type === "image"); const a = window.document.createElement("a"); a.href = n.result; a.download = `${n.title}.jpg`; a.click() }}><Download size={16} /></button>}</div>}
+    {selected.size > 0 && <div className={styles.selectionTools} data-canvas-ui><span>已选 {selected.size} 项</span><button title="复制" aria-label="复制选中节点" onClick={() => { copySelection(); pasteSelection() }}><Copy size={16} /></button><button title="删除" aria-label="删除选中节点" onClick={removeSelection}><Trash2 size={16} /></button>{selectedNodes.some((n) => n.result && n.type === "image") && <button aria-label="下载选中图片" onClick={() => { const n = selectedNodes.find((n) => n.result && n.type === "image"); const a = window.document.createElement("a"); a.href = n.result; a.download = `${n.title}.${n.mode === characterViewSettings.mode ? "png" : "jpg"}`; a.click() }}><Download size={16} /></button>}</div>}
     <div className={styles.dock} role="toolbar" aria-label="画布主工具栏" data-canvas-ui>
       <button aria-label="移动选择 V" title="移动选择 V" className={tool === "box-select" ? styles.active : ""} onClick={() => setTool("box-select")}><MousePointer2 size={20} /></button>
       <button aria-label="抓手 H" title="抓手 H / 空格拖动" className={tool === "move" ? styles.active : ""} onClick={() => setTool("move")}><Hand size={20} /></button><i />
@@ -355,9 +466,32 @@ export default function BeefCanvasPrototype({ project, onExit, onRename }) {
     <div className={styles.zoom} data-canvas-ui><button aria-label="缩小" onClick={() => zoom(1 / 1.2)}><Minus size={16} /></button><button aria-label="重置缩放" onClick={() => zoom(1 / viewport.k)}>{Math.round(viewport.k * 100)}%</button><button aria-label="放大" onClick={() => zoom(1.2)}><Plus size={16} /></button><button aria-label="适应画布" onClick={fit}><Maximize2 size={16} /></button></div>
     <span className={styles.hint}>双击添加 · 空格拖动画布 · 滚轮缩放 · Shift 多选</span>
     <input ref={fileInput} hidden type="file" accept="image/*" onChange={upload} />
-    {panel && <div className={styles.scrim} data-canvas-ui onClick={() => setPanel(null)}><section className={styles.panel} role="dialog" aria-modal="true" aria-label="节点与资源面板" onClick={(e) => e.stopPropagation()}><header><strong>{panel === "assets" ? "素材库" : panel === "history" ? "生成历史" : "创作设置"}</strong><button aria-label="关闭面板" onClick={() => setPanel(null)}><X size={18} /></button></header>
-      {["assets", "history"].includes(panel) ? <div className={styles.resourceList}>{panel === "assets" ? <button onClick={() => { addNode("image", null, null, { result: "/assets/layout-horizontal-5.jpg", title: "构图参考" }); setPanel(null) }}><div className={styles.resourceImage}><SafeImage src="/assets/layout-horizontal-5.jpg" alt="构图参考" className="absolute inset-0 h-full w-full object-cover" /></div>构图参考 · 加入画布</button> : document.nodes.filter((n) => n.generated).map((n) => <button key={n.id} onClick={() => { addNode(n.type, null, null, { result: n.result, prompt: n.prompt }); setPanel(null) }}>{n.title} · 加入画布</button>)}{panel === "history" && !document.nodes.some((n) => n.generated) && <p>还没有创作记录，先选择节点生成内容</p>}</div> : activeNode && <><label>提示词<textarea autoFocus aria-label="创作提示词" value={activeNode.prompt} onChange={(e) => updateNode(activeNode.id, { prompt: e.target.value })} placeholder="描述想要的内容和效果…" /></label><label>输出比例<select value={activeNode.ratio || "1:1"} onChange={(e) => updateNode(activeNode.id, { ratio: e.target.value })}><option>1:1</option><option>16:9</option><option>9:16</option></select></label><button className={styles.primary} onClick={() => { generate(activeNode); setPanel(null) }}><Play size={16} />生成内容</button></>}
-    </section></div>}
+    {referencePicking && <div className={styles.referencePickingBar} data-canvas-ui role="status"><span>连续点击画布中的图片或文本，添加/移除生成输入</span><button onClick={() => setReferencePicking(null)}>完成选择（Esc）</button></div>}
+    {activeNode && !publishing && !referencePicking && <section className={styles.creationCard} data-canvas-ui data-creation-card role="region" aria-label="节点创作设置" style={{ left: cardLeft, top: cardTop, width: cardWidth, maxHeight: canvasSize.height - cardTop - 12 }}>
+      <header><strong>{activeNode.type === "image" ? "图片提示词" : "创作设置"}</strong><div>{activeNode.type === "image" && <button className={styles.templateTrigger} disabled={settings.locked || runningNodes.has(activeNode.id)} title={settings.locked ? "移除角色四视图后可使用提示词模板" : "选择提示词模板"} onClick={() => setPromptPickerOpen(true)}><BookOpenText size={14} />提示词模板</button>}<button aria-label="关闭创作设置" onClick={() => { setPanel(null); setCapabilitiesOpen(false); setImageSettingsOpen(false) }}><X size={16} /></button></div></header>
+      <div className={styles.creationBody}>
+        {activeNode.type === "image" && generationInputsContent}
+        <div className={styles.promptEditor}>
+          {settings.locked && <><div className={styles.modeChip}><Grid2X2 size={14} />角色四视图<button aria-label="退出角色四视图" disabled={runningNodes.has(activeNode.id)} onClick={() => { updateNode(activeNode.id, { mode: "standard", generationError: null }); setCapabilitiesOpen(false); setImageSettingsOpen(false) }}><X size={13} /></button></div>{activeBlock && <p className={styles.referenceWarning} role="status">{activeBlock}</p>}</>}<textarea aria-label="创作提示词" disabled={runningNodes.has(activeNode.id)} value={activeNode.prompt || ""} onChange={event => updateNode(activeNode.id, { prompt: event.target.value })} placeholder={settings.locked ? "基于关联角色图，生成面部近景、正面、侧面和背面全身合图。" : "描述你想生成的图片，或选择提示词模板…"} />
+          <button className={styles.expandPrompt} aria-label="放大编辑提示词" title="放大编辑提示词" onClick={() => setExpandedPrompt(true)}><Maximize2 size={14} /></button>
+        </div>
+      </div>
+      <footer>
+        {activeNode.type === "image" ? <>
+          <label className={styles.modelControl}><span className="sr-only">图片生成模型</span><select aria-label="图片生成模型" value={settings.model} disabled={runningNodes.has(activeNode.id)} onChange={event => updateImageSetting("model", event.target.value)}>{canvasImageModels.map(model => <option key={model}>{model}</option>)}</select><ChevronDown size={12} /></label>
+          <button className={styles.parameterTrigger} aria-label="图像设置" disabled={runningNodes.has(activeNode.id)} aria-expanded={imageSettingsOpen} onClick={() => { setImageSettingsOpen(!imageSettingsOpen); setCapabilitiesOpen(false) }}><SlidersHorizontal size={14} /><span>{settings.resolution} · {settings.ratio} · {settings.count} 张</span>{settings.locked && <LockKeyhole size={11} />}</button>
+          <button className={styles.capabilityTrigger} aria-label="设定图" title="设定图" aria-expanded={capabilitiesOpen} aria-haspopup="menu" disabled={runningNodes.has(activeNode.id)} onClick={() => { setCapabilitiesOpen(!capabilitiesOpen); setImageSettingsOpen(false) }}><Grid2X2 size={18} /></button>
+        </> : <span className={styles.cardSpecification}>当前节点</span>}
+        <span className={styles.generateControl} title={activeBlock || "生成"}><button className={styles.generateArrow} aria-label="生成内容" disabled={runningNodes.has(activeNode.id) || !!activeBlock} aria-describedby={activeBlock ? "creation-block-reason" : undefined} onClick={() => generate(activeNode)}><ArrowUp size={20} /></button></span>
+      </footer>
+      {imageSettingsOpen && activeNode.type === "image" && <div className={styles.imageSettingsPopover} role="group" aria-label="图像设置选项"><strong>图像设置</strong>{settings.locked && <p><LockKeyhole size={12} />角色四视图固定 1536 × 1024 · 3:2 · 1 张</p>}{renderImageSetting("分辨率", "resolution", ["1K", "2K", "4K"])}{renderImageSetting("宽高比", "ratio", canvasImageRatios)}{renderImageSetting("生成张数", "count", [1, 2, 4])}</div>}
+      {capabilitiesOpen && activeNode.type === "image" && <div className={styles.capabilityMenu} role="menu" aria-label="设定图菜单"><small>设定图</small><button role="menuitem" onClick={() => { updateNode(activeNode.id, { mode: characterViewSettings.mode, generationError: null }); setCapabilitiesOpen(false) }}><Grid2X2 size={18} /><span><strong>角色四视图</strong><small>面部近景与正、侧、背全身</small></span>{settings.locked && <Check size={14} />}</button></div>}
+      {activeBlock && <p className={styles.cardNote} id="creation-block-reason">{activeBlock}</p>}
+    </section>}
+    {promptPickerOpen && activeNode && <PromptPickerModal title="选择提示词" prompts={initialPrompts} initialSelectedId={activeNode.promptTemplateId || ""} onClose={closePromptPicker} onClear={() => { updateNode(activeNode.id, { prompt: "", promptTemplateId: null }); setPromptPickerOpen(false) }} onConfirm={prompt => { updateNode(activeNode.id, { prompt: prompt.content, promptTemplateId: prompt.id }); setPromptPickerOpen(false) }} />}
+    {expandedPrompt && activeNode && <CanvasDialog title="编辑提示词" width="960px" onClose={closeExpandedPrompt}><div className={styles.expandedEditor}>{generationInputsContent}{!settings.locked && <button className={styles.expandedTemplate} onClick={() => { setExpandedPrompt(false); setPromptPickerOpen(true) }}><BookOpenText size={14} />提示词模板</button>}<textarea aria-label="放大的创作提示词" disabled={runningNodes.has(activeNode.id)} value={activeNode.prompt || ""} placeholder={settings.locked ? "基于关联角色图，生成面部近景、正面、侧面和背面全身合图。" : "描述你想生成的图片…"} onChange={event => updateNode(activeNode.id, { prompt: event.target.value })} /></div></CanvasDialog>}
+    {previewReference && <ImagePreviewModal images={[previewReference]} index={0} setIndex={() => {}} getSrc={item => item.result} getName={item => item.title} onClose={closePreviewReference} />}
+    {["assets", "history"].includes(panel) && <div className={styles.scrim} data-canvas-ui onClick={() => setPanel(null)}><section className={styles.panel} role="dialog" aria-modal="true" aria-label="节点与资源面板" onClick={event => event.stopPropagation()}><header><strong>{panel === "assets" ? "素材库" : "生成历史"}</strong><button aria-label="关闭面板" onClick={() => setPanel(null)}><X size={18} /></button></header><div className={styles.resourceList}>{panel === "assets" && characterViewSamples.map(sample => <button key={sample.id} onClick={() => { addNode("image", null, null, { result: sample.reference, title: sample.title }); setPanel(null) }}><div className={styles.resourceImage}><SafeImage src={sample.reference} alt={sample.title} className="absolute inset-0 h-full w-full object-contain" /></div>{sample.title} · 示例参考图</button>)}{panel === "assets" ? <button onClick={() => { addNode("image", null, null, { result: "/assets/layout-horizontal-5.jpg", title: "构图参考" }); setPanel(null) }}><div className={styles.resourceImage}><SafeImage src="/assets/layout-horizontal-5.jpg" alt="构图参考" className="absolute inset-0 h-full w-full object-cover" /></div>构图参考 · 加入画布</button> : document.nodes.filter((n) => n.generated).map((n) => <button key={n.id} onClick={() => { addNode(n.type, null, null, { result: n.result, prompt: n.prompt }); setPanel(null) }}>{n.title} · 加入画布</button>)}{panel === "history" && !document.nodes.some((n) => n.generated) && <p>还没有创作记录，先选择节点生成内容</p>}</div></section></div>}
     {message && <button className={styles.toast} onClick={() => setMessage("")} data-canvas-ui><Check size={16} />{message}<X size={14} /></button>}
   </div>
 }

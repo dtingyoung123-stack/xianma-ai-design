@@ -51,3 +51,13 @@ export function wheelViewport(viewport, event, point) {
   const world = worldPoint(point, viewport)
   return { x: point.x - world.x * k, y: point.y - world.y * k, k }
 }
+
+export function canvasWireTarget(nodes, sourceId, point, nodeHeight = 300) {
+  return nodes.findLast(node => {
+    if (node.id === sourceId) return false
+    const body = point.x >= node.x && point.x <= node.x + node.width && point.y >= node.y && point.y <= node.y + nodeHeight
+    // Match the visible 24px input port, including its part outside the node.
+    const inputPort = point.x >= node.x - 13 && point.x <= node.x + 11 && point.y >= node.y + 138 && point.y <= node.y + 162
+    return body || inputPort
+  })
+}
