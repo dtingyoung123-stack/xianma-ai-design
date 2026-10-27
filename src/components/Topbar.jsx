@@ -3,11 +3,12 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import { Coins, KeyRound, LogOut, Menu, Palette, RefreshCw, X } from "lucide-react"
+import { Bell, CheckCircle2, Coins, KeyRound, LogOut, Menu, Palette, RefreshCw, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useSidebar } from "./LayoutClient"
 import { topNavItems } from "@/config/navigation"
 import SafeImage from "./SafeImage"
+import { taskReminderPreview } from "@/data/demo/task-reminders"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +40,14 @@ export default function Topbar() {
   const user = getCurrentUser()
   const [pointsState, setPointsState] = useState(() => readPointsState())
   const usage = getUsageStats(pointsState)
+  const [reminderEnabled, setReminderEnabled] = useState(false)
+  const [reminderPreview, setReminderPreview] = useState(false)
+
+  function changeReminder() {
+    const next = !reminderEnabled
+    setReminderEnabled(next)
+    setReminderPreview(next)
+  }
 
   useEffect(() => {
     const sync = (event) => setPointsState(event.detail || readPointsState())
@@ -159,6 +168,9 @@ export default function Topbar() {
               <DropdownMenuItem className="h-9 gap-2 px-2.5">
                 <RefreshCw />刷新账号信息
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={changeReminder} className="min-h-9 gap-2 px-2.5">
+                <Bell />任务完成提醒<span className="ml-auto flex items-center gap-2 text-[11px] text-[var(--text-secondary)]">{reminderEnabled ? "已开启" : "未开启"}<span aria-hidden="true" className={cn("flex h-4 w-7 items-center rounded-full p-0.5", reminderEnabled ? "justify-end bg-[var(--brand-primary)]" : "justify-start bg-[var(--gray-300)]")}><span className="size-3 rounded-full bg-[var(--white)]" /></span></span>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="h-9 gap-2 px-2.5">
                 <LogOut />退出登录
@@ -167,6 +179,12 @@ export default function Topbar() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      {reminderPreview && <aside role="status" aria-label="模拟任务完成提醒" className="fixed bottom-5 right-5 z-[1300] w-[360px] max-w-[calc(100vw-32px)] rounded-xl border border-[var(--border-base)] bg-[var(--bg-card)] p-4 text-[var(--text-body)] shadow-xl">
+        <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2 text-xs text-[var(--text-secondary)]"><SafeImage src="/logo.png" alt="" className="size-5 rounded" />先马AI内容与视觉平台<span className="rounded bg-[var(--gray-100)] px-1.5 py-0.5 text-[10px]">模拟提醒</span></span><button type="button" aria-label="关闭任务完成提醒" onClick={() => setReminderPreview(false)} className="grid size-6 shrink-0 place-items-center rounded hover:bg-[var(--bg-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"><X size={14} /></button></div>
+        <div className="mt-3 flex items-start gap-2"><CheckCircle2 size={19} className="mt-0.5 shrink-0 text-[var(--success)]" /><div><p className="text-sm font-semibold text-[var(--text-title)]">{taskReminderPreview.title}</p><p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{taskReminderPreview.description}</p></div></div>
+        <p className="mt-3 border-t border-[var(--border-light)] pt-3 text-xs text-[var(--text-secondary)]">任务完成后可返回对应任务查看结果。</p>
+      </aside>}
+
     </header>
   )
 }

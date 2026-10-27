@@ -313,6 +313,7 @@ export default function BatchEditWorkbench() {
             />
 
             <WorkbenchPromptEditor
+              backgroundColorMode="batch-edit"
               title="统一修改提示词"
               value={prompt}
               onChange={setPrompt}

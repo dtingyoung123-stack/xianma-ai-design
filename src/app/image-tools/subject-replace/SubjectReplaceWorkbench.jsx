@@ -262,6 +262,7 @@ export default function SubjectReplaceWorkbench() {
             </WorkbenchModule>
 
             <WorkbenchPromptEditor
+              backgroundColorMode="subject-replace"
               title="替换指令"
               value={prompt}
               onChange={setPrompt}

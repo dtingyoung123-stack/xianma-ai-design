@@ -191,6 +191,7 @@ export default function ExpertWorkbench() {
             )}
 
             <WorkbenchPromptEditor
+              backgroundColorMode="expert"
               title="专家级创作指令"
               value={prompt}
               onChange={setPrompt}

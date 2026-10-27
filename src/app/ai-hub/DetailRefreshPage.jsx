@@ -258,7 +258,7 @@ export default function DetailRefreshPage() {
             <div className="mt-3 flex items-start gap-2 rounded-lg bg-[var(--info-bg)] px-3 py-2 text-xs leading-5 text-[var(--text-body)]"><CircleAlert size={14} className="mt-0.5 shrink-0 text-[var(--info)]" />{selectedProduct ? "商品智库已确认信息优先，上传商品图片作为额外参考。" : replacementImages.length ? "将按上传商品图片替换原商品。" : "未选择替换来源，将保持原商品，仅焕新视觉、人物、背景与场景。"}</div>
           </WorkbenchModule>
 
-          <WorkbenchPromptEditor title="补充提示词" value={prompt} onChange={setPrompt} onTemplate={() => setPromptPickerOpen(true)} onClear={() => setPrompt("")} onPolish={() => setPolishOpen(true)} maxLength={500} rows={5} placeholder="例如：整体更清爽，保留详情页信息层级。" helperText="仅影响人物、背景、场景、氛围、构图和版式，不新增未提供的商品事实。" />
+          <WorkbenchPromptEditor backgroundColorMode="detail-refresh" title="补充提示词" value={prompt} onChange={setPrompt} onTemplate={() => setPromptPickerOpen(true)} onClear={() => setPrompt("")} onPolish={() => setPolishOpen(true)} maxLength={500} rows={5} placeholder="例如：整体更清爽，保留详情页信息层级。" helperText="仅影响人物、背景、场景、氛围、构图和版式，不新增未提供的商品事实。" />
         </WorkbenchScroll>
         <WorkbenchFooter>
           <WorkbenchButton variant="ghost" onClick={() => { setImages([]); setSelectedProduct(null); setReplacementImages([]); setPrompt(""); setTask({ status: "IDLE", progress: 0, results: [] }); notify("已清空当前配置") }}><Trash2 size={15} />清空</WorkbenchButton>
